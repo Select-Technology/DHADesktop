@@ -23,12 +23,41 @@ namespace DHA.DSTC.WPF.Services
         {
             try
             {
-                List<Entity> entities = _connector.RetrieveMultiple(_entityName);
-                return entities.Select(Project.FromEntity).ToList();
+                // Ensure connection before attempting to retrieve data
+                if (!_connector.Connect())
+                {
+                    MessageBox.Show("Failed to connect to Dataverse",
+                        "Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return new List<Project>();
+                }
+
+                // Use specific columns instead of retrieving all
+                var query = new QueryExpression(_entityName)
+                {
+                    ColumnSet = new ColumnSet("msdyn_subject", "isc_projectnumbernew", "msdyn_customer", "statecode"),
+                    Orders = {
+                        new OrderExpression("msdyn_subject", OrderType.Ascending)
+                    }
+                };
+
+                // Add condition to only get active projects
+                query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0); // 0 = Active
+
+                var result = _connector._orgService.RetrieveMultiple(query);
+
+                if (result?.Entities == null)
+                {
+                    MessageBox.Show("No data returned from Dataverse",
+                        "Data Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return new List<Project>();
+                }
+
+                var entities = result.Entities.ToList();
+                return entities.Select(Project.FromEntity).Where(p => p != null).ToList();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error retrieving projects: {ex.Message}\nThe entity name used was: {_entityName}",
+                MessageBox.Show($"Error retrieving projects: {ex.Message}\n\nEntity name: {_entityName}\n\nInner exception: {ex.InnerException?.Message}",
                     "Data Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return new List<Project>();
             }
@@ -38,8 +67,27 @@ namespace DHA.DSTC.WPF.Services
         {
             try
             {
-                Entity entity = _connector.Retrieve(_entityName, id);
-                return Project.FromEntity(entity);
+                if (!_connector.Connect())
+                {
+                    return null;
+                }
+
+                var query = new QueryExpression(_entityName)
+                {
+                    ColumnSet = new ColumnSet("msdyn_subject", "isc_projectnumbernew", "msdyn_customer", "statecode"),
+                    Criteria = new FilterExpression()
+                };
+
+                query.Criteria.AddCondition("msdyn_projectid", ConditionOperator.Equal, id);
+
+                var result = _connector._orgService.RetrieveMultiple(query);
+
+                if (result?.Entities?.Count > 0)
+                {
+                    return Project.FromEntity(result.Entities[0]);
+                }
+
+                return null;
             }
             catch (Exception ex)
             {
@@ -58,19 +106,36 @@ namespace DHA.DSTC.WPF.Services
 
             try
             {
-                _connector.Connect();
+                if (!_connector.Connect())
+                {
+                    return new List<Project>();
+                }
 
                 var query = new QueryExpression(_entityName)
                 {
-                    ColumnSet = new ColumnSet(true),
-                    Criteria = new FilterExpression(LogicalOperator.Or)
+                    ColumnSet = new ColumnSet("msdyn_subject", "isc_projectnumbernew", "msdyn_customer", "statecode"),
+                    Criteria = new FilterExpression(LogicalOperator.And)
                 };
 
-                query.Criteria.AddCondition("fwp_name", ConditionOperator.Like, $"%{searchTerm}%");
-                query.Criteria.AddCondition("fwp_number", ConditionOperator.Like, $"%{searchTerm}%");
+                // Add search conditions
+                var searchGroup = new FilterExpression(LogicalOperator.Or);
+                searchGroup.AddCondition("msdyn_subject", ConditionOperator.Like, $"%{searchTerm}%");
+                searchGroup.AddCondition("isc_projectnumbernew", ConditionOperator.Like, $"%{searchTerm}%");
 
-                var entities = _connector._orgService.RetrieveMultiple(query).Entities.ToList();
-                return entities.Select(Project.FromEntity).ToList();
+                query.Criteria.AddFilter(searchGroup);
+
+                // Only active projects
+                query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+
+                var result = _connector._orgService.RetrieveMultiple(query);
+
+                if (result?.Entities == null)
+                {
+                    return new List<Project>();
+                }
+
+                var entities = result.Entities.ToList();
+                return entities.Select(Project.FromEntity).Where(p => p != null).ToList();
             }
             catch (Exception ex)
             {
@@ -84,6 +149,11 @@ namespace DHA.DSTC.WPF.Services
         {
             try
             {
+                if (!_connector.Connect())
+                {
+                    return Guid.Empty;
+                }
+
                 Entity entity = project.ToEntity();
                 return _connector.Create(entity);
             }
@@ -99,6 +169,11 @@ namespace DHA.DSTC.WPF.Services
         {
             try
             {
+                if (!_connector.Connect())
+                {
+                    return;
+                }
+
                 Entity entity = project.ToEntity();
                 _connector.Update(entity);
             }
@@ -113,6 +188,11 @@ namespace DHA.DSTC.WPF.Services
         {
             try
             {
+                if (!_connector.Connect())
+                {
+                    return;
+                }
+
                 _connector.Delete(_entityName, id);
             }
             catch (Exception ex)
