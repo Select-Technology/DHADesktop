@@ -46,13 +46,16 @@ namespace DHA.DSTC.WPF
         private readonly TextBlock[] _dayLabels = new TextBlock[42];
         private readonly TextBlock[] _hoursLabels = new TextBlock[42];
 
-        // Performance optimization - cached brushes
+        // Performance optimisation - cached brushes
         private static readonly SolidColorBrush _lightRedBrush = new SolidColorBrush(Color.FromRgb(254, 226, 226));
         private static readonly SolidColorBrush _lightOrangeBrush = new SolidColorBrush(Color.FromRgb(255, 237, 213));
         private static readonly SolidColorBrush _lightGreenBrush = new SolidColorBrush(Color.FromRgb(220, 252, 231));
         private static readonly SolidColorBrush _transparentBrush = Brushes.Transparent;
         private static readonly SolidColorBrush _todayBrush = new SolidColorBrush(Color.FromRgb(37, 99, 235));
         private static readonly SolidColorBrush _otherMonthBrush = new SolidColorBrush(Color.FromRgb(156, 163, 175));
+
+        // Current user tracking
+        private TeamMember _currentUser;
         #endregion
 
         #region Properties for Data Binding
@@ -87,17 +90,17 @@ namespace DHA.DSTC.WPF
         }
         #endregion
 
-        #region Constructor and Initialization
+        #region Constructor and Initialisation
         public MainWindow()
         {
             InitializeComponent();
             DataContext = this;
 
-            // Initialize services using ServiceLocator
+            // Initialise services using ServiceLocator
             if (!ServiceLocator.Initialize())
             {
-                MessageBox.Show($"Failed to initialize services: {ServiceLocator.LastError}",
-                    "Initialization Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Failed to initialise services: {ServiceLocator.LastError}",
+                    "Initialisation Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 Close();
                 return;
             }
@@ -108,7 +111,7 @@ namespace DHA.DSTC.WPF
             _teamMemberService = ServiceLocator.TeamMemberService;
             _calendarService = ServiceLocator.CalendarService;
 
-            // Initialize collections
+            // Initialise collections
             TimeEntries = new ObservableCollection<TimeEntry>();
             Projects = new ObservableCollection<Project>();
             TeamMembers = new ObservableCollection<TeamMember>();
@@ -116,6 +119,11 @@ namespace DHA.DSTC.WPF
 
             // Set up calendar
             _currentCalendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+
+            // Set default date ranges
+            FromDatePicker.SelectedDate = DateTime.Today;
+            ToDatePicker.SelectedDate = DateTime.Today;
+            TimeEntryDatePicker.SelectedDate = DateTime.Today;
 
             InitializeSystemTray();
             InitializeEventHandlers();
@@ -129,6 +137,11 @@ namespace DHA.DSTC.WPF
             AddTimeEntryButton.Click += AddTimeEntryButton_Click;
             ProjectSearchBox.TextChanged += ProjectSearchBox_TextChanged;
             ProjectSearchBox.GotFocus += ProjectSearchBox_GotFocus;
+            RefreshEntriesButton.Click += RefreshEntriesButton_Click;
+
+            // Date picker events
+            FromDatePicker.SelectedDateChanged += DateRange_Changed;
+            ToDatePicker.SelectedDateChanged += DateRange_Changed;
 
             // Calendar events
             PreviousMonthButton.Click += PreviousMonthButton_Click;
@@ -172,47 +185,17 @@ namespace DHA.DSTC.WPF
             _notifyIcon.DoubleClick += (s, e) => ShowApplication();
         }
 
-        /*private async void LoadInitialData()
-        {
-            try
-            {
-                UpdateStatus("Loading data...");
-
-                // Load team members first
-                await LoadTeamMembersAsync();
-
-                // Load projects
-                await LoadProjectsAsync();
-
-                // Load recent time entries
-                await LoadTimeEntriesAsync();
-
-                // Load calendar data
-                await LoadCalendarDataAsync();
-
-                UpdateStatus("Ready");
-                UpdateConnectionStatus(true);
-            }
-            catch (Exception ex)
-            {
-                UpdateStatus($"Error loading data: {ex.Message}");
-                UpdateConnectionStatus(false);
-                MessageBox.Show($"Error initializing application: {ex.Message}",
-                    "Initialization Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }*/
-
         private async void LoadInitialData()
         {
             try
             {
                 UpdateStatus("Loading data...");
 
-                // Load team members first
+                // Load team members first (with filtering)
                 await LoadTeamMembersAsync();
                 // Load projects
                 await LoadProjectsAsync();
-                // Load recent time entries
+                // Load recent time entries for current user
                 await LoadTimeEntriesAsync();
                 // Load calendar data
                 await LoadCalendarDataAsync();
@@ -240,15 +223,30 @@ namespace DHA.DSTC.WPF
                 Dispatcher.Invoke(() =>
                 {
                     TeamMembers.Clear();
-                    foreach (var member in teamMembers)
+
+                    // Filter out users with # character and add to collection
+                    foreach (var member in teamMembers.Where(tm => !tm.FullName.Contains("#")))
                     {
                         TeamMembers.Add(member);
                     }
 
                     TeamMemberComboBox.ItemsSource = TeamMembers;
-                    if (TeamMembers.Any())
+
+                    // Try to find current user from ServiceLocator
+                    if (ServiceLocator.CurrentUserId != Guid.Empty)
+                    {
+                        _currentUser = TeamMembers.FirstOrDefault(tm => tm.Id == ServiceLocator.CurrentUserId);
+                        if (_currentUser != null)
+                        {
+                            TeamMemberComboBox.SelectedItem = _currentUser;
+                        }
+                    }
+
+                    // If we couldn't find current user, select first item
+                    if (TeamMemberComboBox.SelectedItem == null && TeamMembers.Any())
                     {
                         TeamMemberComboBox.SelectedIndex = 0;
+                        _currentUser = TeamMembers[0];
                     }
                 });
             }
@@ -285,23 +283,45 @@ namespace DHA.DSTC.WPF
         {
             try
             {
-                var timeEntries = await Task.Run(() => _timeEntryService.GetTimeEntries());
+                if (_currentUser == null) return;
+
+                var fromDate = FromDatePicker.SelectedDate ?? DateTime.Today;
+                var toDate = ToDatePicker.SelectedDate ?? DateTime.Today;
+
+                // Get all time entries and filter by current user and date range
+                var allTimeEntries = await Task.Run(() => _timeEntryService.GetTimeEntries());
+
+                var filteredEntries = allTimeEntries
+                    .Where(te => te.TeamMemberId == _currentUser.Id)
+                    .Where(te => te.Date.Date >= fromDate.Date && te.Date.Date <= toDate.Date)
+                    .OrderByDescending(te => te.Date)
+                    .ToList();
 
                 Dispatcher.Invoke(() =>
                 {
                     TimeEntries.Clear();
-                    foreach (var entry in timeEntries.Take(50)) // Show recent 50
+                    foreach (var entry in filteredEntries)
                     {
                         TimeEntries.Add(entry);
                     }
 
                     TimeEntriesDataGrid.ItemsSource = TimeEntries;
+                    UpdateTimeEntriesSummary();
                 });
             }
             catch (Exception ex)
             {
                 UpdateStatus($"Error loading time entries: {ex.Message}");
             }
+        }
+
+        private void UpdateTimeEntriesSummary()
+        {
+            var totalEntries = TimeEntries.Count;
+            var totalHours = TimeEntries.Sum(te => te.TotalHours);
+
+            TotalEntriesLabel.Text = $"Total entries: {totalEntries}";
+            TotalHoursLabel.Text = $"Total hours: {totalHours:F1}";
         }
         #endregion
 
@@ -318,7 +338,7 @@ namespace DHA.DSTC.WPF
                     return;
                 }
 
-                if (TeamMemberComboBox.SelectedItem == null)
+                if (_currentUser == null)
                 {
                     MessageBox.Show("Please select a team member.", "Validation Error",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -343,7 +363,6 @@ namespace DHA.DSTC.WPF
                 }
 
                 var selectedProject = (Project)ProjectsList.SelectedItem;
-                var selectedTeamMember = (TeamMember)TeamMemberComboBox.SelectedItem;
 
                 // Create time entry
                 var timeEntry = new TimeEntry
@@ -353,7 +372,7 @@ namespace DHA.DSTC.WPF
                     Minutes = minutes,
                     Comments = CommentsTextBox.Text,
                     ProjectId = selectedProject.Id,
-                    TeamMemberId = selectedTeamMember.Id,
+                    TeamMemberId = _currentUser.Id,
                     ProjectName = selectedProject.Name
                 };
 
@@ -366,6 +385,7 @@ namespace DHA.DSTC.WPF
                     TimeEntries.Insert(0, timeEntry);
                     ClearTimeEntryForm();
                     UpdateStatus("Time entry added successfully");
+                    UpdateTimeEntriesSummary();
 
                     // Refresh calendar if showing current month
                     if (IsCurrentMonth())
@@ -427,6 +447,20 @@ namespace DHA.DSTC.WPF
             CommentsTextBox.Clear();
             ProjectsList.SelectedItem = null;
             ProjectSearchBox.Text = "Search projects...";
+        }
+
+        private async void RefreshEntriesButton_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadTimeEntriesAsync();
+        }
+
+        private async void DateRange_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            // Only refresh if both dates are set
+            if (FromDatePicker.SelectedDate.HasValue && ToDatePicker.SelectedDate.HasValue)
+            {
+                await LoadTimeEntriesAsync();
+            }
         }
         #endregion
 
@@ -610,7 +644,7 @@ namespace DHA.DSTC.WPF
             // Check if this day has hours logged
             if (_dailyHours.TryGetValue(date.Date, out decimal hours))
             {
-                // Color code based on hours - use cached brushes for performance
+                // Colour code based on hours - use cached brushes for performance
                 cellBorder.Background = hours < 3
                     ? _lightRedBrush
                     : hours < 7
@@ -643,9 +677,12 @@ namespace DHA.DSTC.WPF
 
         private async void TeamMemberComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (TeamMemberComboBox.SelectedItem != null)
+            var selectedMember = TeamMemberComboBox.SelectedItem as TeamMember;
+            if (selectedMember != null)
             {
+                _currentUser = selectedMember;
                 await LoadCalendarDataAsync();
+                await LoadTimeEntriesAsync(); // Refresh time entries for new user
             }
         }
         #endregion
@@ -683,84 +720,6 @@ namespace DHA.DSTC.WPF
             Activate();
         }
 
-
-        // Add this temporary test method to MainWindow.xaml.cs for debugging
-
-        private async Task TestDataverseConnection()
-        {
-            try
-            {
-                UpdateStatus("Testing Dataverse connection...");
-
-                // Step 1: Check settings values
-                var clientId = Settings.Default.DataverseClientId;
-                var tenantId = Settings.Default.DataverseTenantId;
-                var envUrl = Settings.Default.DataverseEnvironmentUrl;
-
-                MessageBox.Show($"Settings Check:\n" +
-                               $"ClientId: {clientId}\n" +
-                               $"TenantId: {tenantId}\n" +
-                               $"Environment: {envUrl}\n\n" +
-                               $"Are these correct?",
-                               "Settings Verification", MessageBoxButton.OK, MessageBoxImage.Information);
-
-                // Step 2: Test authentication service
-                var authService = DataverseAuthService.Instance;
-
-                // Force interactive login
-                var connected = await authService.ConnectAsync(true);
-
-                if (connected)
-                {
-                    UpdateStatus("✅ Authentication successful!");
-
-                    // Step 3: Test actual data access
-                    var connector = new DataverseConnector();
-                    var result = connector.Connect(forceReconnect: true, showMessages: true);
-
-                    if (result)
-                    {
-                        UpdateStatus("✅ Full Dataverse connection successful!");
-
-                        // Step 4: Test a simple query
-                        try
-                        {
-                            var entities = connector.RetrieveMultiple("systemuser", new[] { "fullname" });
-                            UpdateStatus($"✅ Data query successful! Found {entities.Count} users.");
-                        }
-                        catch (Exception queryEx)
-                        {
-                            UpdateStatus($"❌ Data query failed: {queryEx.Message}");
-                        }
-                    }
-                    else
-                    {
-                        UpdateStatus("❌ Dataverse connector failed");
-                    }
-                }
-                else
-                {
-                    UpdateStatus("❌ Authentication failed");
-                    MessageBox.Show("Authentication failed. This could be:\n\n" +
-                                   "1. Wrong Client ID for this environment\n" +
-                                   "2. App registration not configured properly\n" +
-                                   "3. User doesn't have access to this environment\n" +
-                                   "4. Network/firewall blocking connection",
-                                   "Authentication Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                UpdateStatus($"❌ Connection test failed: {ex.Message}");
-                MessageBox.Show($"Detailed Error:\n\n" +
-                               $"Message: {ex.Message}\n\n" +
-                               $"Type: {ex.GetType().Name}\n\n" +
-                               $"Inner Exception: {ex.InnerException?.Message}\n\n" +
-                               $"Stack Trace: {ex.StackTrace}",
-                               "Connection Error Details", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
         private void ExitApplication()
         {
             _isExitingFromTray = true;
@@ -784,7 +743,10 @@ namespace DHA.DSTC.WPF
                 if (isConnected)
                 {
                     ConnectionIndicator.Fill = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // Green
-                    ConnectionStatusLabel.Text = "Connected to Dataverse";
+
+                    // Show user-friendly status with current user
+                    string userName = ServiceLocator.CurrentUserName ?? "Unknown User";
+                    ConnectionStatusLabel.Text = $"Connected to Dynamics as {userName}";
                 }
                 else
                 {

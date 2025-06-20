@@ -1,6 +1,3 @@
-// Fix for DHA.DSTC/Models/TimeEntry.cs
-// Update the ToString() method to ensure UK date format and proper hours display
-
 using System;
 using Microsoft.Xrm.Sdk;
 
@@ -96,9 +93,9 @@ namespace DHA.DSTC.WPF.Models
                 // Handle lookup references
                 try
                 {
-                    if (entity.Contains("msdyn_project"))
+                    if (entity.Contains("fwp_project"))
                     {
-                        var projectRef = entity.GetAttributeValue<EntityReference>("msdyn_project");
+                        var projectRef = entity.GetAttributeValue<EntityReference>("fwp_project");
                         if (projectRef != null)
                         {
                             timeEntry.ProjectId = projectRef.Id;
@@ -137,7 +134,7 @@ namespace DHA.DSTC.WPF.Models
             }
         }
 
-        // Convert from TimeEntry model to Dataverse Entity
+        // Convert from TimeEntry model to Dataverse Entity - Handle quote field requirement
         public Entity ToEntity()
         {
             var entity = new Entity("fwp_timeentry");
@@ -145,16 +142,29 @@ namespace DHA.DSTC.WPF.Models
             if (Id != Guid.Empty)
                 entity.Id = Id;
 
+            // Set required fields
             entity["fwp_date"] = Date.Date;
             entity["fwp_decimalhours"] = Hours;
             entity["fwp_minutes"] = Minutes;
+
+            // Set notes (empty string if null to avoid issues)
             entity["fwp_notes"] = Comments ?? string.Empty;
 
+            // Set project reference if we have a valid ID
             if (ProjectId != Guid.Empty)
+            {
                 entity["fwp_project"] = new EntityReference("msdyn_project", ProjectId);
+            }
 
+            // Set team member reference if we have a valid ID
             if (TeamMemberId != Guid.Empty)
+            {
                 entity["fwp_teammember"] = new EntityReference("systemuser", TeamMemberId);
+            }
+
+            // Explicitly set fwp_quote to null to satisfy any business rules
+            // This handles cases where the field is "optional" but workflows expect it to be explicitly set
+            entity["fwp_quote"] = null;
 
             return entity;
         }
