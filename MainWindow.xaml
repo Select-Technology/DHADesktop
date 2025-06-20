@@ -118,16 +118,12 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Ellipse Width="32" Height="32" Fill="{StaticResource PrimaryBrush}" Margin="0,0,12,0">
-                        <Ellipse.Effect>
-                            <DropShadowEffect Color="{Binding Source={StaticResource PrimaryBrush}, Path=Color}" 
-                                            Direction="270" ShadowDepth="2" Opacity="0.3" BlurRadius="8"/>
-                        </Ellipse.Effect>
-                    </Ellipse>
+                    <Image Source="pack://application:,,,/Resources/dha-logo-small.jpg" Width="113" Height="50" Margin="0,0,12,0">
+                    </Image>
                     <StackPanel>
                         <TextBlock Text="DHA Time Management" FontSize="20" FontWeight="SemiBold" 
                                  Foreground="{StaticResource TextPrimaryBrush}"/>
-                        <TextBlock x:Name="SubtitleText" Text="Modern WPF Interface - Track time efficiently" 
+                        <TextBlock x:Name="SubtitleText" Text="Track time and disbursements efficiently" 
                                  FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
                     </StackPanel>
                 </StackPanel>
@@ -343,9 +339,100 @@
             <!-- Disbursements Tab -->
             <TabItem Header="💰 Disbursements">
                 <Grid Margin="16">
-                    <TextBlock Text="Disbursements tab - Coming soon!" 
-                             HorizontalAlignment="Center" VerticalAlignment="Center"
-                             FontSize="16" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="340"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Disbursement Entry Form -->
+                    <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="New Disbursement" FontSize="18" FontWeight="SemiBold" 
+                                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+
+                                <TextBlock Text="Date" Style="{StaticResource FormLabelStyle}"/>
+                                <DatePicker x:Name="DisbursementDatePicker" Margin="4,0,4,12"/>
+
+                                <TextBlock Text="Project" Style="{StaticResource FormLabelStyle}"/>
+                                <TextBox x:Name="DisbursementProjectSearchBox" Style="{StaticResource ModernTextBoxStyle}"
+                                       Margin="4,0,4,8" Text="Search projects..."/>
+                                <ListBox x:Name="DisbursementProjectsList" Height="100" Margin="4,0,4,12"
+                                       DisplayMemberPath="Name" SelectedValuePath="Id"/>
+
+                                <TextBlock Text="Disbursement Type" Style="{StaticResource FormLabelStyle}"/>
+                                <ComboBox x:Name="DisbursementTypeComboBox" Margin="4,0,4,12"
+                                         DisplayMemberPath="Name" SelectedValuePath="Id"/>
+
+                                <TextBlock Text="Amount (£)" Style="{StaticResource FormLabelStyle}"/>
+                                <TextBox x:Name="DisbursementAmountTextBox" Style="{StaticResource ModernTextBoxStyle}"
+                                       Margin="4,0,4,12" TextAlignment="Right"/>
+
+                                <TextBlock Text="Description" Style="{StaticResource FormLabelStyle}"/>
+                                <TextBox x:Name="DisbursementDescriptionTextBox" Style="{StaticResource ModernTextBoxStyle}"
+                                       AcceptsReturn="True" TextWrapping="Wrap" Height="80" Margin="4,0,4,16"/>
+
+                                <Button x:Name="AddDisbursementButton" Content="Add Disbursement" 
+                                      Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Stretch"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Disbursements List -->
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,8,0,8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Header with title and date range -->
+                            <Grid Grid.Row="0" Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="Recent Disbursements" FontSize="18" FontWeight="SemiBold" 
+                                         Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="From:" VerticalAlignment="Center" Margin="0,0,8,0" 
+                                             Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <DatePicker x:Name="DisbursementFromDatePicker" Width="120" Margin="0,0,8,0"/>
+                                    <TextBlock Text="To:" VerticalAlignment="Center" Margin="0,0,8,0" 
+                                             Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <DatePicker x:Name="DisbursementToDatePicker" Width="120" Margin="0,0,8,0"/>
+                                    <Button x:Name="RefreshDisbursementsButton" Content="🔄" ToolTip="Refresh" 
+                                          Style="{StaticResource PrimaryButtonStyle}" Padding="8,6" Width="32"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Summary row -->
+                            <Border Grid.Row="1" Background="#F1F5F9" CornerRadius="4" Padding="12,8" Margin="0,0,0,12">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="TotalDisbursementsLabel" Text="Total disbursements: 0" 
+                                             Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,16,0"/>
+                                    <TextBlock x:Name="TotalDisbursementAmountLabel" Text="Total amount: £0.00" 
+                                             Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <DataGrid x:Name="DisbursementsDataGrid" Grid.Row="2" 
+                                    AutoGenerateColumns="False" CanUserAddRows="False"
+                                    HeadersVisibility="Column" GridLinesVisibility="None"
+                                    Background="Transparent" BorderThickness="0">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Date" Binding="{Binding Date, StringFormat=dd/MM/yyyy}" Width="100"/>
+                                    <DataGridTextColumn Header="Project" Binding="{Binding ProjectName}" Width="*"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding DisbursementTypeName}" Width="120"/>
+                                    <DataGridTextColumn Header="Amount" Binding="{Binding Amount, StringFormat=C}" Width="100"/>
+                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
                 </Grid>
             </TabItem>
         </TabControl>

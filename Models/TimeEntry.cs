@@ -21,6 +21,7 @@ namespace DHA.DSTC.WPF.Models
 
         public TimeEntry()
         {
+            // Ensure date is always date-only to prevent timezone issues
             Date = DateTime.Today;
             Id = Guid.Empty;
         }
@@ -142,8 +143,9 @@ namespace DHA.DSTC.WPF.Models
             if (Id != Guid.Empty)
                 entity.Id = Id;
 
-            // Set required fields
-            entity["fwp_date"] = Date.Date;
+            // Set required fields - ensure date is saved as date-only without time component
+            // This prevents timezone conversion issues that cause dates to shift
+            entity["fwp_date"] = new DateTime(Date.Year, Date.Month, Date.Day, 0, 0, 0, DateTimeKind.Unspecified);
             entity["fwp_decimalhours"] = Hours;
             entity["fwp_minutes"] = Minutes;
 

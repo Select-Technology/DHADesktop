@@ -25,11 +25,14 @@ namespace DHA.DSTC.WPF
         private readonly ProjectService _projectService;
         private readonly TeamMemberService _teamMemberService;
         private readonly CalendarService _calendarService;
+        private readonly DisbursementService _disbursementService;
 
         // Collections for data binding
         private ObservableCollection<TimeEntry> _timeEntries;
         private ObservableCollection<Project> _projects;
         private ObservableCollection<TeamMember> _teamMembers;
+        private ObservableCollection<Disbursement> _disbursements;
+        private ObservableCollection<DisbursementType> _disbursementTypes;
 
         // System tray
         private WinForms.NotifyIcon _notifyIcon;
@@ -88,8 +91,179 @@ namespace DHA.DSTC.WPF
                 OnPropertyChanged(nameof(TeamMembers));
             }
         }
+
+        public ObservableCollection<Disbursement> Disbursements
+        {
+            get => _disbursements;
+            set
+            {
+                _disbursements = value;
+                OnPropertyChanged(nameof(Disbursements));
+            }
+        }
+
+        public ObservableCollection<DisbursementType> DisbursementTypes
+        {
+            get => _disbursementTypes;
+            set
+            {
+                _disbursementTypes = value;
+                OnPropertyChanged(nameof(DisbursementTypes));
+            }
+        }
         #endregion
 
+        #region Disbursement Events
+        private async void AddDisbursementButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Validate inputs
+                if (DisbursementProjectsList.SelectedItem == null)
+                {
+                    MessageBox.Show("Please select a project.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (DisbursementTypeComboBox.SelectedItem == null)
+                {
+                    MessageBox.Show("Please select a disbursement type.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (_currentUser == null)
+                {
+                    MessageBox.Show("Please select a team member.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!decimal.TryParse(DisbursementAmountTextBox.Text, out decimal amount) || amount <= 0)
+                {
+                    MessageBox.Show("Please enter a valid amount.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(DisbursementDescriptionTextBox.Text))
+                {
+                    MessageBox.Show("Please enter a description.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var selectedProject = (Project)DisbursementProjectsList.SelectedItem;
+                var selectedType = (DisbursementType)DisbursementTypeComboBox.SelectedItem;
+
+                // Create disbursement
+                var disbursement = new Disbursement
+                {
+                    Date = DisbursementDatePicker.SelectedDate ?? DateTime.Today,
+                    Amount = amount,
+                    Description = DisbursementDescriptionTextBox.Text,
+                    ProjectGuid = selectedProject.Id,
+                    ProjectName = selectedProject.Name,
+                    TeamMemberGuid = _currentUser.Id,
+                    TeamMemberName = _currentUser.FullName,
+                    DisbursementTypeId = selectedType.Id,
+                    DisbursementTypeName = selectedType.Name,
+                    BillableToClient = true
+                };
+
+                UpdateStatus("Adding disbursement...");
+                var newId = await _disbursementService.AddDisbursementAsync(disbursement);
+
+                if (newId != Guid.Empty)
+                {
+                    disbursement.IdGuid = newId;
+                    Disbursements.Insert(0, disbursement);
+                    ClearDisbursementForm();
+                    UpdateStatus("Disbursement added successfully");
+                    UpdateDisbursementsSummary();
+                }
+                else
+                {
+                    UpdateStatus("Failed to add disbursement");
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error adding disbursement: {ex.Message}");
+                MessageBox.Show($"Error adding disbursement: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void DisbursementProjectSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            FilterDisbursementProjects();
+        }
+
+        private void DisbursementProjectSearchBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (DisbursementProjectSearchBox.Text == "Search projects...")
+            {
+                DisbursementProjectSearchBox.Text = "";
+            }
+        }
+
+        private void FilterDisbursementProjects()
+        {
+            var searchText = DisbursementProjectSearchBox.Text;
+
+            if (string.IsNullOrWhiteSpace(searchText) || searchText == "Search projects...")
+            {
+                DisbursementProjectsList.ItemsSource = Projects;
+            }
+            else
+            {
+                var filtered = Projects.Where(p =>
+                    (p.Name?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                    (p.Number?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                    (p.Client?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0)
+                ).ToList();
+
+                DisbursementProjectsList.ItemsSource = filtered;
+            }
+        }
+
+        private void ClearDisbursementForm()
+        {
+            DisbursementDatePicker.SelectedDate = DateTime.Today;
+            DisbursementAmountTextBox.Clear();
+            DisbursementDescriptionTextBox.Clear();
+            DisbursementProjectsList.SelectedItem = null;
+            DisbursementTypeComboBox.SelectedItem = null;
+            DisbursementProjectSearchBox.Text = "Search projects...";
+        }
+
+        private async void RefreshDisbursementsButton_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadDisbursementsAsync();
+        }
+
+        private async void DisbursementDateRange_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            // Only refresh if both dates are set
+            if (DisbursementFromDatePicker.SelectedDate.HasValue && DisbursementToDatePicker.SelectedDate.HasValue)
+            {
+                await LoadDisbursementsAsync();
+            }
+        }
+
+        private void UpdateDisbursementsSummary()
+        {
+            var totalDisbursements = Disbursements.Count;
+            var totalAmount = Disbursements.Sum(d => d.Amount);
+
+            TotalDisbursementsLabel.Text = $"Total disbursements: {totalDisbursements}";
+            TotalDisbursementAmountLabel.Text = $"Total amount: {totalAmount:C}";
+        }
+        #endregion
+
+        #region High-Performance Calendar Implementation
         #region Constructor and Initialisation
         public MainWindow()
         {
@@ -110,11 +284,14 @@ namespace DHA.DSTC.WPF
             _projectService = ServiceLocator.ProjectService;
             _teamMemberService = ServiceLocator.TeamMemberService;
             _calendarService = ServiceLocator.CalendarService;
+            _disbursementService = ServiceLocator.DisbursementService;
 
             // Initialise collections
             TimeEntries = new ObservableCollection<TimeEntry>();
             Projects = new ObservableCollection<Project>();
             TeamMembers = new ObservableCollection<TeamMember>();
+            Disbursements = new ObservableCollection<Disbursement>();
+            DisbursementTypes = new ObservableCollection<DisbursementType>();
             _dailyHours = new Dictionary<DateTime, decimal>();
 
             // Set up calendar
@@ -124,6 +301,9 @@ namespace DHA.DSTC.WPF
             FromDatePicker.SelectedDate = DateTime.Today;
             ToDatePicker.SelectedDate = DateTime.Today;
             TimeEntryDatePicker.SelectedDate = DateTime.Today;
+            DisbursementDatePicker.SelectedDate = DateTime.Today;
+            DisbursementFromDatePicker.SelectedDate = DateTime.Today;
+            DisbursementToDatePicker.SelectedDate = DateTime.Today;
 
             InitializeSystemTray();
             InitializeEventHandlers();
@@ -139,9 +319,17 @@ namespace DHA.DSTC.WPF
             ProjectSearchBox.GotFocus += ProjectSearchBox_GotFocus;
             RefreshEntriesButton.Click += RefreshEntriesButton_Click;
 
+            // Disbursement events
+            AddDisbursementButton.Click += AddDisbursementButton_Click;
+            DisbursementProjectSearchBox.TextChanged += DisbursementProjectSearchBox_TextChanged;
+            DisbursementProjectSearchBox.GotFocus += DisbursementProjectSearchBox_GotFocus;
+            RefreshDisbursementsButton.Click += RefreshDisbursementsButton_Click;
+
             // Date picker events
             FromDatePicker.SelectedDateChanged += DateRange_Changed;
             ToDatePicker.SelectedDateChanged += DateRange_Changed;
+            DisbursementFromDatePicker.SelectedDateChanged += DisbursementDateRange_Changed;
+            DisbursementToDatePicker.SelectedDateChanged += DisbursementDateRange_Changed;
 
             // Calendar events
             PreviousMonthButton.Click += PreviousMonthButton_Click;
@@ -195,8 +383,12 @@ namespace DHA.DSTC.WPF
                 await LoadTeamMembersAsync();
                 // Load projects
                 await LoadProjectsAsync();
+                // Load disbursement types
+                await LoadDisbursementTypesAsync();
                 // Load recent time entries for current user
                 await LoadTimeEntriesAsync();
+                // Load recent disbursements for current user
+                await LoadDisbursementsAsync();
                 // Load calendar data
                 await LoadCalendarDataAsync();
 
@@ -271,11 +463,35 @@ namespace DHA.DSTC.WPF
                     }
 
                     ProjectsList.ItemsSource = Projects;
+                    DisbursementProjectsList.ItemsSource = Projects; // Share projects with disbursements
                 });
             }
             catch (Exception ex)
             {
                 UpdateStatus($"Error loading projects: {ex.Message}");
+            }
+        }
+
+        private async Task LoadDisbursementTypesAsync()
+        {
+            try
+            {
+                var disbursementTypes = await _disbursementService.GetAllDisbursementTypesAsync();
+
+                Dispatcher.Invoke(() =>
+                {
+                    DisbursementTypes.Clear();
+                    foreach (var type in disbursementTypes)
+                    {
+                        DisbursementTypes.Add(type);
+                    }
+
+                    DisbursementTypeComboBox.ItemsSource = DisbursementTypes;
+                });
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error loading disbursement types: {ex.Message}");
             }
         }
 
@@ -312,6 +528,42 @@ namespace DHA.DSTC.WPF
             catch (Exception ex)
             {
                 UpdateStatus($"Error loading time entries: {ex.Message}");
+            }
+        }
+
+        private async Task LoadDisbursementsAsync()
+        {
+            try
+            {
+                if (_currentUser == null) return;
+
+                var fromDate = DisbursementFromDatePicker.SelectedDate ?? DateTime.Today;
+                var toDate = DisbursementToDatePicker.SelectedDate ?? DateTime.Today;
+
+                // Get all disbursements and filter by current user and date range
+                var allDisbursements = await _disbursementService.GetAllDisbursementsAsync();
+
+                var filteredDisbursements = allDisbursements
+                    .Where(d => d.TeamMemberGuid == _currentUser.Id)
+                    .Where(d => d.Date.Date >= fromDate.Date && d.Date.Date <= toDate.Date)
+                    .OrderByDescending(d => d.Date)
+                    .ToList();
+
+                Dispatcher.Invoke(() =>
+                {
+                    Disbursements.Clear();
+                    foreach (var disbursement in filteredDisbursements)
+                    {
+                        Disbursements.Add(disbursement);
+                    }
+
+                    DisbursementsDataGrid.ItemsSource = Disbursements;
+                    UpdateDisbursementsSummary();
+                });
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error loading disbursements: {ex.Message}");
             }
         }
 
@@ -464,7 +716,7 @@ namespace DHA.DSTC.WPF
         }
         #endregion
 
-        #region High-Performance Calendar Implementation
+        #region Calendar Methods
         private void InitializeCalendarStructure()
         {
             // Create day headers (Mon, Tue, Wed, etc.)
@@ -575,14 +827,14 @@ namespace DHA.DSTC.WPF
         {
             try
             {
-                var selectedTeamMember = TeamMemberComboBox.SelectedItem as TeamMember;
-                if (selectedTeamMember == null) return;
+                // Always use the currently connected user from ServiceLocator, not the dropdown
+                if (ServiceLocator.CurrentUserId == Guid.Empty) return;
 
                 var cancellationToken = _calendarCancellationToken?.Token ?? CancellationToken.None;
 
-                // Load data asynchronously without blocking UI
+                // Load data asynchronously without blocking UI - use connected user only
                 var dailyHours = await Task.Run(() =>
-                    _calendarService.GetMonthlyTimeEntries(selectedTeamMember.Id, _currentCalendarMonth),
+                    _calendarService.GetMonthlyTimeEntries(ServiceLocator.CurrentUserId, _currentCalendarMonth),
                     cancellationToken);
 
                 // Check if cancelled
@@ -617,9 +869,21 @@ namespace DHA.DSTC.WPF
         private void UpdateCalendarCells()
         {
             var firstDayOfMonth = new DateTime(_currentCalendarMonth.Year, _currentCalendarMonth.Month, 1);
-            var startDate = firstDayOfMonth.AddDays(-(int)firstDayOfMonth.DayOfWeek + 1); // Start from Monday
 
-            // Update existing cells with new data - super fast!
+            // Fix: Calculate start date properly for Monday start
+            // Get the day of week as integer: Sunday=0, Monday=1, Tuesday=2, etc.
+            int dayOfWeek = (int)firstDayOfMonth.DayOfWeek;
+
+            // Calculate days to subtract to get to Monday
+            // If Sunday (0), subtract 6 days; if Monday (1), subtract 0 days; if Tuesday (2), subtract 1 day, etc.
+            int daysToSubtract = (dayOfWeek == 0) ? 6 : dayOfWeek - 1;
+            var startDate = firstDayOfMonth.AddDays(-daysToSubtract);
+
+            // Debug output to verify the calculation
+            System.Diagnostics.Debug.WriteLine($"First day of month: {firstDayOfMonth:yyyy-MM-dd} ({firstDayOfMonth.DayOfWeek})");
+            System.Diagnostics.Debug.WriteLine($"Calendar start date: {startDate:yyyy-MM-dd} ({startDate.DayOfWeek})");
+
+            // Update existing cells with new data
             for (int i = 0; i < 42; i++)
             {
                 var currentDate = startDate.AddDays(i);
@@ -681,10 +945,13 @@ namespace DHA.DSTC.WPF
             if (selectedMember != null)
             {
                 _currentUser = selectedMember;
-                await LoadCalendarDataAsync();
-                await LoadTimeEntriesAsync(); // Refresh time entries for new user
+                // Only refresh time entries and disbursements, NOT calendar (calendar always shows connected user)
+                await LoadTimeEntriesAsync(); // Refresh time entries for selected user
+                await LoadDisbursementsAsync(); // Refresh disbursements for selected user
+                                                // Note: Calendar deliberately NOT refreshed - it always shows the connected user's data
             }
         }
+        #endregion
         #endregion
 
         #region Window and System Tray Events
