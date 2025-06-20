@@ -1,10 +1,10 @@
 using System;
 using System.Configuration;
-using DHA.DSTC.DataAccess;
-using DHA.DSTC.Services;
+using DHA.DSTC.WPF.DataAccess;
+using DHA.DSTC.WPF.Services;
 using Microsoft.Crm.Sdk.Messages;
 
-namespace DHA.DSTC.Utilities
+namespace DHA.DSTC.WPF.Utilities
 {
     /// <summary>
     /// Central access point for all services in the application

@@ -1,6 +1,6 @@
 using System;
 
-namespace DHA.DSTC.Utilities
+namespace DHA.DSTC.WPF.Utilities
 {
     /// <summary>
     /// Utility class for converting between GUIDs and integer IDs

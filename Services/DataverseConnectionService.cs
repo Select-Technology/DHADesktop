@@ -6,7 +6,7 @@ using Microsoft.Xrm.Sdk.Query;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace DHA.DSTC.Services
+namespace DHA.DSTC.WPF.Services
 {
     public class DataverseConnectionService
     {

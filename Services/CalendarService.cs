@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using DHA.DSTC.Models;
+using DHA.DSTC.WPF.Models;
 
-namespace DHA.DSTC.Services
+namespace DHA.DSTC.WPF.Services
 {
     public class CalendarService
     {

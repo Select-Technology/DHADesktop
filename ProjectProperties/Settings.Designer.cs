@@ -22,5 +22,32 @@ namespace DHA.DSTC.WPF.ProjectProperties {
                 return defaultInstance;
             }
         }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("28f0e92f-184e-4166-84cd-af41a0b93f83")]
+        public string DataverseTenantId {
+            get {
+                return ((string)(this["DataverseTenantId"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("https://dhapd.crm11.dynamics.com")]
+        public string DataverseEnvironmentUrl {
+            get {
+                return ((string)(this["DataverseEnvironmentUrl"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("41cf8aa2-60ea-404e-b549-32491b2060dc")]
+        public string DataverseClientId {
+            get {
+                return ((string)(this["DataverseClientId"]));
+            }
+        }
     }
 }

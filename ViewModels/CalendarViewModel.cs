@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using DHA.DSTC.Models;
-using DHA.DSTC.Services;
-using DHA.DSTC.Utilities;
+using DHA.DSTC.WPF.Models;
+using DHA.DSTC.WPF.Services;
+using DHA.DSTC.WPF.Utilities;
 
 namespace DHA.DSTC.ViewModels
 {

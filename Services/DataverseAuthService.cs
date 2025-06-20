@@ -3,10 +3,11 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Xrm.Tooling.Connector;
 using Microsoft.Xrm.Sdk;
+using DHA.DSTC.WPF.ProjectProperties;
 using Microsoft.Xrm.Sdk.Client;
 using System.Configuration;
 
-namespace DHA.DSTC.Services
+namespace DHA.DSTC.WPF.Services
 {
     public class DataverseAuthService
     {

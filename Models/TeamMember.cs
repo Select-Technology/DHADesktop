@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Xrm.Sdk;
 
-namespace DHA.DSTC.Models
+namespace DHA.DSTC.WPF.Models
 {
     public class TeamMember
     {

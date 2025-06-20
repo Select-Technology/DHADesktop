@@ -3,10 +3,319 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:DHA.DSTC.WPF"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="DHA Time Management" 
+        Height="700" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        Icon="Resources/app.ico"
+        Background="{DynamicResource BackgroundBrush}">
+
+    <Window.Resources>
+        <!-- Modern Color Palette -->
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#2563EB"/>
+        <SolidColorBrush x:Key="SecondaryBrush" Color="#64748B"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#10B981"/>
+        <SolidColorBrush x:Key="BackgroundBrush" Color="#F8FAFC"/>
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="BorderBrush" Color="#E2E8F0"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1E293B"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#64748B"/>
         
+        <!-- Modern Card Style -->
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="Margin" Value="8"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" Direction="270" ShadowDepth="2" Opacity="0.1" BlurRadius="8"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Modern Button Style -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="6"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                BorderBrush="{TemplateBinding BorderBrush}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#1D4ED8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#1E40AF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Modern TextBox Style -->
+        <Style x:Key="ModernTextBoxStyle" TargetType="TextBox">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ScrollViewer Margin="0" x:Name="PART_ContentHost"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                <Setter Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Modern Header -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" 
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="16,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Ellipse Width="32" Height="32" Fill="{StaticResource PrimaryBrush}" Margin="0,0,12,0">
+                        <Ellipse.Effect>
+                            <DropShadowEffect Color="{Binding Source={StaticResource PrimaryBrush}, Path=Color}" 
+                                            Direction="270" ShadowDepth="2" Opacity="0.3" BlurRadius="8"/>
+                        </Ellipse.Effect>
+                    </Ellipse>
+                    <StackPanel>
+                        <TextBlock Text="DHA Time Management" FontSize="20" FontWeight="SemiBold" 
+                                 Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock x:Name="SubtitleText" Text="Modern WPF Interface - Track time efficiently" 
+                                 FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <ComboBox x:Name="TeamMemberComboBox" Width="200" Margin="0,0,12,0"
+                             DisplayMemberPath="FullName" SelectedValuePath="Id"/>
+                    <Button Content="⚙️" ToolTip="Settings" Width="32" Height="32" 
+                           Style="{StaticResource PrimaryButtonStyle}" Padding="6"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Tabs -->
+        <TabControl x:Name="MainTabControl" Grid.Row="1" Margin="0">
+            <TabControl.Resources>
+                <Style TargetType="TabItem">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="TabItem">
+                                <Border Name="Border" Background="Transparent" BorderThickness="0" 
+                                       Padding="20,12" Margin="2,0">
+                                    <ContentPresenter x:Name="ContentSite"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Center"
+                                                    ContentSource="Header"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Border" Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Border" Property="Background" Value="#E2E8F0"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </TabControl.Resources>
+
+            <!-- Time Entry Tab -->
+            <TabItem Header="⏱️ Time Entries">
+                <Grid Margin="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Time Entry Form -->
+                    <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="New Time Entry" FontSize="18" FontWeight="SemiBold" 
+                                     Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+
+                            <TextBlock Text="Date" FontWeight="Medium" Margin="0,0,0,4"/>
+                            <DatePicker x:Name="TimeEntryDatePicker" Margin="0,0,0,12"/>
+
+                            <TextBlock Text="Project" FontWeight="Medium" Margin="0,0,0,4"/>
+                            <TextBox x:Name="ProjectSearchBox" Style="{StaticResource ModernTextBoxStyle}"
+                                   Margin="0,0,0,8" Text="Search projects..."/>
+                            <ListBox x:Name="ProjectsList" Height="120" Margin="0,0,0,12"
+                                   DisplayMemberPath="Name" SelectedValuePath="Id"/>
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Hours" FontWeight="Medium" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="HoursTextBox" Style="{StaticResource ModernTextBoxStyle}"
+                                           TextAlignment="Center" MaxLength="2"/>
+                                </StackPanel>
+                                
+                                <TextBlock Grid.Column="1" Text=":" VerticalAlignment="Bottom" 
+                                         Margin="8,0,8,12" FontSize="16" FontWeight="Bold"/>
+                                
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Minutes" FontWeight="Medium" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="MinutesTextBox" Style="{StaticResource ModernTextBoxStyle}"
+                                           TextAlignment="Center" MaxLength="2"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Comments" FontWeight="Medium" Margin="0,0,0,4"/>
+                            <TextBox x:Name="CommentsTextBox" Style="{StaticResource ModernTextBoxStyle}"
+                                   AcceptsReturn="True" TextWrapping="Wrap" Height="80" Margin="0,0,0,16"/>
+
+                            <Button x:Name="AddTimeEntryButton" Content="Add Time Entry" 
+                                  Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Time Entries List -->
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,8,0,8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Recent Time Entries" FontSize="18" FontWeight="SemiBold" 
+                                     Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+
+                            <DataGrid x:Name="TimeEntriesDataGrid" Grid.Row="1" 
+                                    AutoGenerateColumns="False" CanUserAddRows="False"
+                                    HeadersVisibility="Column" GridLinesVisibility="None"
+                                    Background="Transparent" BorderThickness="0">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Date" Binding="{Binding Date, StringFormat=dd/MM/yyyy}" Width="100"/>
+                                    <DataGridTextColumn Header="Project" Binding="{Binding ProjectName}" Width="*"/>
+                                    <DataGridTextColumn Header="Hours" Binding="{Binding Hours}" Width="60"/>
+                                    <DataGridTextColumn Header="Minutes" Binding="{Binding Minutes}" Width="60"/>
+                                    <DataGridTextColumn Header="Comments" Binding="{Binding Comments}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Calendar Tab - Performance Optimized -->
+            <TabItem Header="📅 Calendar">
+                <Grid Margin="16">
+                    <Border Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Calendar Header -->
+                            <Grid Grid.Row="0" Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Column="0" Content="◀" Width="32" Height="32" 
+                                      Style="{StaticResource PrimaryButtonStyle}" Padding="6"
+                                      x:Name="PreviousMonthButton"/>
+                                
+                                <TextBlock Grid.Column="1" x:Name="CurrentMonthLabel" Text="June 2025" 
+                                         FontSize="20" FontWeight="SemiBold" 
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                         Foreground="{StaticResource TextPrimaryBrush}"/>
+                                
+                                <Button Grid.Column="2" Content="▶" Width="32" Height="32" 
+                                      Style="{StaticResource PrimaryButtonStyle}" Padding="6"
+                                      x:Name="NextMonthButton"/>
+                            </Grid>
+
+                            <!-- Calendar Grid - This will be populated in code-behind -->
+                            <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                                <UniformGrid x:Name="CalendarGrid" Rows="7" Columns="7"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Disbursements Tab -->
+            <TabItem Header="💰 Disbursements">
+                <Grid Margin="16">
+                    <TextBlock Text="Disbursements tab - Coming soon!" 
+                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                             FontSize="16" Foreground="{StaticResource TextSecondaryBrush}"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" 
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid Margin="16,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock x:Name="StatusLabel" Grid.Column="0" Text="Ready" 
+                         Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Ellipse Width="8" Height="8" x:Name="ConnectionIndicator" Fill="{StaticResource AccentBrush}" 
+                           Margin="0,0,8,0"/>
+                    <TextBlock x:Name="ConnectionStatusLabel" Text="Connected to Dataverse" 
+                             Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

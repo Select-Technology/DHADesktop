@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using DHA.DSTC.DataAccess;
-using DHA.DSTC.Models;
+using DHA.DSTC.WPF.DataAccess;
+using DHA.DSTC.WPF.Models;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Metadata;
 using Microsoft.Xrm.Sdk.Query;
 
-namespace DHA.DSTC.Services
+namespace DHA.DSTC.WPF.Services
 {
     public class DisbursementService
     {

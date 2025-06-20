@@ -1,6 +1,6 @@
 using System;
 
-namespace DHA.DSTC.Models
+namespace DHA.DSTC.WPF.Models
 {
     public class Disbursement
     {

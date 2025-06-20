@@ -7,9 +7,9 @@ using System.Configuration;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
-using DHA.DSTC.Services;
+using DHA.DSTC.WPF.Services;
 
-namespace DHA.DSTC.DataAccess
+namespace DHA.DSTC.WPF.DataAccess
 {
     public class DataverseConnector
     {
