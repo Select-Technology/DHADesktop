@@ -43,7 +43,7 @@ namespace DHA.DSTC.WPF.DataAccess
                     Thread.Sleep(500);
                 }
 
-                // FORCE INTERACTIVE LOGIN - This is the key difference!
+                // Use true to force interactive login
                 bool result = _authService.ConnectAsync(true).GetAwaiter().GetResult();
 
                 if (result && showMessages)
@@ -55,15 +55,34 @@ namespace DHA.DSTC.WPF.DataAccess
                         var client = _orgService as CrmServiceClient;
                         if (client != null)
                         {
-                            userName = client.OAuthUserId ??
-                                      client.ConnectedOrgFriendlyName ??
-                                      "Connected User";
+                            userName = client.OAuthUserId ?? "Unknown";
+
+                            // Double-check we have a valid connection
+                            if (client.IsReady)
+                            {
+                                // Try a simple operation to verify connection
+                                client.GetMyCrmUserId();
+                            }
+                            else
+                            {
+                                throw new Exception("CRM connection not ready: " + client.LastCrmError);
+                            }
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        if (showMessages)
+                        {
+                            MessageBox.Show($"Warning: Connected but couldn't verify user: {ex.Message}",
+                                "Connection Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    }
 
-                    MessageBox.Show($"Successfully connected to Dataverse!\n\nUser: {userName}",
-                        "Connection Successful", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    if (showMessages)
+                    {
+                        MessageBox.Show($"Successfully connected to Dataverse as: {userName}",
+                            "Connection Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
                 }
 
                 return result;
@@ -79,39 +98,8 @@ namespace DHA.DSTC.WPF.DataAccess
             }
         }
 
-        // RetrieveMultiple with required columns parameter
-        public List<Entity> RetrieveMultiple(string entityName, string[] columns, string filterAttribute = null, object filterValue = null)
-        {
-            try
-            {
-                if (!_authService.IsConnected)
-                    return null;
-
-                var query = new QueryExpression(entityName)
-                {
-                    ColumnSet = new ColumnSet(columns)
-                };
-
-                if (!string.IsNullOrEmpty(filterAttribute) && filterValue != null)
-                {
-                    query.Criteria.AddCondition(new ConditionExpression(
-                        filterAttribute,
-                        ConditionOperator.Equal,
-                        filterValue));
-                }
-
-                var result = _authService.OrganizationService.RetrieveMultiple(query);
-                return result.Entities.ToList();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error retrieving data: {ex.Message}");
-                return null;
-            }
-        }
-
-        // Overload for backward compatibility - calls RetrieveMultiple with all columns
-        public List<Entity> RetrieveMultiple(string entityName, string[] columns = null, string filter = null)
+        // Main RetrieveMultiple method - removed the ambiguous overloads
+        public List<Entity> RetrieveMultiple(string entityName, string[] columns = null, string filterAttribute = null, object filterValue = null)
         {
             try
             {
@@ -128,9 +116,10 @@ namespace DHA.DSTC.WPF.DataAccess
                     ColumnSet = columns != null ? new ColumnSet(columns) : new ColumnSet(true)
                 };
 
-                if (!string.IsNullOrEmpty(filter))
+                // Add filter condition if provided
+                if (!string.IsNullOrEmpty(filterAttribute) && filterValue != null)
                 {
-                    query.Criteria.AddCondition(new ConditionExpression(filter, ConditionOperator.Equal, true));
+                    query.Criteria.AddCondition(new ConditionExpression(filterAttribute, ConditionOperator.Equal, filterValue));
                 }
 
                 var result = _orgService.RetrieveMultiple(query);
@@ -145,87 +134,82 @@ namespace DHA.DSTC.WPF.DataAccess
             }
         }
 
-        // Retrieve single entity with all columns (2-argument overload)
-        public Entity Retrieve(string entityName, Guid id)
+        // Simplified overload for backwards compatibility
+        public List<Entity> RetrieveMultiple(string entityName)
         {
-            return Retrieve(entityName, id, new ColumnSet(true)); // true = all columns
+            return RetrieveMultiple(entityName, null, null, null);
         }
 
-        // Retrieve single entity
-        public Entity Retrieve(string entityName, Guid id, ColumnSet columns)
+        public Entity Retrieve(string entityName, Guid id, string[] columns = null)
         {
             try
             {
-                if (!_authService.IsConnected)
-                    return null;
+                if (_orgService == null)
+                {
+                    Connect();
+                }
 
-                return _authService.OrganizationService.Retrieve(entityName, id, columns);
+                return _orgService.Retrieve(entityName, id, columns != null ? new ColumnSet(columns) : new ColumnSet(true));
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error retrieving entity: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error in Retrieve: {ex.Message}");
                 return null;
             }
         }
 
-        // Retrieve single entity with string array columns
-        public Entity Retrieve(string entityName, Guid id, string[] columns)
-        {
-            return Retrieve(entityName, id, new ColumnSet(columns));
-        }
-
-        // Create entity
         public Guid Create(Entity entity)
         {
             try
             {
-                if (!_authService.IsConnected)
-                    return Guid.Empty;
+                if (_orgService == null)
+                {
+                    Connect();
+                }
 
-                return _authService.OrganizationService.Create(entity);
+                return _orgService.Create(entity);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error creating entity: {ex.Message}");
-                return Guid.Empty;
+                System.Diagnostics.Debug.WriteLine($"Error in Create: {ex.Message}");
+                throw; // Re-throw to let calling code handle
             }
         }
 
-        // Update entity
         public void Update(Entity entity)
         {
             try
             {
-                if (!_authService.IsConnected)
-                    return;
+                if (_orgService == null)
+                {
+                    Connect();
+                }
 
-                _authService.OrganizationService.Update(entity);
+                _orgService.Update(entity);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error updating entity: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error in Update: {ex.Message}");
+                throw; // Re-throw to let calling code handle
             }
         }
 
-        // Delete entity
         public void Delete(string entityName, Guid id)
         {
             try
             {
-                if (!_authService.IsConnected)
-                    return;
+                if (_orgService == null)
+                {
+                    Connect();
+                }
 
-                _authService.OrganizationService.Delete(entityName, id);
+                _orgService.Delete(entityName, id);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error deleting entity: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error in Delete: {ex.Message}");
+                throw; // Re-throw to let calling code handle
             }
-        }
-
-        public void Disconnect()
-        {
-            _authService.Disconnect();
         }
     }
 }
