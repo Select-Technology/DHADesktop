@@ -118,8 +118,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Image Source="pack://application:,,,/Resources/dha-logo-small.jpg" Width="113" Height="50" Margin="0,0,12,0">
-                    </Image>
+                    <Image Source="pack://application:,,,/Resources/dha-logo-small.jpg" Width="113" Height="50" Margin="0,0,12,0"/>
                     <StackPanel>
                         <TextBlock Text="DHA Time Management" FontSize="20" FontWeight="SemiBold" 
                                  Foreground="{StaticResource TextPrimaryBrush}"/>
@@ -340,12 +339,32 @@
             <TabItem Header="💰 Disbursements">
                 <Grid Margin="16">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="340"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="320"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Disbursement Entry Form -->
+                    <!-- Project Search Column -->
                     <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Project Search" FontSize="18" FontWeight="SemiBold" 
+                                     Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+
+                            <TextBlock Text="Search Projects" Style="{StaticResource FormLabelStyle}"/>
+                            <TextBox x:Name="DisbursementProjectSearchBox" Style="{StaticResource ModernTextBoxStyle}"
+                                   Margin="4,0,4,8" Text="Search projects..."/>
+
+                            <TextBlock Text="Select Project" Style="{StaticResource FormLabelStyle}"/>
+                            <ListBox x:Name="DisbursementProjectsList" Height="400" Margin="4,0,4,12"
+                                   DisplayMemberPath="Name" SelectedValuePath="Id"/>
+
+                            <Button x:Name="ClearProjectSelectionButton" Content="Clear Selection" 
+                                  Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Stretch" Margin="4,8,4,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Disbursement Entry Form -->
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <TextBlock Text="New Disbursement" FontSize="18" FontWeight="SemiBold" 
@@ -355,10 +374,9 @@
                                 <DatePicker x:Name="DisbursementDatePicker" Margin="4,0,4,12"/>
 
                                 <TextBlock Text="Project" Style="{StaticResource FormLabelStyle}"/>
-                                <TextBox x:Name="DisbursementProjectSearchBox" Style="{StaticResource ModernTextBoxStyle}"
-                                       Margin="4,0,4,8" Text="Search projects..."/>
-                                <ListBox x:Name="DisbursementProjectsList" Height="100" Margin="4,0,4,12"
-                                       DisplayMemberPath="Name" SelectedValuePath="Id"/>
+                                <TextBlock x:Name="SelectedProjectLabel" Text="No project selected" 
+                                         Margin="4,0,4,12" FontStyle="Italic" 
+                                         Foreground="{StaticResource TextSecondaryBrush}"/>
 
                                 <TextBlock Text="Disbursement Type" Style="{StaticResource FormLabelStyle}"/>
                                 <ComboBox x:Name="DisbursementTypeComboBox" Margin="4,0,4,12"
@@ -379,7 +397,7 @@
                     </Border>
 
                     <!-- Disbursements List -->
-                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,8,0,8">
+                    <Border Grid.Column="2" Style="{StaticResource CardStyle}" Margin="8,8,0,8">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -387,26 +405,18 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Header with title and date range -->
+                            <!-- Header with title -->
                             <Grid Grid.Row="0" Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="Recent Disbursements" FontSize="18" FontWeight="SemiBold" 
+                                <TextBlock Grid.Column="0" x:Name="DisbursementsHeaderLabel" Text="All Disbursements" FontSize="18" FontWeight="SemiBold" 
                                          Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
 
-                                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <TextBlock Text="From:" VerticalAlignment="Center" Margin="0,0,8,0" 
-                                             Foreground="{StaticResource TextSecondaryBrush}"/>
-                                    <DatePicker x:Name="DisbursementFromDatePicker" Width="120" Margin="0,0,8,0"/>
-                                    <TextBlock Text="To:" VerticalAlignment="Center" Margin="0,0,8,0" 
-                                             Foreground="{StaticResource TextSecondaryBrush}"/>
-                                    <DatePicker x:Name="DisbursementToDatePicker" Width="120" Margin="0,0,8,0"/>
-                                    <Button x:Name="RefreshDisbursementsButton" Content="🔄" ToolTip="Refresh" 
-                                          Style="{StaticResource PrimaryButtonStyle}" Padding="8,6" Width="32"/>
-                                </StackPanel>
+                                <Button Grid.Column="1" x:Name="RefreshDisbursementsButton" Content="🔄" ToolTip="Refresh" 
+                                      Style="{StaticResource PrimaryButtonStyle}" Padding="8,6" Width="32"/>
                             </Grid>
 
                             <!-- Summary row -->
@@ -427,7 +437,11 @@
                                     <DataGridTextColumn Header="Date" Binding="{Binding Date, StringFormat=dd/MM/yyyy}" Width="100"/>
                                     <DataGridTextColumn Header="Project" Binding="{Binding ProjectName}" Width="*"/>
                                     <DataGridTextColumn Header="Type" Binding="{Binding DisbursementTypeName}" Width="120"/>
-                                    <DataGridTextColumn Header="Amount" Binding="{Binding Amount, StringFormat=C}" Width="100"/>
+                                    <DataGridTextColumn Header="Amount" Width="100">
+                                        <DataGridTextColumn.Binding>
+                                            <Binding Path="Amount" StringFormat="£{0:F2}"/>
+                                        </DataGridTextColumn.Binding>
+                                    </DataGridTextColumn>
                                     <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
                                 </DataGrid.Columns>
                             </DataGrid>

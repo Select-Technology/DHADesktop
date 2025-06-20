@@ -121,7 +121,7 @@ namespace DHA.DSTC.WPF
                 // Validate inputs
                 if (DisbursementProjectsList.SelectedItem == null)
                 {
-                    MessageBox.Show("Please select a project.", "Validation Error",
+                    MessageBox.Show("Please select a project from the project search.", "Validation Error",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
@@ -234,9 +234,8 @@ namespace DHA.DSTC.WPF
             DisbursementDatePicker.SelectedDate = DateTime.Today;
             DisbursementAmountTextBox.Clear();
             DisbursementDescriptionTextBox.Clear();
-            DisbursementProjectsList.SelectedItem = null;
             DisbursementTypeComboBox.SelectedItem = null;
-            DisbursementProjectSearchBox.Text = "Search projects...";
+            // Note: Don't clear project selection as it affects the view
         }
 
         private async void RefreshDisbursementsButton_Click(object sender, RoutedEventArgs e)
@@ -244,13 +243,33 @@ namespace DHA.DSTC.WPF
             await LoadDisbursementsAsync();
         }
 
-        private async void DisbursementDateRange_Changed(object sender, SelectionChangedEventArgs e)
+        private async void DisbursementProjectsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Only refresh if both dates are set
-            if (DisbursementFromDatePicker.SelectedDate.HasValue && DisbursementToDatePicker.SelectedDate.HasValue)
+            // Update the selected project label and load disbursements
+            var selectedProject = DisbursementProjectsList.SelectedItem as Project;
+            if (selectedProject != null)
             {
-                await LoadDisbursementsAsync();
+                SelectedProjectLabel.Text = selectedProject.Name;
+                SelectedProjectLabel.FontStyle = FontStyles.Normal;
+                SelectedProjectLabel.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59)); // TextPrimaryBrush color
             }
+            else
+            {
+                SelectedProjectLabel.Text = "No project selected";
+                SelectedProjectLabel.FontStyle = FontStyles.Italic;
+                SelectedProjectLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)); // TextSecondaryBrush color
+            }
+
+            // Load disbursements for the selected project (or all if none selected)
+            await LoadDisbursementsAsync();
+        }
+
+        private async void ClearProjectSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            DisbursementProjectsList.SelectedItem = null;
+            DisbursementProjectSearchBox.Text = "Search projects...";
+            DisbursementProjectsList.ItemsSource = Projects; // Show all projects
+            await LoadDisbursementsAsync(); // This will load all disbursements for current user
         }
 
         private void UpdateDisbursementsSummary()
@@ -259,7 +278,7 @@ namespace DHA.DSTC.WPF
             var totalAmount = Disbursements.Sum(d => d.Amount);
 
             TotalDisbursementsLabel.Text = $"Total disbursements: {totalDisbursements}";
-            TotalDisbursementAmountLabel.Text = $"Total amount: {totalAmount:C}";
+            TotalDisbursementAmountLabel.Text = $"Total amount: £{totalAmount:F2}";
         }
         #endregion
 
@@ -302,8 +321,6 @@ namespace DHA.DSTC.WPF
             ToDatePicker.SelectedDate = DateTime.Today;
             TimeEntryDatePicker.SelectedDate = DateTime.Today;
             DisbursementDatePicker.SelectedDate = DateTime.Today;
-            DisbursementFromDatePicker.SelectedDate = DateTime.Today;
-            DisbursementToDatePicker.SelectedDate = DateTime.Today;
 
             InitializeSystemTray();
             InitializeEventHandlers();
@@ -323,13 +340,13 @@ namespace DHA.DSTC.WPF
             AddDisbursementButton.Click += AddDisbursementButton_Click;
             DisbursementProjectSearchBox.TextChanged += DisbursementProjectSearchBox_TextChanged;
             DisbursementProjectSearchBox.GotFocus += DisbursementProjectSearchBox_GotFocus;
+            DisbursementProjectsList.SelectionChanged += DisbursementProjectsList_SelectionChanged;
+            ClearProjectSelectionButton.Click += ClearProjectSelectionButton_Click;
             RefreshDisbursementsButton.Click += RefreshDisbursementsButton_Click;
 
             // Date picker events
             FromDatePicker.SelectedDateChanged += DateRange_Changed;
             ToDatePicker.SelectedDateChanged += DateRange_Changed;
-            DisbursementFromDatePicker.SelectedDateChanged += DisbursementDateRange_Changed;
-            DisbursementToDatePicker.SelectedDateChanged += DisbursementDateRange_Changed;
 
             // Calendar events
             PreviousMonthButton.Click += PreviousMonthButton_Click;
@@ -347,16 +364,40 @@ namespace DHA.DSTC.WPF
         {
             _notifyIcon = new WinForms.NotifyIcon();
 
-            // Try to load icon from resources - simplified approach
+            // Try to load app.ico from resources
             try
             {
-                // Use a simple approach for the icon
-                _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+                // First try to get the icon from the application resources
+                var iconUri = new Uri("pack://application:,,,/Resources/app.ico");
+                var iconStream = Application.GetResourceStream(iconUri);
+
+                if (iconStream != null)
+                {
+                    _notifyIcon.Icon = new System.Drawing.Icon(iconStream.Stream);
+                }
+                else
+                {
+                    // Try alternative method - get from assembly
+                    var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                    using (var stream = assembly.GetManifestResourceStream("DHA.DSTC.WPF.Resources.app.ico"))
+                    {
+                        if (stream != null)
+                        {
+                            _notifyIcon.Icon = new System.Drawing.Icon(stream);
+                        }
+                        else
+                        {
+                            // Final fallback - use application icon
+                            _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+                        }
+                    }
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Could not load app.ico: {ex.Message}");
                 // Fallback - this should always work
-                _notifyIcon.Icon = System.Drawing.SystemIcons.Information;
+                _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
             }
 
             _notifyIcon.Text = "DHA Time Management";
@@ -377,6 +418,27 @@ namespace DHA.DSTC.WPF
         {
             try
             {
+                UpdateStatus("Connecting to Dataverse...");
+
+                // Try to connect silently first (using cached tokens)
+                bool connected = await Task.Run(() => ServiceLocator.DataverseConnector.Connect(forceReconnect: false, showMessages: false));
+
+                if (!connected)
+                {
+                    UpdateStatus("Authentication required...");
+                    // If silent connection fails, prompt for authentication
+                    connected = await Task.Run(() => ServiceLocator.DataverseConnector.Connect(forceReconnect: true, showMessages: true));
+                }
+
+                if (!connected)
+                {
+                    UpdateStatus("Failed to connect to Dataverse");
+                    UpdateConnectionStatus(false);
+                    MessageBox.Show("Failed to connect to Dataverse. Please check your connection and try again.",
+                        "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
                 UpdateStatus("Loading data...");
 
                 // Load team members first (with filtering)
@@ -476,12 +538,16 @@ namespace DHA.DSTC.WPF
         {
             try
             {
-                var disbursementTypes = await _disbursementService.GetAllDisbursementTypesAsync();
+                var allDisbursementTypes = await _disbursementService.GetAllDisbursementTypesAsync();
+
+                // Filter out 'Standard Disbursement' as it's only used by automation
+                var filteredTypes = allDisbursementTypes.Where(t =>
+                    !t.Name.Equals("Standard Disbursement", StringComparison.OrdinalIgnoreCase)).ToList();
 
                 Dispatcher.Invoke(() =>
                 {
                     DisbursementTypes.Clear();
-                    foreach (var type in disbursementTypes)
+                    foreach (var type in filteredTypes)
                     {
                         DisbursementTypes.Add(type);
                     }
@@ -535,31 +601,52 @@ namespace DHA.DSTC.WPF
         {
             try
             {
-                if (_currentUser == null) return;
+                // Check if a specific project is selected
+                var selectedProject = DisbursementProjectsList.SelectedItem as Project;
 
-                var fromDate = DisbursementFromDatePicker.SelectedDate ?? DateTime.Today;
-                var toDate = DisbursementToDatePicker.SelectedDate ?? DateTime.Today;
-
-                // Get all disbursements and filter by current user and date range
-                var allDisbursements = await _disbursementService.GetAllDisbursementsAsync();
-
-                var filteredDisbursements = allDisbursements
-                    .Where(d => d.TeamMemberGuid == _currentUser.Id)
-                    .Where(d => d.Date.Date >= fromDate.Date && d.Date.Date <= toDate.Date)
-                    .OrderByDescending(d => d.Date)
-                    .ToList();
-
-                Dispatcher.Invoke(() =>
+                if (selectedProject != null)
                 {
-                    Disbursements.Clear();
-                    foreach (var disbursement in filteredDisbursements)
-                    {
-                        Disbursements.Add(disbursement);
-                    }
+                    // Load all disbursements for the selected project (no date filtering)
+                    var projectDisbursements = await _disbursementService.GetDisbursementsByProjectAsync(selectedProject.Id);
 
-                    DisbursementsDataGrid.ItemsSource = Disbursements;
-                    UpdateDisbursementsSummary();
-                });
+                    Dispatcher.Invoke(() =>
+                    {
+                        Disbursements.Clear();
+                        foreach (var disbursement in projectDisbursements.OrderByDescending(d => d.Date))
+                        {
+                            Disbursements.Add(disbursement);
+                        }
+
+                        DisbursementsDataGrid.ItemsSource = Disbursements;
+                        UpdateDisbursementsSummary();
+                        DisbursementsHeaderLabel.Text = $"All Disbursements for {selectedProject.Name}";
+                    });
+                }
+                else
+                {
+                    // No project selected - show all disbursements for current user
+                    if (_currentUser == null) return;
+
+                    var allDisbursements = await _disbursementService.GetAllDisbursementsAsync();
+
+                    var userDisbursements = allDisbursements
+                        .Where(d => d.TeamMemberGuid == _currentUser.Id)
+                        .OrderByDescending(d => d.Date)
+                        .ToList();
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        Disbursements.Clear();
+                        foreach (var disbursement in userDisbursements)
+                        {
+                            Disbursements.Add(disbursement);
+                        }
+
+                        DisbursementsDataGrid.ItemsSource = Disbursements;
+                        UpdateDisbursementsSummary();
+                        DisbursementsHeaderLabel.Text = "All Disbursements";
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -945,10 +1032,16 @@ namespace DHA.DSTC.WPF
             if (selectedMember != null)
             {
                 _currentUser = selectedMember;
-                // Only refresh time entries and disbursements, NOT calendar (calendar always shows connected user)
+                // Only refresh time entries, NOT calendar (calendar always shows connected user)
+                // Only refresh disbursements if no specific project is selected
                 await LoadTimeEntriesAsync(); // Refresh time entries for selected user
-                await LoadDisbursementsAsync(); // Refresh disbursements for selected user
-                                                // Note: Calendar deliberately NOT refreshed - it always shows the connected user's data
+
+                // Only refresh disbursements if no project is currently selected
+                if (DisbursementProjectsList.SelectedItem == null)
+                {
+                    await LoadDisbursementsAsync(); // Show all disbursements for selected user
+                }
+                // Note: Calendar deliberately NOT refreshed - it always shows the connected user's data
             }
         }
         #endregion

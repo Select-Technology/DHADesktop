@@ -23,6 +23,10 @@ namespace DHA.DSTC.WPF.Services
         private static DataverseAuthService _instance;
         private static readonly object _lock = new object();
 
+        // Token cache settings
+        private readonly string _tokenCacheDirectory;
+        private readonly string _tokenCacheFile;
+
         public bool IsConnected => _organizationService != null && _client != null && _client.IsReady;
 
         public IOrganizationService OrganizationService => _organizationService;
@@ -49,7 +53,28 @@ namespace DHA.DSTC.WPF.Services
             }
         }
 
-        private DataverseAuthService() { }
+        private DataverseAuthService()
+        {
+            // Set up persistent token cache location
+            _tokenCacheDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "DHA", "TimeManagement", "TokenCache");
+
+            _tokenCacheFile = Path.Combine(_tokenCacheDirectory, "msal_cache.dat");
+
+            // Ensure directory exists
+            try
+            {
+                if (!Directory.Exists(_tokenCacheDirectory))
+                {
+                    Directory.CreateDirectory(_tokenCacheDirectory);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not create token cache directory: {ex.Message}");
+            }
+        }
 
         public async Task<bool> ConnectAsync(bool forceReconnect = false)
         {
@@ -75,48 +100,40 @@ namespace DHA.DSTC.WPF.Services
                     return false;
                 }
 
-                // Clear token cache completely to force fresh authentication
+                // Only clear token cache if explicitly forced to reconnect
                 if (forceReconnect)
                 {
-                    ClearAllTokenCaches();
+                    ClearTokenCache();
                 }
 
-                // Use a simplified connection string that works better with interactive auth
+                // Use persistent token cache for automatic login
                 string connectionString;
 
                 if (forceReconnect)
                 {
-                    // For forced reconnection, use a minimal connection string with Always prompt
+                    // For forced reconnection, always prompt for login
                     connectionString = $"AuthType=OAuth;" +
                                      $"Url={EnvironmentUrl};" +
                                      $"AppId={ClientId};" +
                                      $"RedirectUri={RedirectUri};" +
                                      $"LoginPrompt=Always;" +
+                                     $"TokenCacheStorePath={_tokenCacheDirectory};" +
                                      $"RequireNewInstance=true";
                 }
                 else
                 {
-                    // For normal connection, try to use cached tokens
+                    // For normal connection, try to use cached tokens with Auto prompt
                     connectionString = $"AuthType=OAuth;" +
                                      $"Url={EnvironmentUrl};" +
                                      $"AppId={ClientId};" +
                                      $"RedirectUri={RedirectUri};" +
                                      $"LoginPrompt=Auto;" +
-                                     $"TokenCacheStorePath=c:\\temp\\tokencache;" +
+                                     $"TokenCacheStorePath={_tokenCacheDirectory};" +
                                      $"RequireNewInstance=false";
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Connection string: {connectionString}");
-
-                // Ensure temp directory exists for token cache
-                try
-                {
-                    if (!System.IO.Directory.Exists("c:\\temp"))
-                    {
-                        System.IO.Directory.CreateDirectory("c:\\temp");
-                    }
-                }
-                catch { /* Ignore errors creating directory */ }
+                System.Diagnostics.Debug.WriteLine($"Token cache path: {_tokenCacheDirectory}");
 
                 // Create client
                 _client = new CrmServiceClient(connectionString);
@@ -182,13 +199,27 @@ namespace DHA.DSTC.WPF.Services
             }
         }
 
-        private void ClearAllTokenCaches()
+        private void ClearTokenCache()
         {
             try
             {
-                // Clear multiple possible token cache locations
-                string[] cachePaths = {
-                    "c:\\temp\\tokencache",
+                // Clear the specific token cache directory we're using
+                if (Directory.Exists(_tokenCacheDirectory))
+                {
+                    try
+                    {
+                        Directory.Delete(_tokenCacheDirectory, true);
+                        Directory.CreateDirectory(_tokenCacheDirectory); // Recreate empty directory
+                        System.Diagnostics.Debug.WriteLine($"Cleared token cache: {_tokenCacheDirectory}");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Could not clear cache {_tokenCacheDirectory}: {ex.Message}");
+                    }
+                }
+
+                // Also clear any other common cache locations as backup
+                string[] additionalCachePaths = {
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                                "Microsoft", "PowerPlatform", "AuthCache"),
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -197,36 +228,20 @@ namespace DHA.DSTC.WPF.Services
                                "Microsoft", "PowerPlatform")
                 };
 
-                foreach (string cachePath in cachePaths)
+                foreach (string cachePath in additionalCachePaths)
                 {
-                    if (System.IO.Directory.Exists(cachePath))
+                    if (Directory.Exists(cachePath))
                     {
                         try
                         {
-                            System.IO.Directory.Delete(cachePath, true);
-                            System.Diagnostics.Debug.WriteLine($"Cleared token cache: {cachePath}");
+                            Directory.Delete(cachePath, true);
+                            System.Diagnostics.Debug.WriteLine($"Cleared additional cache: {cachePath}");
                         }
                         catch (Exception ex)
                         {
                             System.Diagnostics.Debug.WriteLine($"Could not clear cache {cachePath}: {ex.Message}");
                         }
                     }
-                }
-
-                // Also clear any MSAL cache files
-                try
-                {
-                    string msalCacheFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                                                       "msal_token_cache.dat");
-                    if (System.IO.File.Exists(msalCacheFile))
-                    {
-                        System.IO.File.Delete(msalCacheFile);
-                        System.Diagnostics.Debug.WriteLine("Cleared MSAL token cache file");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Could not clear MSAL cache: {ex.Message}");
                 }
             }
             catch (Exception ex)
@@ -243,6 +258,14 @@ namespace DHA.DSTC.WPF.Services
                 _client.Dispose();
                 _client = null;
             }
+        }
+
+        /// <summary>
+        /// Manually clear cached tokens (for troubleshooting or logout)
+        /// </summary>
+        public void ClearCachedTokens()
+        {
+            ClearTokenCache();
         }
     }
 }
