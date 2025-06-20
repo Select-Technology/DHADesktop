@@ -40,7 +40,7 @@ namespace DHA.DSTC.WPF.Utilities
             {
                 // Create connector
                 DataverseConnector = new DataverseConnector();
-                bool connected = DataverseConnector.Connect(showMessages: false);
+                bool connected = DataverseConnector.Connect(showMessages: true);
 
                 if (!connected)
                 {

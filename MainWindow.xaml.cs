@@ -204,7 +204,29 @@ namespace DHA.DSTC.WPF
 
         private async void LoadInitialData()
         {
-            await TestDataverseConnection();
+            try
+            {
+                UpdateStatus("Loading data...");
+
+                // Load team members first
+                await LoadTeamMembersAsync();
+                // Load projects
+                await LoadProjectsAsync();
+                // Load recent time entries
+                await LoadTimeEntriesAsync();
+                // Load calendar data
+                await LoadCalendarDataAsync();
+
+                UpdateStatus("Ready");
+                UpdateConnectionStatus(true);
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error loading data: {ex.Message}");
+                UpdateConnectionStatus(false);
+                MessageBox.Show($"Error initialising application: {ex.Message}",
+                    "Initialisation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
         #endregion
 

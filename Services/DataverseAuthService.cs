@@ -12,9 +12,10 @@ namespace DHA.DSTC.WPF.Services
     public class DataverseAuthService
     {
         // Use Settings instead of hardcoded values
-        private string ClientId => Settings.Default.DataverseClientId;
-        private string TenantId => Settings.Default.DataverseTenantId;
-        private string EnvironmentUrl => Settings.Default.DataverseEnvironmentUrl;
+        // Use the application settings (not user settings)
+        private string ClientId => ProjectProperties.Settings.Default.DataverseClientId;
+        private string TenantId => ProjectProperties.Settings.Default.DataverseTenantId;
+        private string EnvironmentUrl => ProjectProperties.Settings.Default.DataverseEnvironmentUrl;
         private string RedirectUri => "https://login.microsoftonline.com/common/oauth2/nativeclient";
 
         private IOrganizationService _organizationService;
@@ -62,17 +63,17 @@ namespace DHA.DSTC.WPF.Services
                 }
 
                 // Build connection string with more explicit OAuth parameters
-                string connectionString = $@"
-                    AuthType=OAuth;
-                    Url={EnvironmentUrl};
-                    AppId={ClientId};
-                    RedirectUri={RedirectUri};
-                    LoginPrompt=Auto;
-                    TokenCacheStorePath=c:\temp\tokencache;
-                    RequireNewInstance=true;
-                    UseWebApi=true;
-                    ConnectOrgUriInConstructor=true;
-                    Authority=https://login.microsoftonline.com/{TenantId}";
+                string connectionString = $"AuthType=OAuth;Url={EnvironmentUrl};AppId={ClientId};RedirectUri={RedirectUri};LoginPrompt=Never";
+
+                System.Diagnostics.Debug.WriteLine($"ClientId: '{ClientId}'");
+                System.Diagnostics.Debug.WriteLine($"TenantId: '{TenantId}'");
+                System.Diagnostics.Debug.WriteLine($"EnvironmentUrl: '{EnvironmentUrl}'");
+
+                if (string.IsNullOrEmpty(ClientId) || string.IsNullOrEmpty(TenantId) || string.IsNullOrEmpty(EnvironmentUrl))
+                {
+                    System.Diagnostics.Debug.WriteLine("ERROR: One or more settings are null/empty");
+                    return false;
+                }
 
                 // Ensure temp directory exists for token cache
                 try
