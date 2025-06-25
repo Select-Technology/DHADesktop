@@ -424,14 +424,20 @@ namespace DHA.DSTC.WPF
             {
                 UpdateStatus("Connecting to Dataverse...");
 
-                // Try to connect silently first (using cached tokens)
-                bool connected = await Task.Run(() => ServiceLocator.DataverseConnector.Connect(forceReconnect: false, showMessages: false));
+                // Try silent connection first in production, forced in debug
+                bool forceReconnect = System.Diagnostics.Debugger.IsAttached;
+                bool showMessages = System.Diagnostics.Debugger.IsAttached;
+
+                bool connected = await Task.Run(() =>
+                    ServiceLocator.Connect(forceReconnect: forceReconnect, showMessages: showMessages));
 
                 if (!connected)
                 {
-                    UpdateStatus("Authentication required...");
-                    // If silent connection fails, prompt for authentication
-                    connected = await Task.Run(() => ServiceLocator.DataverseConnector.Connect(forceReconnect: true, showMessages: true));
+                    UpdateStatus("Failed to connect to Dataverse");
+                    UpdateConnectionStatus(false);
+                    MessageBox.Show("Failed to connect to Dataverse. Please check your connection and try again.",
+                        "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
                 }
 
                 if (!connected)

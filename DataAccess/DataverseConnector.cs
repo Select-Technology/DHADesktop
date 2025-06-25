@@ -29,61 +29,25 @@ namespace DHA.DSTC.WPF.DataAccess
                 if (_authService.IsConnected && !forceReconnect)
                     return true;
 
-                // Only show authentication message if specified
-                if (showMessages)
+                // Only show authentication message if specified AND it's a forced reconnect
+                if (showMessages && forceReconnect)
                 {
-                    //MessageBox.Show(
-                    //    "The application will now attempt to connect to Dataverse.\n\n" +
-                    //    "A login window will appear. Please complete the authentication process.",
-                    //    "Authentication Required",
-                    //    MessageBoxButtons.OK,
-                    //    MessageBoxIcon.Information);
+                    MessageBox.Show(
+                        "The application will now attempt to connect to Dataverse.\n\n" +
+                        "A login window will appear. Please complete the authentication process.",
+                        "Authentication Required",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
 
                     // Slight delay to allow UI to update before showing auth dialog
                     Thread.Sleep(500);
                 }
 
-                // Use true to force interactive login
-                bool result = _authService.ConnectAsync(true).GetAwaiter().GetResult();
+                // Use forceReconnect parameter directly
+                bool result = _authService.ConnectAsync(forceReconnect).GetAwaiter().GetResult();
 
-                if (result && showMessages)
-                {
-                    // Try to get current user info
-                    string userName = "Unknown";
-                    try
-                    {
-                        var client = _orgService as CrmServiceClient;
-                        if (client != null)
-                        {
-                            userName = client.OAuthUserId ?? "Unknown";
-
-                            // Double-check we have a valid connection
-                            if (client.IsReady)
-                            {
-                                // Try a simple operation to verify connection
-                                client.GetMyCrmUserId();
-                            }
-                            else
-                            {
-                                throw new Exception("CRM connection not ready: " + client.LastCrmError);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        if (showMessages)
-                        {
-                            MessageBox.Show($"Warning: Connected but couldn't verify user: {ex.Message}",
-                                "Connection Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        }
-                    }
-
-                    if (showMessages)
-                    {
-                        MessageBox.Show($"Successfully connected to Dataverse as: {userName}",
-                            "Connection Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                }
+                // Remove the success message box entirely
+                // if (result && showMessages) { ... } - REMOVED
 
                 return result;
             }

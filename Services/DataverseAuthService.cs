@@ -80,11 +80,17 @@ namespace DHA.DSTC.WPF.Services
         {
             try
             {
+                System.Diagnostics.Debug.WriteLine($"ConnectAsync called: forceReconnect={forceReconnect}, IsConnected={IsConnected}");
+
                 if (IsConnected && !forceReconnect)
+                {
+                    System.Diagnostics.Debug.WriteLine("Already connected, returning true");
                     return true;
+                }
 
                 if (_client != null)
                 {
+                    System.Diagnostics.Debug.WriteLine("Disposing existing client");
                     _client.Dispose();
                     _client = null;
                     _organizationService = null;
@@ -100,25 +106,39 @@ namespace DHA.DSTC.WPF.Services
                     return false;
                 }
 
-                // Only clear token cache if explicitly forced to reconnect
-                if (forceReconnect)
+                // Clear token cache if explicitly forced to reconnect OR if running from debugger
+                if (forceReconnect || System.Diagnostics.Debugger.IsAttached)
                 {
+                    System.Diagnostics.Debug.WriteLine("Clearing token cache for fresh login");
                     ClearTokenCache();
                 }
 
-                // Use persistent token cache for automatic login
+                // Use different connection strings for debugging vs production
                 string connectionString;
 
-                if (forceReconnect)
+                if (System.Diagnostics.Debugger.IsAttached)
                 {
-                    // For forced reconnection, always prompt for login
+                    // When debugging, always prompt for login and increase timeout
                     connectionString = $"AuthType=OAuth;" +
                                      $"Url={EnvironmentUrl};" +
                                      $"AppId={ClientId};" +
                                      $"RedirectUri={RedirectUri};" +
                                      $"LoginPrompt=Always;" +
                                      $"TokenCacheStorePath={_tokenCacheDirectory};" +
-                                     $"RequireNewInstance=true";
+                                     $"RequireNewInstance=true;" +
+                                     $"Timeout=00:05:00"; // 5 minute timeout for debugging
+                }
+                else if (forceReconnect)
+                {
+                    // For forced reconnection in production, always prompt for login
+                    connectionString = $"AuthType=OAuth;" +
+                                     $"Url={EnvironmentUrl};" +
+                                     $"AppId={ClientId};" +
+                                     $"RedirectUri={RedirectUri};" +
+                                     $"LoginPrompt=Always;" +
+                                     $"TokenCacheStorePath={_tokenCacheDirectory};" +
+                                     $"RequireNewInstance=true;" +
+                                     $"Timeout=00:02:00"; // 2 minute timeout
                 }
                 else
                 {
@@ -129,18 +149,22 @@ namespace DHA.DSTC.WPF.Services
                                      $"RedirectUri={RedirectUri};" +
                                      $"LoginPrompt=Auto;" +
                                      $"TokenCacheStorePath={_tokenCacheDirectory};" +
-                                     $"RequireNewInstance=false";
+                                     $"RequireNewInstance=false;" +
+                                     $"Timeout=00:02:00"; // 2 minute timeout
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Connection string: {connectionString}");
                 System.Diagnostics.Debug.WriteLine($"Token cache path: {_tokenCacheDirectory}");
 
                 // Create client
+                System.Diagnostics.Debug.WriteLine("Creating CrmServiceClient...");
                 _client = new CrmServiceClient(connectionString);
 
-                // Wait a bit for authentication to complete
-                int maxWaitSeconds = 60;
+                // Wait longer for authentication to complete when debugging
+                int maxWaitSeconds = System.Diagnostics.Debugger.IsAttached ? 120 : 60; // 2 minutes when debugging
                 int waitedSeconds = 0;
+
+                System.Diagnostics.Debug.WriteLine($"Waiting for authentication (max {maxWaitSeconds} seconds)...");
 
                 while (!_client.IsReady && waitedSeconds < maxWaitSeconds)
                 {
@@ -150,10 +174,16 @@ namespace DHA.DSTC.WPF.Services
                     if (waitedSeconds % 5 == 0) // Log every 5 seconds
                     {
                         System.Diagnostics.Debug.WriteLine($"Waiting for authentication... ({waitedSeconds}s)");
+                        System.Diagnostics.Debug.WriteLine($"Client IsReady: {_client.IsReady}");
 
                         if (!string.IsNullOrEmpty(_client.LastCrmError))
                         {
                             System.Diagnostics.Debug.WriteLine($"CRM Error: {_client.LastCrmError}");
+                        }
+
+                        if (_client.LastCrmException != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"CRM Exception: {_client.LastCrmException.Message}");
                         }
                     }
                 }
