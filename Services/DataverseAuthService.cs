@@ -13,10 +13,10 @@ namespace DHA.DSTC.WPF.Services
     public class DataverseAuthService
     {
         // Use Settings instead of hardcoded values - keep ProjectProperties namespace
-        private string ClientId => ProjectProperties.Settings.Default.DataverseClientId;
+        private string ClientId => "51f81489-12ee-4a9e-aaae-a2591f45987d"; // Microsoft's test app
         private string TenantId => ProjectProperties.Settings.Default.DataverseTenantId;
         private string EnvironmentUrl => ProjectProperties.Settings.Default.DataverseEnvironmentUrl;
-        private string RedirectUri => "https://login.microsoftonline.com/common/oauth2/nativeclient";
+        private string RedirectUri => "app://58145B91-0C36-4500-8554-080854F2AC97";
 
         private IOrganizationService _organizationService;
         private CrmServiceClient _client;
@@ -139,66 +139,32 @@ namespace DHA.DSTC.WPF.Services
                 // Use longer timeout when debugging
                 string timeout = System.Diagnostics.Debugger.IsAttached ? "00:05:00" : "00:02:00";
 
-                // ✅ FIXED: Use consistent connection string that allows proper token reuse
-                string connectionString = $"AuthType=OAuth;" +
-                                         $"Url={EnvironmentUrl};" +
-                                         $"AppId={ClientId};" +
-                                         $"RedirectUri={RedirectUri};" +
-                                         $"LoginPrompt=Auto;" +                    // ✅ Always use Auto - let MSAL decide
-                                         $"TokenCacheStorePath={_tokenCacheDirectory};" +
-                                         $"RequireNewInstance=false;" +            // ✅ Allow connection reuse
-                                         $"Timeout={timeout}";
+                // ✅ COMPLETELY DIFFERENT APPROACH - Explicit OAuth with Username
+                string connectionString;
 
-                System.Diagnostics.Debug.WriteLine($"Connection string: {connectionString}");
-                System.Diagnostics.Debug.WriteLine($"Token cache path: {_tokenCacheDirectory}");
-
-                // Create client
-                System.Diagnostics.Debug.WriteLine("Creating CrmServiceClient...");
-                _client = new CrmServiceClient(connectionString);
-
-                // Wait longer for authentication to complete when debugging
-                int maxWaitSeconds = System.Diagnostics.Debugger.IsAttached ? 300 : 60; // 5 minutes when debugging, 1 minute production
-                int waitedSeconds = 0;
-
-                System.Diagnostics.Debug.WriteLine($"Waiting for authentication (max {maxWaitSeconds} seconds)...");
-
-                while (!_client.IsReady && waitedSeconds < maxWaitSeconds)
+                if (forceReconnect)
                 {
-                    await Task.Delay(1000);
-                    waitedSeconds++;
-
-                    // Log every second for the first 10 seconds when debugging
-                    if (System.Diagnostics.Debugger.IsAttached && waitedSeconds <= 10)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Waiting for authentication... ({waitedSeconds}s)");
-                        System.Diagnostics.Debug.WriteLine($"Client IsReady: {_client.IsReady}");
-
-                        if (!string.IsNullOrEmpty(_client.LastCrmError))
-                        {
-                            System.Diagnostics.Debug.WriteLine($"CRM Error: {_client.LastCrmError}");
-                        }
-
-                        if (_client.LastCrmException != null)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"CRM Exception: {_client.LastCrmException.Message}");
-                            System.Diagnostics.Debug.WriteLine($"CRM Exception Stack: {_client.LastCrmException.StackTrace}");
-                        }
-                    }
-                    else if (waitedSeconds % 5 == 0) // Log every 5 seconds after that
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Waiting for authentication... ({waitedSeconds}s)");
-                        System.Diagnostics.Debug.WriteLine($"Client IsReady: {_client.IsReady}");
-
-                        if (!string.IsNullOrEmpty(_client.LastCrmError))
-                        {
-                            System.Diagnostics.Debug.WriteLine($"CRM Error: {_client.LastCrmError}");
-                        }
-
-                        if (_client.LastCrmException != null)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"CRM Exception: {_client.LastCrmException.Message}");
-                        }
-                    }
+                    // Force interactive login when explicitly requested
+                    connectionString = $"AuthType=OAuth;" +
+                                     $"Url={EnvironmentUrl};" +
+                                     $"AppId={ClientId};" +
+                                     $"RedirectUri={RedirectUri};" +
+                                     $"LoginPrompt=Always;" +
+                                     $"TokenCacheStorePath={_tokenCacheDirectory};" +
+                                     $"RequireNewInstance=true;" +               // Force new instance when reconnecting
+                                     $"Timeout={timeout}";
+                }
+                else
+                {
+                    // Try with explicit OAuth parameters for first connection
+                    connectionString = $"AuthType=OAuth;" +
+                                     $"Url={EnvironmentUrl};" +
+                                     $"AppId={ClientId};" +
+                                     $"RedirectUri={RedirectUri};" +
+                                     $"LoginPrompt=Always;" +                    // Always show login for now
+                                     $"TokenCacheStorePath={_tokenCacheDirectory};" +
+                                     $"RequireNewInstance=false;" +
+                                     $"Timeout={timeout}";
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Connection string: {connectionString}");
@@ -208,9 +174,9 @@ namespace DHA.DSTC.WPF.Services
                 System.Diagnostics.Debug.WriteLine("Creating CrmServiceClient...");
                 _client = new CrmServiceClient(connectionString);
 
-                // Wait longer for authentication to complete when debugging
-                maxWaitSeconds = System.Diagnostics.Debugger.IsAttached ? 300 : 60; // 5 minutes when debugging, 1 minute production
-                waitedSeconds = 0;
+                // ✅ SINGLE TIMEOUT SECTION - Extended timeout logic for debugging vs production
+                int maxWaitSeconds = System.Diagnostics.Debugger.IsAttached ? 300 : 60; // 5 minutes when debugging, 1 minute production
+                int waitedSeconds = 0;
 
                 System.Diagnostics.Debug.WriteLine($"Waiting for authentication (max {maxWaitSeconds} seconds)...");
 
