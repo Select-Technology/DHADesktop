@@ -43,6 +43,13 @@ namespace DHA.DSTC.WPF.Services
                 // Add condition to only get active projects
                 query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0); // 0 = Active
 
+                // Increase page size to get more projects initially
+                query.PageInfo = new PagingInfo
+                {
+                    Count = 5000,
+                    PageNumber = 1
+                };
+
                 var result = _connector._orgService.RetrieveMultiple(query);
 
                 if (result?.Entities == null)
@@ -114,18 +121,55 @@ namespace DHA.DSTC.WPF.Services
                 var query = new QueryExpression(_entityName)
                 {
                     ColumnSet = new ColumnSet("msdyn_subject", "isc_projectnumbernew", "msdyn_customer", "statecode"),
-                    Criteria = new FilterExpression(LogicalOperator.And)
+                    Criteria = new FilterExpression(LogicalOperator.And),
+                    Orders = {
+                        new OrderExpression("msdyn_subject", OrderType.Ascending)
+                    }
                 };
 
-                // Add search conditions
+                // Create the main search filter group using OR logic
                 var searchGroup = new FilterExpression(LogicalOperator.Or);
+
+                // Always search the full term against project name (msdyn_subject)
                 searchGroup.AddCondition("msdyn_subject", ConditionOperator.Like, $"%{searchTerm}%");
-                searchGroup.AddCondition("isc_projectnumbernew", ConditionOperator.Like, $"%{searchTerm}%");
+
+                // Check if search term starts with a 5-9 digit number for enhanced project number search
+                var projectNumberMatch = System.Text.RegularExpressions.Regex.Match(
+                    searchTerm.Trim(),
+                    @"^(\d{5,9})"
+                );
+
+                if (projectNumberMatch.Success)
+                {
+                    // Extract the project number (5-9 digits)
+                    string projectNumber = projectNumberMatch.Groups[1].Value;
+
+                    // Search for this number in the project number field using both Equal and Like
+                    searchGroup.AddCondition("isc_projectnumbernew", ConditionOperator.Equal, projectNumber);
+                    searchGroup.AddCondition("isc_projectnumbernew", ConditionOperator.Like, $"%{projectNumber}%");
+
+                    // Also search for this number in the project name (in case it's stored there)
+                    searchGroup.AddCondition("msdyn_subject", ConditionOperator.Like, $"%{projectNumber}%");
+                }
+                else
+                {
+                    // If it's not a numeric search, also search project number field with full term
+                    searchGroup.AddCondition("isc_projectnumbernew", ConditionOperator.Like, $"%{searchTerm}%");
+                }
+
+                // Note: msdyn_customer is a lookup field (GUID) so we can't use LIKE searches on it
 
                 query.Criteria.AddFilter(searchGroup);
 
                 // Only active projects
                 query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+
+                // Set page size for search results
+                query.PageInfo = new PagingInfo
+                {
+                    Count = 200,
+                    PageNumber = 1
+                };
 
                 var result = _connector._orgService.RetrieveMultiple(query);
 
@@ -135,7 +179,17 @@ namespace DHA.DSTC.WPF.Services
                 }
 
                 var entities = result.Entities.ToList();
-                return entities.Select(Project.FromEntity).Where(p => p != null).ToList();
+
+                // Remove duplicates that might occur from multiple field matches
+                // Group by project ID and take the first occurrence
+                var uniqueProjects = entities
+                    .GroupBy(e => e.Id)
+                    .Select(g => g.First())
+                    .Select(Project.FromEntity)
+                    .Where(p => p != null)
+                    .ToList();
+
+                return uniqueProjects;
             }
             catch (Exception ex)
             {

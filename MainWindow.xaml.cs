@@ -59,6 +59,10 @@ namespace DHA.DSTC.WPF
 
         // Current user tracking
         private TeamMember _currentUser;
+
+        // Project search timer
+        private System.Threading.Timer _searchTimer;
+        private const int SearchDelayMs = 300; // 300ms delay after typing stops
         #endregion
 
         #region Properties for Data Binding
@@ -524,8 +528,11 @@ namespace DHA.DSTC.WPF
                         Projects.Add(project);
                     }
 
-                    ProjectsList.ItemsSource = Projects;
-                    DisbursementProjectsList.ItemsSource = Projects; // Share projects with disbursements
+                    // Initially show limited projects for performance (Time Entry tab)
+                    ProjectsList.ItemsSource = Projects.Take(50).ToList();
+
+                    // Show all projects for disbursements
+                    DisbursementProjectsList.ItemsSource = Projects;
                 });
             }
             catch (Exception ex)
@@ -747,7 +754,14 @@ namespace DHA.DSTC.WPF
 
         private void ProjectSearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            FilterProjects();
+            // Cancel any existing timer
+            _searchTimer?.Dispose();
+
+            // Start a new timer that will trigger the search after a delay
+            _searchTimer = new System.Threading.Timer(async _ =>
+            {
+                await Dispatcher.BeginInvoke(new Action(async () => await FilterProjects()));
+            }, null, SearchDelayMs, Timeout.Infinite);
         }
 
         private void ProjectSearchBox_GotFocus(object sender, RoutedEventArgs e)
@@ -758,23 +772,51 @@ namespace DHA.DSTC.WPF
             }
         }
 
-        private void FilterProjects()
+        private async Task FilterProjects()
         {
             var searchText = ProjectSearchBox.Text;
 
             if (string.IsNullOrWhiteSpace(searchText) || searchText == "Search projects...")
             {
-                ProjectsList.ItemsSource = Projects;
+                // Show recent/cached projects when no search term
+                Dispatcher.Invoke(() =>
+                {
+                    ProjectsList.ItemsSource = Projects.Take(50).ToList(); // Limit to 50 for performance
+                    UpdateStatus("Ready");
+                });
             }
             else
             {
-                var filtered = Projects.Where(p =>
-                    (p.Name?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
-                    (p.Number?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
-                    (p.Client?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0)
-                ).ToList();
+                try
+                {
+                    Dispatcher.Invoke(() => UpdateStatus("Searching projects..."));
 
-                ProjectsList.ItemsSource = filtered;
+                    // Use server-side search with the enhanced fuzzy logic
+                    var searchResults = await Task.Run(() => _projectService.SearchProjects(searchText));
+
+                    // Update the UI on the main thread
+                    Dispatcher.Invoke(() =>
+                    {
+                        ProjectsList.ItemsSource = searchResults.Take(100).ToList(); // Limit results for performance
+                        UpdateStatus($"Found {searchResults.Count} projects");
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        UpdateStatus($"Search error: {ex.Message}");
+
+                        // Fallback to cached results if search fails
+                        var fallbackResults = Projects.Where(p =>
+                            (p.Name?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                            (p.Number?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                            (p.Client?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0)
+                        ).ToList();
+
+                        ProjectsList.ItemsSource = fallbackResults;
+                    });
+                }
             }
         }
 

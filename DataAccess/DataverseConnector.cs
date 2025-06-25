@@ -32,12 +32,12 @@ namespace DHA.DSTC.WPF.DataAccess
                 // Only show authentication message if specified
                 if (showMessages)
                 {
-                    MessageBox.Show(
-                        "The application will now attempt to connect to Dataverse.\n\n" +
-                        "A login window will appear. Please complete the authentication process.",
-                        "Authentication Required",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
+                    //MessageBox.Show(
+                    //    "The application will now attempt to connect to Dataverse.\n\n" +
+                    //    "A login window will appear. Please complete the authentication process.",
+                    //    "Authentication Required",
+                    //    MessageBoxButtons.OK,
+                    //    MessageBoxIcon.Information);
 
                     // Slight delay to allow UI to update before showing auth dialog
                     Thread.Sleep(500);

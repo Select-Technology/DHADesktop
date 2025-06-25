@@ -17,7 +17,7 @@
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
     <!-- ClickOnce Properties for Static Web Apps -->
-    <IsWebBootstrapper>true</IsWebBootstrapper>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
     <PublishWizardShown>false</PublishWizardShown>
     <InstallOptionalMessage>This will install DHA Time Management on your computer.</InstallOptionalMessage>
     <PublishLanguage>en-GB</PublishLanguage>
@@ -27,29 +27,29 @@
     <SignManifests>true</SignManifests>
     <PublishUrl>C:\temp\dhadesktop\publish\</PublishUrl>
     <Install>true</Install>
-    <InstallFrom>Web</InstallFrom>
-    <UpdateEnabled>true</UpdateEnabled>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
     <UpdateMode>Foreground</UpdateMode>
     <UpdateInterval>1</UpdateInterval>
     <UpdateIntervalUnits>Days</UpdateIntervalUnits>
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
-    <InstallUrl>https://delightful-ocean-02c00d603.6.azurestaticapps.net/</InstallUrl>
     <UpdateUrl>https://delightful-ocean-02c00d603.6.azurestaticapps.net/</UpdateUrl>
     <SupportUrl>https://www.select-technology.co.uk/</SupportUrl>
     <TargetCulture>en-GB</TargetCulture>
     <ProductName>DHA Time Management</ProductName>
     <PublisherName>DHA</PublisherName>
     <MinimumRequiredVersion>1.0.0.0</MinimumRequiredVersion>
-    <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
     <WebPage>publish.htm</WebPage>
+    <AutorunEnabled>true</AutorunEnabled>
     <ApplicationRevision>0</ApplicationRevision>
     <ApplicationVersion>1.0.0.0</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <CreateDesktopShortcut>true</CreateDesktopShortcut>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
