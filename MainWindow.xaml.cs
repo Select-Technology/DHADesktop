@@ -418,26 +418,57 @@ namespace DHA.DSTC.WPF
             _notifyIcon.DoubleClick += (s, e) => ShowApplication();
         }
 
+        // ✅ IMPROVED: Better authentication flow in LoadInitialData
         private async void LoadInitialData()
         {
             try
             {
+                UpdateStatus("Initializing...");
+
+                // ✅ IMPROVED: Better connection logic
+                bool connected = false;
+
+                // First, try silent connection (use cached tokens)
                 UpdateStatus("Connecting to Dataverse...");
+                connected = await Task.Run(() => ServiceLocator.Connect(forceReconnect: false, showMessages: false));
 
-                // Try silent connection first in production, force fresh in debug
-                bool forceReconnect = System.Diagnostics.Debugger.IsAttached; // Force fresh when debugging
-                bool showMessages = false; // No auth dialog messages
+                if (!connected)
+                {
+                    // If silent connection failed, show user what's happening
+                    UpdateStatus("Authentication required...");
 
-                bool connected = await Task.Run(() =>
-                    ServiceLocator.Connect(forceReconnect: forceReconnect, showMessages: showMessages));
+                    // Try with user interaction allowed
+                    connected = await Task.Run(() => ServiceLocator.Connect(forceReconnect: true, showMessages: true));
+                }
 
                 if (!connected)
                 {
                     UpdateStatus("Failed to connect to Dataverse");
                     UpdateConnectionStatus(false);
-                    MessageBox.Show("Failed to connect to Dataverse. Please check your connection and try again.",
-                        "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
+
+                    // ✅ IMPROVED: Better error message with retry option
+                    var result = MessageBox.Show(
+                        "Failed to connect to Dataverse. This could be due to:\n\n" +
+                        "• Network connectivity issues\n" +
+                        "• Expired credentials\n" +
+                        "• Authentication service problems\n\n" +
+                        "Would you like to try again?",
+                        "Connection Error",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        // Retry with fresh authentication
+                        connected = await Task.Run(() => ServiceLocator.ForceReauthentication(showMessages: true));
+                    }
+
+                    if (!connected)
+                    {
+                        UpdateStatus("Connection failed - some features may not be available");
+                        // Don't exit the app - let it run in limited mode
+                        return;
+                    }
                 }
 
                 UpdateStatus("Loading data...");
@@ -457,13 +488,33 @@ namespace DHA.DSTC.WPF
 
                 UpdateStatus("Ready");
                 UpdateConnectionStatus(true);
+
+                // ✅ NEW: Show connection success briefly
+                if (ServiceLocator.CurrentUserName != "Not connected")
+                {
+                    UpdateStatus($"Connected as {ServiceLocator.CurrentUserName}");
+
+                    // Clear the status after a few seconds
+                    await Task.Delay(3000);
+                    if (StatusLabel.Text.StartsWith("Connected as"))
+                    {
+                        UpdateStatus("Ready");
+                    }
+                }
             }
             catch (Exception ex)
             {
                 UpdateStatus($"Error loading data: {ex.Message}");
                 UpdateConnectionStatus(false);
-                MessageBox.Show($"Error initialising application: {ex.Message}",
-                    "Initialisation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                System.Diagnostics.Debug.WriteLine($"LoadInitialData error: {ex}");
+
+                MessageBox.Show(
+                    $"Error initialising application:\n\n{ex.Message}\n\n" +
+                    "The application will continue to run but some features may not be available.",
+                    "Initialisation Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
         }
         #endregion

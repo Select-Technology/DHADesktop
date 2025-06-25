@@ -26,8 +26,12 @@ namespace DHA.DSTC.WPF.DataAccess
         {
             try
             {
+                // ✅ IMPROVED: Better connection state checking
                 if (_authService.IsConnected && !forceReconnect)
+                {
+                    System.Diagnostics.Debug.WriteLine("DataverseConnector: Already connected, skipping authentication");
                     return true;
+                }
 
                 // Only show authentication message if specified AND it's a forced reconnect
                 if (showMessages && forceReconnect)
@@ -43,16 +47,17 @@ namespace DHA.DSTC.WPF.DataAccess
                     Thread.Sleep(500);
                 }
 
-                // Use forceReconnect parameter directly
+                System.Diagnostics.Debug.WriteLine($"DataverseConnector: Calling ConnectAsync with forceReconnect={forceReconnect}");
+
+                // ✅ FIXED: Pass forceReconnect parameter correctly
                 bool result = _authService.ConnectAsync(forceReconnect).GetAwaiter().GetResult();
 
-                // Remove the success message box entirely
-                // if (result && showMessages) { ... } - REMOVED
-
+                System.Diagnostics.Debug.WriteLine($"DataverseConnector: ConnectAsync returned {result}");
                 return result;
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"DataverseConnector: Connection error: {ex.Message}");
                 if (showMessages)
                 {
                     MessageBox.Show($"Error connecting to Dataverse: {ex.Message}",
@@ -69,8 +74,10 @@ namespace DHA.DSTC.WPF.DataAccess
             {
                 if (_orgService == null)
                 {
+                    System.Diagnostics.Debug.WriteLine("DataverseConnector: No organization service, attempting connection");
                     if (!Connect())
                     {
+                        System.Diagnostics.Debug.WriteLine("DataverseConnector: Connection failed");
                         return new List<Entity>(); // Return empty list instead of null
                     }
                 }
@@ -110,7 +117,10 @@ namespace DHA.DSTC.WPF.DataAccess
             {
                 if (_orgService == null)
                 {
-                    Connect();
+                    if (!Connect())
+                    {
+                        return null;
+                    }
                 }
 
                 return _orgService.Retrieve(entityName, id, columns != null ? new ColumnSet(columns) : new ColumnSet(true));
@@ -128,7 +138,10 @@ namespace DHA.DSTC.WPF.DataAccess
             {
                 if (_orgService == null)
                 {
-                    Connect();
+                    if (!Connect())
+                    {
+                        throw new InvalidOperationException("Could not establish connection to Dataverse");
+                    }
                 }
 
                 return _orgService.Create(entity);
@@ -146,7 +159,10 @@ namespace DHA.DSTC.WPF.DataAccess
             {
                 if (_orgService == null)
                 {
-                    Connect();
+                    if (!Connect())
+                    {
+                        throw new InvalidOperationException("Could not establish connection to Dataverse");
+                    }
                 }
 
                 _orgService.Update(entity);
@@ -164,7 +180,10 @@ namespace DHA.DSTC.WPF.DataAccess
             {
                 if (_orgService == null)
                 {
-                    Connect();
+                    if (!Connect())
+                    {
+                        throw new InvalidOperationException("Could not establish connection to Dataverse");
+                    }
                 }
 
                 _orgService.Delete(entityName, id);

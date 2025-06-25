@@ -104,9 +104,10 @@ namespace DHA.DSTC.WPF.Services
             {
                 System.Diagnostics.Debug.WriteLine($"ConnectAsync called: forceReconnect={forceReconnect}, IsConnected={IsConnected}");
 
-                if (IsConnected && !forceReconnect)
+                // Check if we already have a valid connection
+                if (IsConnected && !forceReconnect && IsTokenStillValid())
                 {
-                    System.Diagnostics.Debug.WriteLine("Already connected, returning true");
+                    System.Diagnostics.Debug.WriteLine("Already connected with valid token, returning true");
                     return true;
                 }
 
@@ -128,43 +129,25 @@ namespace DHA.DSTC.WPF.Services
                     return false;
                 }
 
-                // Clear token cache if explicitly forced to reconnect
+                // Clear token cache only if explicitly forced to reconnect
                 if (forceReconnect)
                 {
-                    System.Diagnostics.Debug.WriteLine("Clearing token cache for fresh login");
+                    System.Diagnostics.Debug.WriteLine("Force reconnect - clearing token cache for fresh login");
                     ClearTokenCache();
                 }
-
-                // Go back to the working connection string approach but use LoginPrompt=Always for force reconnect
-                string connectionString;
 
                 // Use longer timeout when debugging
                 string timeout = System.Diagnostics.Debugger.IsAttached ? "00:05:00" : "00:02:00";
 
-                if (forceReconnect)
-                {
-                    // When forcing reconnect, use Always to ensure we get the auth dialog
-                    connectionString = $"AuthType=OAuth;" +
-                                     $"Url={EnvironmentUrl};" +
-                                     $"AppId={ClientId};" +
-                                     $"RedirectUri={RedirectUri};" +
-                                     $"LoginPrompt=Always;" +
-                                     $"TokenCacheStorePath={_tokenCacheDirectory};" +
-                                     $"RequireNewInstance=true;" +
-                                     $"Timeout={timeout}";
-                }
-                else
-                {
-                    // For normal connection, try to use cached tokens
-                    connectionString = $"AuthType=OAuth;" +
-                                     $"Url={EnvironmentUrl};" +
-                                     $"AppId={ClientId};" +
-                                     $"RedirectUri={RedirectUri};" +
-                                     $"LoginPrompt=Auto;" +
-                                     $"TokenCacheStorePath={_tokenCacheDirectory};" +
-                                     $"RequireNewInstance=false;" +
-                                     $"Timeout={timeout}";
-                }
+                // ✅ FIXED: Use consistent connection string that allows proper token reuse
+                string connectionString = $"AuthType=OAuth;" +
+                                         $"Url={EnvironmentUrl};" +
+                                         $"AppId={ClientId};" +
+                                         $"RedirectUri={RedirectUri};" +
+                                         $"LoginPrompt=Auto;" +                    // ✅ Always use Auto - let MSAL decide
+                                         $"TokenCacheStorePath={_tokenCacheDirectory};" +
+                                         $"RequireNewInstance=false;" +            // ✅ Allow connection reuse
+                                         $"Timeout={timeout}";
 
                 System.Diagnostics.Debug.WriteLine($"Connection string: {connectionString}");
                 System.Diagnostics.Debug.WriteLine($"Token cache path: {_tokenCacheDirectory}");
@@ -176,6 +159,58 @@ namespace DHA.DSTC.WPF.Services
                 // Wait longer for authentication to complete when debugging
                 int maxWaitSeconds = System.Diagnostics.Debugger.IsAttached ? 300 : 60; // 5 minutes when debugging, 1 minute production
                 int waitedSeconds = 0;
+
+                System.Diagnostics.Debug.WriteLine($"Waiting for authentication (max {maxWaitSeconds} seconds)...");
+
+                while (!_client.IsReady && waitedSeconds < maxWaitSeconds)
+                {
+                    await Task.Delay(1000);
+                    waitedSeconds++;
+
+                    // Log every second for the first 10 seconds when debugging
+                    if (System.Diagnostics.Debugger.IsAttached && waitedSeconds <= 10)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Waiting for authentication... ({waitedSeconds}s)");
+                        System.Diagnostics.Debug.WriteLine($"Client IsReady: {_client.IsReady}");
+
+                        if (!string.IsNullOrEmpty(_client.LastCrmError))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"CRM Error: {_client.LastCrmError}");
+                        }
+
+                        if (_client.LastCrmException != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"CRM Exception: {_client.LastCrmException.Message}");
+                            System.Diagnostics.Debug.WriteLine($"CRM Exception Stack: {_client.LastCrmException.StackTrace}");
+                        }
+                    }
+                    else if (waitedSeconds % 5 == 0) // Log every 5 seconds after that
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Waiting for authentication... ({waitedSeconds}s)");
+                        System.Diagnostics.Debug.WriteLine($"Client IsReady: {_client.IsReady}");
+
+                        if (!string.IsNullOrEmpty(_client.LastCrmError))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"CRM Error: {_client.LastCrmError}");
+                        }
+
+                        if (_client.LastCrmException != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"CRM Exception: {_client.LastCrmException.Message}");
+                        }
+                    }
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Connection string: {connectionString}");
+                System.Diagnostics.Debug.WriteLine($"Token cache path: {_tokenCacheDirectory}");
+
+                // Create client
+                System.Diagnostics.Debug.WriteLine("Creating CrmServiceClient...");
+                _client = new CrmServiceClient(connectionString);
+
+                // Wait longer for authentication to complete when debugging
+                maxWaitSeconds = System.Diagnostics.Debugger.IsAttached ? 300 : 60; // 5 minutes when debugging, 1 minute production
+                waitedSeconds = 0;
 
                 System.Diagnostics.Debug.WriteLine($"Waiting for authentication (max {maxWaitSeconds} seconds)...");
 
@@ -257,6 +292,29 @@ namespace DHA.DSTC.WPF.Services
                 System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// ✅ NEW: Check if current token is still valid to avoid unnecessary reconnections
+        /// </summary>
+        private bool IsTokenStillValid()
+        {
+            try
+            {
+                if (_client?.IsReady == true && _organizationService != null)
+                {
+                    // Test with a quick operation to verify token is still valid
+                    var whoAmI = new Microsoft.Crm.Sdk.Messages.WhoAmIRequest();
+                    _organizationService.Execute(whoAmI);
+                    System.Diagnostics.Debug.WriteLine("Token validation successful");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Token validation failed: {ex.Message}");
+            }
+            return false;
         }
 
         private void ClearTokenCache()

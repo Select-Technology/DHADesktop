@@ -72,7 +72,7 @@ namespace DHA.DSTC.WPF.Utilities
         }
 
         /// <summary>
-        /// Connects to Dataverse and gets user info (call this AFTER Initialize)
+        /// ✅ IMPROVED: Connects to Dataverse with better authentication handling
         /// </summary>
         /// <param name="forceReconnect">Force fresh authentication</param>
         /// <param name="showMessages">Show authentication messages</param>
@@ -92,7 +92,16 @@ namespace DHA.DSTC.WPF.Utilities
                     }
                 }
 
-                // Connect to Dataverse
+                // ✅ IMPROVED: Check if we already have a valid connection
+                var authService = Services.DataverseAuthService.Instance;
+                if (authService.IsConnected && !forceReconnect)
+                {
+                    System.Diagnostics.Debug.WriteLine("ServiceLocator: Already connected, updating user info");
+                    GetUserInfo(); // Update user info in case it changed
+                    return true;
+                }
+
+                // Connect to Dataverse with improved parameters
                 bool connected = DataverseConnector.Connect(forceReconnect, showMessages);
                 System.Diagnostics.Debug.WriteLine($"ServiceLocator: DataverseConnector.Connect() returned: {connected}");
 
@@ -118,7 +127,7 @@ namespace DHA.DSTC.WPF.Utilities
         }
 
         /// <summary>
-        /// Gets current user information from the authentication service
+        /// ✅ IMPROVED: Gets current user information with better error handling
         /// </summary>
         private static void GetUserInfo()
         {
@@ -129,14 +138,11 @@ namespace DHA.DSTC.WPF.Utilities
                 var authService = Services.DataverseAuthService.Instance;
                 if (authService != null && authService.IsConnected)
                 {
-                    // Access the internal client through reflection or add a public property
-                    var clientField = typeof(Services.DataverseAuthService).GetField("_client",
-                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-                    var client = clientField?.GetValue(authService) as Microsoft.Xrm.Tooling.Connector.CrmServiceClient;
+                    var client = authService.Client;
 
                     if (client != null && client.IsReady)
                     {
+                        // Get user name from OAuth
                         CurrentUserName = client.OAuthUserId ?? "Unknown user";
                         System.Diagnostics.Debug.WriteLine($"ServiceLocator: Found client, OAuthUserId: {CurrentUserName}");
 
@@ -151,9 +157,19 @@ namespace DHA.DSTC.WPF.Utilities
                             {
                                 System.Diagnostics.Debug.WriteLine("ServiceLocator: GetMyCrmUserId returned empty, trying WhoAmI request");
                                 var whoAmI = new Microsoft.Crm.Sdk.Messages.WhoAmIRequest();
-                                var whoAmIResponse = (Microsoft.Crm.Sdk.Messages.WhoAmIResponse)client.Execute(whoAmI);
+                                var whoAmIResponse = (Microsoft.Crm.Sdk.Messages.WhoAmIResponse)authService.OrganizationService.Execute(whoAmI);
                                 CurrentUserId = whoAmIResponse.UserId;
                                 System.Diagnostics.Debug.WriteLine($"ServiceLocator: WhoAmI returned: {CurrentUserId}");
+                            }
+
+                            // ✅ IMPROVED: Clean up the user name if we got a valid user ID
+                            if (CurrentUserId != Guid.Empty && !string.IsNullOrEmpty(CurrentUserName))
+                            {
+                                // Extract just the username part if it's an email
+                                if (CurrentUserName.Contains("@"))
+                                {
+                                    CurrentUserName = CurrentUserName.Split('@')[0];
+                                }
                             }
                         }
                         catch (Exception userEx)
@@ -188,7 +204,7 @@ namespace DHA.DSTC.WPF.Utilities
         }
 
         /// <summary>
-        /// Disconnects all services
+        /// ✅ IMPROVED: Better disconnect handling
         /// </summary>
         public static void Disconnect()
         {
@@ -196,20 +212,60 @@ namespace DHA.DSTC.WPF.Utilities
             {
                 System.Diagnostics.Debug.WriteLine("ServiceLocator: Disconnect() called");
 
-                // Disconnect the auth service instead of DataverseService
+                // Disconnect the auth service
                 var authService = Services.DataverseAuthService.Instance;
                 authService?.Disconnect();
 
                 // Clear current user info
                 CurrentUserId = Guid.Empty;
-                CurrentUserName = null;
+                CurrentUserName = "Disconnected";
 
-                IsInitialized = false;
+                // Don't mark as uninitialized - services are still available for reconnection
                 System.Diagnostics.Debug.WriteLine("ServiceLocator: Disconnect() completed");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"ServiceLocator: Disconnect error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// ✅ NEW: Force a fresh authentication (clears all cached tokens)
+        /// </summary>
+        public static bool ForceReauthentication(bool showMessages = true)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("ServiceLocator: ForceReauthentication() called");
+
+                // Clear cached tokens first
+                var authService = Services.DataverseAuthService.Instance;
+                authService?.ClearCachedTokens();
+
+                // Force a fresh connection
+                return Connect(forceReconnect: true, showMessages: showMessages);
+            }
+            catch (Exception ex)
+            {
+                LastError = ex.Message;
+                System.Diagnostics.Debug.WriteLine($"ServiceLocator: ForceReauthentication() failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// ✅ NEW: Check if current connection is still valid
+        /// </summary>
+        public static bool IsConnectionValid()
+        {
+            try
+            {
+                var authService = Services.DataverseAuthService.Instance;
+                return authService?.IsConnected == true;
+            }
+            catch
+            {
+                return false;
             }
         }
     }
