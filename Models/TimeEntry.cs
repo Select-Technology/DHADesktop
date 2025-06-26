@@ -12,6 +12,13 @@ namespace DHA.DSTC.WPF.Models
         public string Comments { get; set; }
         public Guid ProjectId { get; set; }
         public Guid TeamMemberId { get; set; }
+        // Calculated property to check if entry is editable based on work date
+        public bool IsEditable => Utilities.TimeEntryValidationHelper.CanEditTimeEntry(Date);
+
+        // Calculated property to show lock date based on work date
+        public DateTime LockDate => Utilities.TimeEntryValidationHelper.GetLockDate(Date);
+
+        public Guid IdGuid { get; set; } // Add this line to your TimeEntry class
 
         // Navigation properties
         public string ProjectName { get; set; }

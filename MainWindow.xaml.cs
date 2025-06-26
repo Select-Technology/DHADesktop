@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using WinForms = System.Windows.Forms;
 using DHA.DSTC.WPF.Models;
@@ -117,176 +118,6 @@ namespace DHA.DSTC.WPF
         }
         #endregion
 
-        #region Disbursement Events
-        private async void AddDisbursementButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                // Validate inputs
-                if (DisbursementProjectsList.SelectedItem == null)
-                {
-                    MessageBox.Show("Please select a project from the project search.", "Validation Error",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (DisbursementTypeComboBox.SelectedItem == null)
-                {
-                    MessageBox.Show("Please select a disbursement type.", "Validation Error",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (_currentUser == null)
-                {
-                    MessageBox.Show("Please select a team member.", "Validation Error",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (!decimal.TryParse(DisbursementAmountTextBox.Text, out decimal amount) || amount <= 0)
-                {
-                    MessageBox.Show("Please enter a valid amount.", "Validation Error",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (string.IsNullOrWhiteSpace(DisbursementDescriptionTextBox.Text))
-                {
-                    MessageBox.Show("Please enter a description.", "Validation Error",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                var selectedProject = (Project)DisbursementProjectsList.SelectedItem;
-                var selectedType = (DisbursementType)DisbursementTypeComboBox.SelectedItem;
-
-                // Create disbursement
-                var disbursement = new Disbursement
-                {
-                    Date = DisbursementDatePicker.SelectedDate ?? DateTime.Today,
-                    Amount = amount,
-                    Description = DisbursementDescriptionTextBox.Text,
-                    ProjectGuid = selectedProject.Id,
-                    ProjectName = selectedProject.Name,
-                    TeamMemberGuid = _currentUser.Id,
-                    TeamMemberName = _currentUser.FullName,
-                    DisbursementTypeId = selectedType.Id,
-                    DisbursementTypeName = selectedType.Name,
-                    BillableToClient = true
-                };
-
-                UpdateStatus("Adding disbursement...");
-                var newId = await _disbursementService.AddDisbursementAsync(disbursement);
-
-                if (newId != Guid.Empty)
-                {
-                    disbursement.IdGuid = newId;
-                    Disbursements.Insert(0, disbursement);
-                    ClearDisbursementForm();
-                    UpdateStatus("Disbursement added successfully");
-                    UpdateDisbursementsSummary();
-                }
-                else
-                {
-                    UpdateStatus("Failed to add disbursement");
-                }
-            }
-            catch (Exception ex)
-            {
-                UpdateStatus($"Error adding disbursement: {ex.Message}");
-                MessageBox.Show($"Error adding disbursement: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void DisbursementProjectSearchBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            FilterDisbursementProjects();
-        }
-
-        private void DisbursementProjectSearchBox_GotFocus(object sender, RoutedEventArgs e)
-        {
-            if (DisbursementProjectSearchBox.Text == "Search projects...")
-            {
-                DisbursementProjectSearchBox.Text = "";
-            }
-        }
-
-        private void FilterDisbursementProjects()
-        {
-            var searchText = DisbursementProjectSearchBox.Text;
-
-            if (string.IsNullOrWhiteSpace(searchText) || searchText == "Search projects...")
-            {
-                DisbursementProjectsList.ItemsSource = Projects;
-            }
-            else
-            {
-                var filtered = Projects.Where(p =>
-                    (p.Name?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
-                    (p.Number?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
-                    (p.Client?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0)
-                ).ToList();
-
-                DisbursementProjectsList.ItemsSource = filtered;
-            }
-        }
-
-        private void ClearDisbursementForm()
-        {
-            DisbursementDatePicker.SelectedDate = DateTime.Today;
-            DisbursementAmountTextBox.Clear();
-            DisbursementDescriptionTextBox.Clear();
-            DisbursementTypeComboBox.SelectedItem = null;
-            // Note: Don't clear project selection as it affects the view
-        }
-
-        private async void RefreshDisbursementsButton_Click(object sender, RoutedEventArgs e)
-        {
-            await LoadDisbursementsAsync();
-        }
-
-        private async void DisbursementProjectsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            // Update the selected project label and load disbursements
-            var selectedProject = DisbursementProjectsList.SelectedItem as Project;
-            if (selectedProject != null)
-            {
-                SelectedProjectLabel.Text = selectedProject.Name;
-                SelectedProjectLabel.FontStyle = FontStyles.Normal;
-                SelectedProjectLabel.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59)); // TextPrimaryBrush color
-            }
-            else
-            {
-                SelectedProjectLabel.Text = "No project selected";
-                SelectedProjectLabel.FontStyle = FontStyles.Italic;
-                SelectedProjectLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)); // TextSecondaryBrush color
-            }
-
-            // Load disbursements for the selected project (or all if none selected)
-            await LoadDisbursementsAsync();
-        }
-
-        private async void ClearProjectSelectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            DisbursementProjectsList.SelectedItem = null;
-            DisbursementProjectSearchBox.Text = "Search projects...";
-            DisbursementProjectsList.ItemsSource = Projects; // Show all projects
-            await LoadDisbursementsAsync(); // This will load all disbursements for current user
-        }
-
-        private void UpdateDisbursementsSummary()
-        {
-            var totalDisbursements = Disbursements.Count;
-            var totalAmount = Disbursements.Sum(d => d.Amount);
-
-            TotalDisbursementsLabel.Text = $"Total disbursements: {totalDisbursements}";
-            TotalDisbursementAmountLabel.Text = $"Total amount: £{totalAmount:F2}";
-        }
-        #endregion
-
-        #region High-Performance Calendar Implementation
         #region Constructor and Initialisation
         public MainWindow()
         {
@@ -339,6 +170,8 @@ namespace DHA.DSTC.WPF
             ProjectSearchBox.TextChanged += ProjectSearchBox_TextChanged;
             ProjectSearchBox.GotFocus += ProjectSearchBox_GotFocus;
             RefreshEntriesButton.Click += RefreshEntriesButton_Click;
+            TimeEntriesDataGrid.MouseDoubleClick += TimeEntriesDataGrid_MouseDoubleClick;
+            TimeEntriesDataGrid.KeyDown += TimeEntriesDataGrid_KeyDown;
 
             // Disbursement events
             AddDisbursementButton.Click += AddDisbursementButton_Click;
@@ -362,6 +195,9 @@ namespace DHA.DSTC.WPF
             // Window events
             StateChanged += MainWindow_StateChanged;
             Closing += MainWindow_Closing;
+
+            // Set up context menu for time entries
+            SetupTimeEntriesContextMenu();
         }
 
         private void InitializeSystemTray()
@@ -418,14 +254,13 @@ namespace DHA.DSTC.WPF
             _notifyIcon.DoubleClick += (s, e) => ShowApplication();
         }
 
-        // ✅ IMPROVED: Better authentication flow in LoadInitialData
         private async void LoadInitialData()
         {
             try
             {
                 UpdateStatus("Initializing...");
 
-                // ✅ IMPROVED: Better connection logic
+                // Better connection logic
                 bool connected = false;
 
                 // First, try silent connection (use cached tokens)
@@ -446,7 +281,6 @@ namespace DHA.DSTC.WPF
                     UpdateStatus("Failed to connect to Dataverse");
                     UpdateConnectionStatus(false);
 
-                    // ✅ IMPROVED: Better error message with retry option
                     var result = MessageBox.Show(
                         "Failed to connect to Dataverse. This could be due to:\n\n" +
                         "• Network connectivity issues\n" +
@@ -489,7 +323,7 @@ namespace DHA.DSTC.WPF
                 UpdateStatus("Ready");
                 UpdateConnectionStatus(true);
 
-                // ✅ NEW: Show connection success briefly
+                // Show connection success briefly
                 if (ServiceLocator.CurrentUserName != "Not connected")
                 {
                     UpdateStatus($"Connected as {ServiceLocator.CurrentUserName}");
@@ -517,6 +351,290 @@ namespace DHA.DSTC.WPF
                     MessageBoxImage.Warning);
             }
         }
+        #endregion
+
+        #region Time Entry Editing
+
+        /// <summary>
+        /// Validates if a time entry can be edited
+        /// </summary>
+        private bool ValidateTimeEntryEdit(TimeEntry timeEntry)
+        {
+            if (timeEntry == null) return false;
+
+            // Check if entry belongs to current user
+            if (_currentUser == null || timeEntry.TeamMemberId != _currentUser.Id)
+            {
+                MessageBox.Show(
+                    "You can only edit your own time entries.",
+                    "Edit Restricted",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return false;
+            }
+
+            // Check if entry is still within edit window
+            if (!timeEntry.IsEditable)
+            {
+                var lockDate = timeEntry.LockDate;
+                MessageBox.Show(
+                    $"This time entry cannot be edited as it was locked on {lockDate:dddd, dd MMMM yyyy} at 12:00 noon.\n\n" +
+                    "Time entries can only be edited until 12 noon on the Monday following the work date.",
+                    "Time Entry Locked",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Opens the edit time entry dialog
+        /// </summary>
+        private async void EditTimeEntry(TimeEntry timeEntry)
+        {
+            if (!ValidateTimeEntryEdit(timeEntry))
+                return;
+
+            var editDialog = new EditTimeEntryDialog(timeEntry, Projects.ToList(), _currentUser);
+            if (editDialog.ShowDialog() == true)
+            {
+                var updatedEntry = editDialog.UpdatedTimeEntry;
+
+                try
+                {
+                    UpdateStatus("Updating time entry...");
+
+                    // Update in database
+                    await Task.Run(() => _timeEntryService.UpdateTimeEntry(updatedEntry));
+
+                    // Update in UI collection
+                    var index = TimeEntries.IndexOf(timeEntry);
+                    if (index >= 0)
+                    {
+                        TimeEntries[index] = updatedEntry;
+                        UpdateTimeEntriesSummary();
+                    }
+
+                    UpdateStatus("Time entry updated successfully");
+
+                    // Refresh calendar if showing current month
+                    if (IsCurrentMonth())
+                    {
+                        await LoadCalendarDataAsync();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatus($"Error updating time entry: {ex.Message}");
+                    MessageBox.Show($"Error updating time entry: {ex.Message}",
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Deletes a time entry after confirmation
+        /// </summary>
+        private async void DeleteTimeEntry(TimeEntry timeEntry)
+        {
+            if (!ValidateTimeEntryEdit(timeEntry))
+                return;
+
+            var result = MessageBox.Show(
+                $"Are you sure you want to delete this time entry?\n\n" +
+                $"Date: {timeEntry.Date:dd/MM/yyyy}\n" +
+                $"Project: {timeEntry.ProjectName}\n" +
+                $"Hours: {timeEntry.TotalHours:F1}\n" +
+                $"Comments: {timeEntry.Comments}",
+                "Confirm Deletion",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    UpdateStatus("Deleting time entry...");
+
+                    await Task.Run(() => _timeEntryService.DeleteTimeEntry(timeEntry.Id));
+
+                    TimeEntries.Remove(timeEntry);
+                    UpdateTimeEntriesSummary();
+                    UpdateStatus("Time entry deleted successfully");
+
+                    // Refresh calendar if showing current month
+                    if (IsCurrentMonth())
+                    {
+                        await LoadCalendarDataAsync();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatus($"Error deleting time entry: {ex.Message}");
+                    MessageBox.Show($"Error deleting time entry: {ex.Message}",
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sets up the context menu for the DataGrid
+        /// </summary>
+        private void SetupTimeEntriesContextMenu()
+        {
+            var contextMenu = new ContextMenu();
+
+            // Edit menu item
+            var editItem = new MenuItem
+            {
+                Header = "Edit Time Entry",
+                Icon = new TextBlock { Text = "✏️", FontSize = 14 }
+            };
+            editItem.Click += (s, e) =>
+            {
+                if (TimeEntriesDataGrid.SelectedItem is TimeEntry selectedEntry)
+                {
+                    EditTimeEntry(selectedEntry);
+                }
+            };
+            contextMenu.Items.Add(editItem);
+
+            // Delete menu item
+            var deleteItem = new MenuItem
+            {
+                Header = "Delete Time Entry",
+                Icon = new TextBlock { Text = "🗑️", FontSize = 14 }
+            };
+            deleteItem.Click += (s, e) =>
+            {
+                if (TimeEntriesDataGrid.SelectedItem is TimeEntry selectedEntry)
+                {
+                    DeleteTimeEntry(selectedEntry);
+                }
+            };
+            contextMenu.Items.Add(deleteItem);
+
+            // Separator
+            contextMenu.Items.Add(new Separator());
+
+            // Copy details menu item
+            var copyItem = new MenuItem
+            {
+                Header = "Copy Details",
+                Icon = new TextBlock { Text = "📋", FontSize = 14 }
+            };
+            copyItem.Click += (s, e) =>
+            {
+                if (TimeEntriesDataGrid.SelectedItem is TimeEntry selectedEntry)
+                {
+                    CopyTimeEntryDetails(selectedEntry);
+                }
+            };
+            contextMenu.Items.Add(copyItem);
+
+            // Set the context menu opening event to validate items
+            contextMenu.Opened += (s, e) =>
+            {
+                var hasSelection = TimeEntriesDataGrid.SelectedItem != null;
+                var canEdit = hasSelection && TimeEntriesDataGrid.SelectedItem is TimeEntry entry && entry.IsEditable && entry.TeamMemberId == _currentUser?.Id;
+
+                editItem.IsEnabled = canEdit;
+                deleteItem.IsEnabled = canEdit;
+                copyItem.IsEnabled = hasSelection;
+
+                // Update header text based on lock status
+                if (hasSelection && TimeEntriesDataGrid.SelectedItem is TimeEntry selectedEntry)
+                {
+                    if (!selectedEntry.IsEditable)
+                    {
+                        editItem.Header = "Edit Time Entry (Locked)";
+                        deleteItem.Header = "Delete Time Entry (Locked)";
+                    }
+                    else if (selectedEntry.TeamMemberId != _currentUser?.Id)
+                    {
+                        editItem.Header = "Edit Time Entry (Not Yours)";
+                        deleteItem.Header = "Delete Time Entry (Not Yours)";
+                    }
+                    else
+                    {
+                        editItem.Header = "Edit Time Entry";
+                        deleteItem.Header = "Delete Time Entry";
+                    }
+                }
+            };
+
+            TimeEntriesDataGrid.ContextMenu = contextMenu;
+        }
+
+        /// <summary>
+        /// Copies time entry details to clipboard
+        /// </summary>
+        private void CopyTimeEntryDetails(TimeEntry timeEntry)
+        {
+            try
+            {
+                var details = $"Date: {timeEntry.Date:dd/MM/yyyy}\n" +
+                             $"Project: {timeEntry.ProjectName}\n" +
+                             $"Hours: {timeEntry.TotalHours:F1}\n" +
+                             $"Comments: {timeEntry.Comments}\n" +
+                             $"Lock Date: {timeEntry.LockDate:dd/MM/yyyy HH:mm}";
+
+                Clipboard.SetText(details);
+                UpdateStatus("Time entry details copied to clipboard");
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error copying to clipboard: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles double-click on time entries grid
+        /// </summary>
+        private void TimeEntriesDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (TimeEntriesDataGrid.SelectedItem is TimeEntry selectedEntry)
+            {
+                EditTimeEntry(selectedEntry);
+            }
+        }
+
+        /// <summary>
+        /// Handles key down events on the DataGrid for keyboard shortcuts
+        /// </summary>
+        private void TimeEntriesDataGrid_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (TimeEntriesDataGrid.SelectedItem is TimeEntry selectedEntry)
+            {
+                switch (e.Key)
+                {
+                    case Key.Enter:
+                    case Key.F2:
+                        EditTimeEntry(selectedEntry);
+                        e.Handled = true;
+                        break;
+
+                    case Key.Delete:
+                        if (Keyboard.Modifiers == ModifierKeys.None)
+                        {
+                            DeleteTimeEntry(selectedEntry);
+                            e.Handled = true;
+                        }
+                        break;
+
+                    case Key.C:
+                        if (Keyboard.Modifiers == ModifierKeys.Control)
+                        {
+                            CopyTimeEntryDetails(selectedEntry);
+                            e.Handled = true;
+                        }
+                        break;
+                }
+            }
+        }
+
         #endregion
 
         #region Data Loading Methods
@@ -893,6 +1011,175 @@ namespace DHA.DSTC.WPF
         }
         #endregion
 
+        #region Disbursement Events
+        private async void AddDisbursementButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Validate inputs
+                if (DisbursementProjectsList.SelectedItem == null)
+                {
+                    MessageBox.Show("Please select a project from the project search.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (DisbursementTypeComboBox.SelectedItem == null)
+                {
+                    MessageBox.Show("Please select a disbursement type.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (_currentUser == null)
+                {
+                    MessageBox.Show("Please select a team member.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!decimal.TryParse(DisbursementAmountTextBox.Text, out decimal amount) || amount <= 0)
+                {
+                    MessageBox.Show("Please enter a valid amount.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(DisbursementDescriptionTextBox.Text))
+                {
+                    MessageBox.Show("Please enter a description.", "Validation Error",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var selectedProject = (Project)DisbursementProjectsList.SelectedItem;
+                var selectedType = (DisbursementType)DisbursementTypeComboBox.SelectedItem;
+
+                // Create disbursement
+                var disbursement = new Disbursement
+                {
+                    Date = DisbursementDatePicker.SelectedDate ?? DateTime.Today,
+                    Amount = amount,
+                    Description = DisbursementDescriptionTextBox.Text,
+                    ProjectGuid = selectedProject.Id,
+                    ProjectName = selectedProject.Name,
+                    TeamMemberGuid = _currentUser.Id,
+                    TeamMemberName = _currentUser.FullName,
+                    DisbursementTypeId = selectedType.Id,
+                    DisbursementTypeName = selectedType.Name,
+                    BillableToClient = true
+                };
+
+                UpdateStatus("Adding disbursement...");
+                var newId = await _disbursementService.AddDisbursementAsync(disbursement);
+
+                if (newId != Guid.Empty)
+                {
+                    disbursement.IdGuid = newId;
+                    Disbursements.Insert(0, disbursement);
+                    ClearDisbursementForm();
+                    UpdateStatus("Disbursement added successfully");
+                    UpdateDisbursementsSummary();
+                }
+                else
+                {
+                    UpdateStatus("Failed to add disbursement");
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error adding disbursement: {ex.Message}");
+                MessageBox.Show($"Error adding disbursement: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void DisbursementProjectSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            FilterDisbursementProjects();
+        }
+
+        private void DisbursementProjectSearchBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (DisbursementProjectSearchBox.Text == "Search projects...")
+            {
+                DisbursementProjectSearchBox.Text = "";
+            }
+        }
+
+        private void FilterDisbursementProjects()
+        {
+            var searchText = DisbursementProjectSearchBox.Text;
+
+            if (string.IsNullOrWhiteSpace(searchText) || searchText == "Search projects...")
+            {
+                DisbursementProjectsList.ItemsSource = Projects;
+            }
+            else
+            {
+                var filtered = Projects.Where(p =>
+                    (p.Name?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                    (p.Number?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                    (p.Client?.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0)
+                ).ToList();
+
+                DisbursementProjectsList.ItemsSource = filtered;
+            }
+        }
+
+        private void ClearDisbursementForm()
+        {
+            DisbursementDatePicker.SelectedDate = DateTime.Today;
+            DisbursementAmountTextBox.Clear();
+            DisbursementDescriptionTextBox.Clear();
+            DisbursementTypeComboBox.SelectedItem = null;
+            // Note: Don't clear project selection as it affects the view
+        }
+
+        private async void RefreshDisbursementsButton_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadDisbursementsAsync();
+        }
+
+        private async void DisbursementProjectsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // Update the selected project label and load disbursements
+            var selectedProject = DisbursementProjectsList.SelectedItem as Project;
+            if (selectedProject != null)
+            {
+                SelectedProjectLabel.Text = selectedProject.Name;
+                SelectedProjectLabel.FontStyle = FontStyles.Normal;
+                SelectedProjectLabel.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59)); // TextPrimaryBrush color
+            }
+            else
+            {
+                SelectedProjectLabel.Text = "No project selected";
+                SelectedProjectLabel.FontStyle = FontStyles.Italic;
+                SelectedProjectLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)); // TextSecondaryBrush color
+            }
+
+            // Load disbursements for the selected project (or all if none selected)
+            await LoadDisbursementsAsync();
+        }
+
+        private async void ClearProjectSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            DisbursementProjectsList.SelectedItem = null;
+            DisbursementProjectSearchBox.Text = "Search projects...";
+            DisbursementProjectsList.ItemsSource = Projects; // Show all projects
+            await LoadDisbursementsAsync(); // This will load all disbursements for current user
+        }
+
+        private void UpdateDisbursementsSummary()
+        {
+            var totalDisbursements = Disbursements.Count;
+            var totalAmount = Disbursements.Sum(d => d.Amount);
+
+            TotalDisbursementsLabel.Text = $"Total disbursements: {totalDisbursements}";
+            TotalDisbursementAmountLabel.Text = $"Total amount: £{totalAmount:F2}";
+        }
+        #endregion
+
         #region Calendar Methods
         private void InitializeCalendarStructure()
         {
@@ -1056,10 +1343,6 @@ namespace DHA.DSTC.WPF
             int daysToSubtract = (dayOfWeek == 0) ? 6 : dayOfWeek - 1;
             var startDate = firstDayOfMonth.AddDays(-daysToSubtract);
 
-            // Debug output to verify the calculation
-            System.Diagnostics.Debug.WriteLine($"First day of month: {firstDayOfMonth:yyyy-MM-dd} ({firstDayOfMonth.DayOfWeek})");
-            System.Diagnostics.Debug.WriteLine($"Calendar start date: {startDate:yyyy-MM-dd} ({startDate.DayOfWeek})");
-
             // Update existing cells with new data
             for (int i = 0; i < 42; i++)
             {
@@ -1134,7 +1417,6 @@ namespace DHA.DSTC.WPF
                 // Note: Calendar deliberately NOT refreshed - it always shows the connected user's data
             }
         }
-        #endregion
         #endregion
 
         #region Window and System Tray Events

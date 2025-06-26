@@ -186,6 +186,9 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Page Include="EditTimeEntryDialog.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -193,6 +196,9 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="EditTimeEntryDialog.xaml.cs">
+      <DependentUpon>EditTimeEntryDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
@@ -214,9 +220,12 @@
     <Compile Include="Services\ProjectService.cs" />
     <Compile Include="Services\TeamMemberService.cs" />
     <Compile Include="Services\TimeEntryService.cs" />
+    <Compile Include="Updates\AutoUpdateService.cs" />
+    <Compile Include="Updates\UpdateModels.cs" />
     <Compile Include="Utilities\GuidConverter.cs" />
     <Compile Include="Utilities\LoggingHelper.cs" />
     <Compile Include="Utilities\ServiceLocator.cs" />
+    <Compile Include="Utilities\TimeEntryValidationHelper.cs" />
     <Compile Include="ViewModels\CalendarViewModel.cs" />
     <Compile Include="ViewModels\DisbursementViewModel.cs" />
     <Compile Include="ViewModels\TimeEntryViewModel.cs" />

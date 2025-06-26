@@ -49,5 +49,15 @@ namespace DHA.DSTC.WPF.ProjectProperties {
                 return ((string)(this["DataverseClientId"]));
             }
         }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("https://dhaplanningcouk.sharepoint.com/sites/FutureWorkplace/Installation/apps/Ti" +
+            "meDesktop/version.json")]
+        public string UpdateManifestUrl {
+            get {
+                return ((string)(this["UpdateManifestUrl"]));
+            }
+        }
     }
 }
