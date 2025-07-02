@@ -16,10 +16,17 @@ namespace DHA.DSTC.WPF.Models
         public Guid TeamMemberGuid { get; set; } // Original Guid
         public bool BillableToClient { get; set; }
 
+        // New unit-based properties
+        public decimal Units { get; set; } // Number of units (e.g., miles)
+        public decimal UnitCharge { get; set; } // Cost per unit
+
         // Navigation properties - useful when using Entity Framework
         public string ProjectName { get; set; }
         public string DisbursementTypeName { get; set; }
         public string TeamMemberName { get; set; }
+
+        // Helper property to determine if this disbursement uses units
+        public bool IsUnitBased => UnitCharge > 0;
 
         public Disbursement()
         {
@@ -38,6 +45,10 @@ namespace DHA.DSTC.WPF.Models
         public int Id { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }
+        public decimal UnitCharge { get; set; } // New property
+
+        // Helper property to determine if this is a unit-based disbursement
+        public bool IsUnitBased => UnitCharge > 0;
 
         public override string ToString()
         {

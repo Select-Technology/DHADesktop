@@ -66,6 +66,10 @@ namespace DHA.DSTC.WPF
 
         // Sticky time entry date
         private DateTime _lastSelectedTimeEntryDate = DateTime.Today;
+
+        // Daily progress tracking
+        private decimal _todayExpectedHours = 8.0m;
+        private decimal _todayActualHours = 0.0m;
         #endregion
 
         #region Properties for Data Binding
@@ -183,6 +187,8 @@ namespace DHA.DSTC.WPF
             DisbursementProjectsList.SelectionChanged += DisbursementProjectsList_SelectionChanged;
             ClearProjectSelectionButton.Click += ClearProjectSelectionButton_Click;
             RefreshDisbursementsButton.Click += RefreshDisbursementsButton_Click;
+            DisbursementTypeComboBox.SelectionChanged += DisbursementTypeComboBox_SelectionChanged;
+            DisbursementUnitsTextBox.TextChanged += DisbursementUnitsTextBox_TextChanged;
 
             // Date picker events
             FromDatePicker.SelectedDateChanged += DateRange_Changed;
@@ -191,6 +197,8 @@ namespace DHA.DSTC.WPF
             // Calendar events
             PreviousMonthButton.Click += PreviousMonthButton_Click;
             NextMonthButton.Click += NextMonthButton_Click;
+
+            ProgressCanvas.SizeChanged += (s, e) => UpdateProgressBar();
 
             // Team member selection
             TeamMemberComboBox.SelectionChanged += TeamMemberComboBox_SelectionChanged;
@@ -358,6 +366,119 @@ namespace DHA.DSTC.WPF
         }
         #endregion
 
+        #region Daily Progress Methods
+        private void UpdateDailyProgress()
+        {
+            if (_currentUser == null) return;
+
+            try
+            {
+                // Get today's expected hours
+                var today = DateTime.Today;
+                _todayExpectedHours = _currentUserConfig?.GetExpectedHoursForDay(today.DayOfWeek) ?? 8.0m;
+
+                // Calculate today's actual hours
+                _todayActualHours = TimeEntries
+                    .Where(te => te.Date.Date == today && te.TeamMemberId == _currentUser.Id)
+                    .Sum(te => te.TotalHours);
+
+                // Update UI
+                Dispatcher.Invoke(() =>
+                {
+                    UpdateProgressBar();
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error updating daily progress: {ex.Message}");
+            }
+        }
+
+        private void UpdateProgressBar()
+        {
+            // Update text
+            ProgressText.Text = $"{_todayActualHours:F1}h";
+            TargetText.Text = $"{_todayExpectedHours:F1}h";
+
+            // Don't show progress bar if no expected hours for today (e.g., weekends)
+            if (_todayExpectedHours <= 0)
+            {
+                ProgressBar.Width = 0;
+                ProgressCanvas.Visibility = Visibility.Collapsed;
+                return;
+            }
+            else
+            {
+                ProgressCanvas.Visibility = Visibility.Visible;
+            }
+
+            // Calculate progress percentage
+            var progressPercentage = _todayExpectedHours > 0 ?
+                Math.Min((_todayActualHours / _todayExpectedHours) * 100, 100) : 0;
+
+            // Update progress bar width (ensure canvas has a width)
+            if (ProgressCanvas.ActualWidth > 0)
+            {
+                var progressBarWidth = (ProgressCanvas.ActualWidth * progressPercentage) / 100;
+                ProgressBar.Width = Math.Max(0, progressBarWidth);
+            }
+
+            // Change color based on progress
+            if (progressPercentage >= 100)
+            {
+                ProgressBar.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // Green
+            }
+            else if (progressPercentage >= 75)
+            {
+                ProgressBar.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246)); // Blue
+            }
+            else if (progressPercentage >= 50)
+            {
+                ProgressBar.Background = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // Orange
+            }
+            else
+            {
+                ProgressBar.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
+            }
+
+            CreateHourMarkers();
+        }
+
+        private void CreateHourMarkers()
+        {
+            ProgressCanvas.Children.Clear();
+
+            if (_todayExpectedHours <= 0 || ProgressCanvas.ActualWidth <= 0) return;
+
+            // Add hour markers (1h, 2h, 3h, etc.)
+            for (int hour = 1; hour <= _todayExpectedHours; hour++)
+            {
+                var markerPosition = (ProgressCanvas.ActualWidth * hour) / _todayExpectedHours;
+
+                // Add tick mark
+                var tick = new Rectangle
+                {
+                    Width = 1,
+                    Height = 12,
+                    Fill = new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+                    Margin = new Thickness(markerPosition - 0.5, 4, 0, 0)
+                };
+
+                // Add hour label
+                var label = new TextBlock
+                {
+                    Text = $"{hour}h",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+                    Margin = new Thickness(markerPosition - 8, -2, 0, 0)
+                };
+
+                ProgressCanvas.Children.Add(tick);
+                ProgressCanvas.Children.Add(label);
+            }
+        }
+        #endregion
+
         #region Time Entry Date Management
         private void TimeEntryDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -447,6 +568,7 @@ namespace DHA.DSTC.WPF
                         "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
+            UpdateDailyProgress();
         }
 
         /// <summary>
@@ -492,6 +614,7 @@ namespace DHA.DSTC.WPF
                         "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
+            UpdateDailyProgress();
         }
 
         /// <summary>
@@ -531,24 +654,6 @@ namespace DHA.DSTC.WPF
             };
             contextMenu.Items.Add(deleteItem);
 
-            // Separator
-            contextMenu.Items.Add(new Separator());
-
-            // Copy details menu item
-            var copyItem = new MenuItem
-            {
-                Header = "Copy Details",
-                Icon = new TextBlock { Text = "📋", FontSize = 14 }
-            };
-            copyItem.Click += (s, e) =>
-            {
-                if (TimeEntriesDataGrid.SelectedItem is TimeEntry selectedEntry)
-                {
-                    CopyTimeEntryDetails(selectedEntry);
-                }
-            };
-            contextMenu.Items.Add(copyItem);
-
             // Set the context menu opening event to validate items
             contextMenu.Opened += (s, e) =>
             {
@@ -557,7 +662,6 @@ namespace DHA.DSTC.WPF
 
                 editItem.IsEnabled = canEdit;
                 deleteItem.IsEnabled = canEdit;
-                copyItem.IsEnabled = hasSelection;
 
                 // Update header text based on lock status
                 if (hasSelection && TimeEntriesDataGrid.SelectedItem is TimeEntry selectedEntry)
@@ -581,28 +685,6 @@ namespace DHA.DSTC.WPF
             };
 
             TimeEntriesDataGrid.ContextMenu = contextMenu;
-        }
-
-        /// <summary>
-        /// Copies time entry details to clipboard
-        /// </summary>
-        private void CopyTimeEntryDetails(TimeEntry timeEntry)
-        {
-            try
-            {
-                var details = $"Date: {timeEntry.Date:dd/MM/yyyy}\n" +
-                             $"Project: {timeEntry.ProjectName}\n" +
-                             $"Hours: {timeEntry.TotalHours:F1}\n" +
-                             $"Comments: {timeEntry.Comments}\n" +
-                             $"Lock Date: {timeEntry.LockDate:dd/MM/yyyy HH:mm}";
-
-                Clipboard.SetText(details);
-                UpdateStatus("Time entry details copied to clipboard");
-            }
-            catch (Exception ex)
-            {
-                UpdateStatus($"Error copying to clipboard: {ex.Message}");
-            }
         }
 
         /// <summary>
@@ -635,14 +717,6 @@ namespace DHA.DSTC.WPF
                         if (Keyboard.Modifiers == ModifierKeys.None)
                         {
                             DeleteTimeEntry(selectedEntry);
-                            e.Handled = true;
-                        }
-                        break;
-
-                    case Key.C:
-                        if (Keyboard.Modifiers == ModifierKeys.Control)
-                        {
-                            CopyTimeEntryDetails(selectedEntry);
                             e.Handled = true;
                         }
                         break;
@@ -714,6 +788,7 @@ namespace DHA.DSTC.WPF
                 UpdateStatus($"Error loading colleague configuration: {ex.Message}");
                 _currentUserConfig = ColleagueConfiguration.CreateDefault();
             }
+            UpdateDailyProgress();
         }
 
         private async Task LoadProjectsAsync()
@@ -804,6 +879,7 @@ namespace DHA.DSTC.WPF
             {
                 UpdateStatus($"Error loading time entries: {ex.Message}");
             }
+            UpdateDailyProgress();
         }
 
         private async Task LoadDisbursementsAsync()
@@ -952,6 +1028,7 @@ namespace DHA.DSTC.WPF
                 MessageBox.Show($"Error adding time entry: {ex.Message}",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            UpdateDailyProgress();
         }
 
         private void ProjectSearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1075,11 +1152,29 @@ namespace DHA.DSTC.WPF
                     return;
                 }
 
-                if (!decimal.TryParse(DisbursementAmountTextBox.Text, out decimal amount) || amount <= 0)
+                decimal amount = 0;
+                decimal units = 0;
+
+                var selectedType = (DisbursementType)DisbursementTypeComboBox.SelectedItem;
+
+                if (selectedType.IsUnitBased)
                 {
-                    MessageBox.Show("Please enter a valid amount.", "Validation Error",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
+                    if (!decimal.TryParse(DisbursementUnitsTextBox.Text, out units) || units <= 0)
+                    {
+                        MessageBox.Show("Please enter a valid number of units.", "Validation Error",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                    amount = units * selectedType.UnitCharge;
+                }
+                else
+                {
+                    if (!decimal.TryParse(DisbursementAmountTextBox.Text, out amount) || amount <= 0)
+                    {
+                        MessageBox.Show("Please enter a valid amount.", "Validation Error",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
                 }
 
                 if (string.IsNullOrWhiteSpace(DisbursementDescriptionTextBox.Text))
@@ -1090,13 +1185,14 @@ namespace DHA.DSTC.WPF
                 }
 
                 var selectedProject = (Project)DisbursementProjectsList.SelectedItem;
-                var selectedType = (DisbursementType)DisbursementTypeComboBox.SelectedItem;
 
                 // Create disbursement
                 var disbursement = new Disbursement
                 {
                     Date = DisbursementDatePicker.SelectedDate ?? DateTime.Today,
                     Amount = amount,
+                    Units = selectedType.IsUnitBased ? units : 0,
+                    UnitCharge = selectedType.UnitCharge,
                     Description = DisbursementDescriptionTextBox.Text,
                     ProjectGuid = selectedProject.Id,
                     ProjectName = selectedProject.Name,
@@ -1168,6 +1264,7 @@ namespace DHA.DSTC.WPF
         {
             DisbursementDatePicker.SelectedDate = DateTime.Today;
             DisbursementAmountTextBox.Clear();
+            DisbursementUnitsTextBox.Clear();
             DisbursementDescriptionTextBox.Clear();
             DisbursementTypeComboBox.SelectedItem = null;
             // Note: Don't clear project selection as it affects the view
@@ -1214,6 +1311,74 @@ namespace DHA.DSTC.WPF
 
             TotalDisbursementsLabel.Text = $"Total disbursements: {totalDisbursements}";
             TotalDisbursementAmountLabel.Text = $"Total amount: £{totalAmount:F2}";
+        }
+
+        // New disbursement type selection handler
+        private void DisbursementTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var selectedType = DisbursementTypeComboBox.SelectedItem as DisbursementType;
+
+            if (selectedType?.IsUnitBased == true)
+            {
+                // Show unit-based input
+                AmountLabel.Visibility = Visibility.Collapsed;
+                DisbursementAmountTextBox.Visibility = Visibility.Collapsed;
+
+                UnitsLabel.Text = GetUnitsLabel(selectedType.Name);
+                UnitsLabel.Visibility = Visibility.Visible;
+                UnitsPanel.Visibility = Visibility.Visible;
+                UnitChargeLabel.Text = $"× £{selectedType.UnitCharge:F2}";
+
+                // Clear and calculate
+                DisbursementUnitsTextBox.Clear();
+                UpdateCalculatedAmount(selectedType);
+            }
+            else
+            {
+                // Show amount-based input
+                UnitsLabel.Visibility = Visibility.Collapsed;
+                UnitsPanel.Visibility = Visibility.Collapsed;
+
+                AmountLabel.Visibility = Visibility.Visible;
+                DisbursementAmountTextBox.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void DisbursementUnitsTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var selectedType = DisbursementTypeComboBox.SelectedItem as DisbursementType;
+            if (selectedType?.IsUnitBased == true)
+            {
+                UpdateCalculatedAmount(selectedType);
+            }
+        }
+
+        private void UpdateCalculatedAmount(DisbursementType disbursementType)
+        {
+            if (decimal.TryParse(DisbursementUnitsTextBox.Text, out decimal units))
+            {
+                var calculatedAmount = units * disbursementType.UnitCharge;
+                CalculatedAmountLabel.Text = $"= £{calculatedAmount:F2}";
+            }
+            else
+            {
+                CalculatedAmountLabel.Text = "= £0.00";
+            }
+        }
+
+        private string GetUnitsLabel(string typeName)
+        {
+            // Customise the label based on disbursement type
+            switch (typeName.ToLower())
+            {
+                case "mileage":
+                    return "Miles";
+                case "photocopying (b&w)":
+                case "photocopying (colour)":
+                    return "Number of Copies";
+                default:
+                    return "Number of Units";
+            }
         }
         #endregion
 

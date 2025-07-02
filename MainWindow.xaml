@@ -104,6 +104,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -138,8 +139,41 @@
             </Grid>
         </Border>
 
+        <!-- Daily Progress Indicator -->
+        <Border Grid.Row="1" Background="{StaticResource SurfaceBrush}" 
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                Padding="16,8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Progress Bar -->
+                <Grid Grid.Row="0" Height="20" Margin="0,0,0,4">
+                    <Border Background="#E2E8F0" CornerRadius="10"/>
+                    <Border x:Name="ProgressBar" Background="{StaticResource AccentBrush}" 
+                            CornerRadius="10" HorizontalAlignment="Left" Width="0"/>
+
+                    <!-- Hour markers -->
+                    <Canvas x:Name="ProgressCanvas">
+                        <!-- Markers will be added programmatically -->
+                    </Canvas>
+                </Grid>
+
+                <!-- Progress Text -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <TextBlock x:Name="ProgressText" Text="0.0h" FontWeight="SemiBold" 
+                              Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,8,0"/>
+                    <TextBlock Text="/" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                    <TextBlock x:Name="TargetText" Text="8.0h" 
+                              Foreground="{StaticResource TextSecondaryBrush}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- Main Content Tabs -->
-        <TabControl x:Name="MainTabControl" Grid.Row="1" Margin="0">
+        <TabControl x:Name="MainTabControl" Grid.Row="2" Margin="0">
             <TabControl.Resources>
                 <Style TargetType="TabItem">
                     <Setter Property="Template">
@@ -282,7 +316,9 @@
                                     Background="Transparent" BorderThickness="0">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Date" Binding="{Binding Date, StringFormat=dd/MM/yyyy}" Width="100"/>
+                                    <DataGridTextColumn Header="Project No." Binding="{Binding ProjectNumber}" Width="100"/>
                                     <DataGridTextColumn Header="Project" Binding="{Binding ProjectName}" Width="*"/>
+                                    <DataGridTextColumn Header="Client" Binding="{Binding ClientName}" Width="150"/>
                                     <DataGridTextColumn Header="Hours" Binding="{Binding Hours, StringFormat=F0}" Width="60"/>
                                     <DataGridTextColumn Header="Minutes" Binding="{Binding Minutes}" Width="60"/>
                                     <DataGridTextColumn Header="Total" Binding="{Binding TotalHours, StringFormat=F1}" Width="60"/>
@@ -382,9 +418,21 @@
                                 <ComboBox x:Name="DisbursementTypeComboBox" Margin="4,0,4,12"
                                          DisplayMemberPath="Name" SelectedValuePath="Id"/>
 
-                                <TextBlock Text="Amount (£)" Style="{StaticResource FormLabelStyle}"/>
+                                <!-- Amount input (shown for non-unit-based disbursements) -->
+                                <TextBlock x:Name="AmountLabel" Text="Amount (£)" Style="{StaticResource FormLabelStyle}"/>
                                 <TextBox x:Name="DisbursementAmountTextBox" Style="{StaticResource ModernTextBoxStyle}"
                                        Margin="4,0,4,12" TextAlignment="Right"/>
+
+                                <!-- Unit input (shown for unit-based disbursements) -->
+                                <TextBlock x:Name="UnitsLabel" Text="Number of Units" Style="{StaticResource FormLabelStyle}" Visibility="Collapsed"/>
+                                <StackPanel x:Name="UnitsPanel" Orientation="Horizontal" Margin="4,0,4,12" Visibility="Collapsed">
+                                    <TextBox x:Name="DisbursementUnitsTextBox" Style="{StaticResource ModernTextBoxStyle}"
+                                             Width="100" TextAlignment="Right"/>
+                                    <TextBlock x:Name="UnitChargeLabel" Text="× £0.00" VerticalAlignment="Center" 
+                                               Margin="8,0,8,0" FontWeight="Medium"/>
+                                    <TextBlock x:Name="CalculatedAmountLabel" Text="= £0.00" VerticalAlignment="Center" 
+                                               FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
+                                </StackPanel>
 
                                 <TextBlock Text="Description" Style="{StaticResource FormLabelStyle}"/>
                                 <TextBox x:Name="DisbursementDescriptionTextBox" Style="{StaticResource ModernTextBoxStyle}"
@@ -452,7 +500,7 @@
         </TabControl>
 
         <!-- Status Bar -->
-        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" 
+        <Border Grid.Row="3" Background="{StaticResource SurfaceBrush}" 
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
             <Grid Margin="16,8">
                 <Grid.ColumnDefinitions>

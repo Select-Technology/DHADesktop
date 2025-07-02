@@ -157,12 +157,11 @@ namespace DHA.DSTC.WPF.Services
             {
                 _connector.Connect();
 
-                // Instead of querying for the fwp_type entity, we'll retrieve the metadata
-                // for the choice field within the disbursement entity
+                // Get the option set metadata for disbursement types
                 var request = new RetrieveAttributeRequest
                 {
-                    EntityLogicalName = "fwp_disbursement", // The actual entity name
-                    LogicalName = "fwp_type", // The logical name of the choice field
+                    EntityLogicalName = "fwp_disbursement",
+                    LogicalName = "fwp_type",
                     RetrieveAsIfPublished = true
                 };
 
@@ -175,10 +174,14 @@ namespace DHA.DSTC.WPF.Services
                     // Convert the options to our DisbursementType model
                     var disbursementTypes = options.Select(o => new DisbursementType
                     {
-                        Id = o.Value.Value, // The numeric value
-                        Name = o.Label.UserLocalizedLabel.Label, // The display text
-                        Description = o.Description?.UserLocalizedLabel?.Label ?? o.Label.UserLocalizedLabel.Label
+                        Id = o.Value.Value,
+                        Name = o.Label.UserLocalizedLabel.Label,
+                        Description = o.Description?.UserLocalizedLabel?.Label ?? o.Label.UserLocalizedLabel.Label,
+                        UnitCharge = 0 // Will be populated below
                     }).ToList();
+
+                    // Populate unit charges from configuration entity or hardcoded values
+                    await PopulateDisbursementTypeUnitCharges(disbursementTypes);
 
                     return disbursementTypes;
                 }
@@ -197,22 +200,53 @@ namespace DHA.DSTC.WPF.Services
             }
         }
 
+        private async Task PopulateDisbursementTypeUnitCharges(List<DisbursementType> disbursementTypes)
+        {
+            try
+            {
+                // Try to get unit charges from a configuration entity if it exists
+                // If not, fall back to hardcoded values based on type names
+
+                // Hardcoded unit charges for now - you can replace this with a database query later
+                var unitCharges = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+                {
+                    { "Mileage", 0.65m },
+                    { "Photocopying (B&W)", 0.10m },
+                    { "Photocopying (Colour)", 0.25m },
+                    // Add more as needed
+                };
+
+                foreach (var disbursementType in disbursementTypes)
+                {
+                    if (unitCharges.TryGetValue(disbursementType.Name, out decimal unitCharge))
+                    {
+                        disbursementType.UnitCharge = unitCharge;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error populating unit charges: {ex.Message}");
+                // Continue with zero unit charges if this fails
+            }
+        }
+
         private List<DisbursementType> GetDefaultDisbursementTypes()
         {
-            // Default values as seen in the Power Apps screenshots
+            // Default values with unit charges
             return new List<DisbursementType>
             {
-                new DisbursementType { Id = 800470000, Name = "Mileage", Description = "Mileage expenses" },
-                new DisbursementType { Id = 800470001, Name = "Hotel", Description = "Hotel accommodations" },
-                new DisbursementType { Id = 800470002, Name = "Subsistence", Description = "Subsistence allowance" },
-                new DisbursementType { Id = 800470003, Name = "Planning Application", Description = "Planning application fees" },
-                new DisbursementType { Id = 800470004, Name = "Printing", Description = "Printing costs" },
-                new DisbursementType { Id = 800470005, Name = "Photocopying (B&W)", Description = "Black and white photocopying" },
-                new DisbursementType { Id = 800470006, Name = "Photocopying (Colour)", Description = "Colour photocopying" },
-                new DisbursementType { Id = 800470007, Name = "Parking", Description = "Parking fees" },
-                new DisbursementType { Id = 800470008, Name = "Postage", Description = "Postage costs" },
-                new DisbursementType { Id = 800470009, Name = "Subcontract Professional Services", Description = "Professional services from subcontractors" },
-                new DisbursementType { Id = 800470010, Name = "Using Default", Description = "Using Default" }
+                new DisbursementType { Id = 800470000, Name = "Mileage", Description = "Mileage expenses", UnitCharge = 0.65m },
+                new DisbursementType { Id = 800470001, Name = "Hotel", Description = "Hotel accommodations", UnitCharge = 0 },
+                new DisbursementType { Id = 800470002, Name = "Subsistence", Description = "Subsistence allowance", UnitCharge = 0 },
+                new DisbursementType { Id = 800470003, Name = "Planning Application", Description = "Planning application fees", UnitCharge = 0 },
+                new DisbursementType { Id = 800470004, Name = "Printing", Description = "Printing costs", UnitCharge = 0 },
+                new DisbursementType { Id = 800470005, Name = "Photocopying (B&W)", Description = "Black and white photocopying", UnitCharge = 0.10m },
+                new DisbursementType { Id = 800470006, Name = "Photocopying (Colour)", Description = "Colour photocopying", UnitCharge = 0.25m },
+                new DisbursementType { Id = 800470007, Name = "Parking", Description = "Parking fees", UnitCharge = 0 },
+                new DisbursementType { Id = 800470008, Name = "Postage", Description = "Postage costs", UnitCharge = 0 },
+                new DisbursementType { Id = 800470009, Name = "Subcontract Professional Services", Description = "Professional services from subcontractors", UnitCharge = 0 },
+                new DisbursementType { Id = 800470010, Name = "Using Default", Description = "Using Default", UnitCharge = 0 }
             };
         }
 
@@ -269,6 +303,17 @@ namespace DHA.DSTC.WPF.Services
                 else
                 {
                     disbursement.Amount = 0m;
+                }
+
+                // Handle Units and UnitCharge if they exist
+                if (entity.Contains("fwp_units"))
+                {
+                    disbursement.Units = entity.GetAttributeValue<decimal>("fwp_units");
+                }
+
+                if (entity.Contains("fwp_unitcharge"))
+                {
+                    disbursement.UnitCharge = entity.GetAttributeValue<decimal>("fwp_unitcharge");
                 }
 
                 // Handle Project reference
@@ -328,6 +373,13 @@ namespace DHA.DSTC.WPF.Services
 
                 // Handle Money value - ensure it's a valid decimal
                 entity["fwp_value"] = new Money(disbursement.Amount);
+
+                // Handle Units and UnitCharge for unit-based disbursements
+                if (disbursement.IsUnitBased)
+                {
+                    entity["fwp_units"] = disbursement.Units;
+                    entity["fwp_unitcharge"] = disbursement.UnitCharge;
+                }
 
                 // For OptionSetValue type fields - use the correct type
                 if (disbursement.DisbursementTypeId > 0)

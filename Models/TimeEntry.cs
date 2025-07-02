@@ -1,5 +1,6 @@
-using System;
 using Microsoft.Xrm.Sdk;
+using System;
+using System.Linq;
 
 namespace DHA.DSTC.WPF.Models
 {
@@ -12,16 +13,18 @@ namespace DHA.DSTC.WPF.Models
         public string Comments { get; set; }
         public Guid ProjectId { get; set; }
         public Guid TeamMemberId { get; set; }
+        public Guid IdGuid { get; set; }
+
         // Calculated property to check if entry is editable based on work date
         public bool IsEditable => Utilities.TimeEntryValidationHelper.CanEditTimeEntry(Date);
 
         // Calculated property to show lock date based on work date
         public DateTime LockDate => Utilities.TimeEntryValidationHelper.GetLockDate(Date);
 
-        public Guid IdGuid { get; set; } // Add this line to your TimeEntry class
-
         // Navigation properties
         public string ProjectName { get; set; }
+        public string ProjectNumber { get; set; }
+        public string ClientName { get; set; }
 
         // Calculated property for total hours
         public decimal TotalHours => Hours + (decimal)Minutes / 60;
@@ -107,13 +110,49 @@ namespace DHA.DSTC.WPF.Models
                         if (projectRef != null)
                         {
                             timeEntry.ProjectId = projectRef.Id;
-                            timeEntry.ProjectName = projectRef.Name ?? "Unknown Project";
+                            var fullProjectName = projectRef.Name ?? "Unknown Project";
+
+                            // Try to extract project number and name from the reference name
+                            // Assuming format like "12345 - Project Name" or just "Project Name"
+                            if (fullProjectName.Contains(" - "))
+                            {
+                                var parts = fullProjectName.Split(new[] { " - " }, 2, StringSplitOptions.None);
+                                timeEntry.ProjectNumber = parts[0].Trim();
+                                timeEntry.ProjectName = parts[1].Trim();
+                            }
+                            else
+                            {
+                                // Try to extract number from start of string
+                                var words = fullProjectName.Split(' ');
+                                if (words.Length > 0 && System.Text.RegularExpressions.Regex.IsMatch(words[0], @"^\d+$"))
+                                {
+                                    timeEntry.ProjectNumber = words[0];
+                                    timeEntry.ProjectName = string.Join(" ", words.Skip(1));
+                                }
+                                else
+                                {
+                                    timeEntry.ProjectNumber = "";
+                                    timeEntry.ProjectName = fullProjectName;
+                                }
+                            }
+
+                            // Try to get client name from project reference
+                            // This might need enhancement based on your Dataverse schema
+                            timeEntry.ClientName = ""; // Will be populated if available in project data
                         }
+                    }
+                    else
+                    {
+                        timeEntry.ProjectName = "";
+                        timeEntry.ProjectNumber = "";
+                        timeEntry.ClientName = "";
                     }
                 }
                 catch
                 {
                     timeEntry.ProjectName = "Error loading project";
+                    timeEntry.ProjectNumber = "";
+                    timeEntry.ClientName = "";
                 }
 
                 try
