@@ -15,6 +15,7 @@ using DHA.DSTC.WPF.Services;
 using DHA.DSTC.WPF.Utilities;
 using DHA.DSTC.WPF.DataAccess;
 using DHA.DSTC.WPF.ProjectProperties;
+using System.Windows.Shapes;
 
 namespace DHA.DSTC.WPF
 {
@@ -416,10 +417,10 @@ namespace DHA.DSTC.WPF
             var progressPercentage = _todayExpectedHours > 0 ?
                 Math.Min((_todayActualHours / _todayExpectedHours) * 100, 100) : 0;
 
-            // Update progress bar width (ensure canvas has a width)
+            // Update progress bar width (ensure canvas has a width) - Fix type conversion
             if (ProgressCanvas.ActualWidth > 0)
             {
-                var progressBarWidth = (ProgressCanvas.ActualWidth * progressPercentage) / 100;
+                var progressBarWidth = (ProgressCanvas.ActualWidth * (double)progressPercentage) / 100.0;
                 ProgressBar.Width = Math.Max(0, progressBarWidth);
             }
 
@@ -450,10 +451,10 @@ namespace DHA.DSTC.WPF
 
             if (_todayExpectedHours <= 0 || ProgressCanvas.ActualWidth <= 0) return;
 
-            // Add hour markers (1h, 2h, 3h, etc.)
+            // Add hour markers (1h, 2h, 3h, etc.) - Fix type conversion
             for (int hour = 1; hour <= _todayExpectedHours; hour++)
             {
-                var markerPosition = (ProgressCanvas.ActualWidth * hour) / _todayExpectedHours;
+                var markerPosition = (ProgressCanvas.ActualWidth * hour) / (double)_todayExpectedHours;
 
                 // Add tick mark
                 var tick = new Rectangle
