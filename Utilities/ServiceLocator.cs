@@ -21,6 +21,7 @@ namespace DHA.DSTC.WPF.Utilities
         public static TeamMemberService TeamMemberService { get; private set; }
         public static CalendarService CalendarService { get; private set; }
         public static DisbursementService DisbursementService { get; private set; }
+        public static ColleagueConfigurationService ColleagueConfigurationService { get; private set; }
 
         // Authentication info
         public static Guid CurrentUserId { get; private set; }
@@ -51,6 +52,7 @@ namespace DHA.DSTC.WPF.Utilities
                 TeamMemberService = new TeamMemberService(DataverseConnector);
                 CalendarService = new CalendarService(TimeEntryService);
                 DisbursementService = new DisbursementService(DataverseConnector);
+                ColleagueConfigurationService = new ColleagueConfigurationService(DataverseConnector);
 
                 System.Diagnostics.Debug.WriteLine("ServiceLocator: All services created");
 

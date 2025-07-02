@@ -49,21 +49,23 @@ namespace DHA.DSTC.WPF
         private readonly Border[] _calendarCells = new Border[42]; // 6 weeks * 7 days
         private readonly TextBlock[] _dayLabels = new TextBlock[42];
         private readonly TextBlock[] _hoursLabels = new TextBlock[42];
+        private readonly DateTime[] _calendarCellDates = new DateTime[42]; // Store dates for click navigation
 
-        // Performance optimisation - cached brushes
-        private static readonly SolidColorBrush _lightRedBrush = new SolidColorBrush(Color.FromRgb(254, 226, 226));
-        private static readonly SolidColorBrush _lightOrangeBrush = new SolidColorBrush(Color.FromRgb(255, 237, 213));
-        private static readonly SolidColorBrush _lightGreenBrush = new SolidColorBrush(Color.FromRgb(220, 252, 231));
+        // Performance optimisation - cached brushes (removed old hardcoded ones)
         private static readonly SolidColorBrush _transparentBrush = Brushes.Transparent;
         private static readonly SolidColorBrush _todayBrush = new SolidColorBrush(Color.FromRgb(37, 99, 235));
         private static readonly SolidColorBrush _otherMonthBrush = new SolidColorBrush(Color.FromRgb(156, 163, 175));
 
         // Current user tracking
         private TeamMember _currentUser;
+        private ColleagueConfiguration _currentUserConfig;
 
         // Project search timer
         private System.Threading.Timer _searchTimer;
         private const int SearchDelayMs = 300; // 300ms delay after typing stops
+
+        // Sticky time entry date
+        private DateTime _lastSelectedTimeEntryDate = DateTime.Today;
         #endregion
 
         #region Properties for Data Binding
@@ -172,6 +174,7 @@ namespace DHA.DSTC.WPF
             RefreshEntriesButton.Click += RefreshEntriesButton_Click;
             TimeEntriesDataGrid.MouseDoubleClick += TimeEntriesDataGrid_MouseDoubleClick;
             TimeEntriesDataGrid.KeyDown += TimeEntriesDataGrid_KeyDown;
+            TimeEntryDatePicker.SelectedDateChanged += TimeEntryDatePicker_SelectedDateChanged;
 
             // Disbursement events
             AddDisbursementButton.Click += AddDisbursementButton_Click;
@@ -309,6 +312,8 @@ namespace DHA.DSTC.WPF
 
                 // Load team members first (with filtering)
                 await LoadTeamMembersAsync();
+                // Load colleague configuration for current user
+                await LoadColleagueConfigurationAsync();
                 // Load projects
                 await LoadProjectsAsync();
                 // Load disbursement types
@@ -349,6 +354,16 @@ namespace DHA.DSTC.WPF
                     "Initialisation Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
+            }
+        }
+        #endregion
+
+        #region Time Entry Date Management
+        private void TimeEntryDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (TimeEntryDatePicker.SelectedDate.HasValue)
+            {
+                _lastSelectedTimeEntryDate = TimeEntryDatePicker.SelectedDate.Value;
             }
         }
         #endregion
@@ -680,6 +695,27 @@ namespace DHA.DSTC.WPF
             }
         }
 
+        private async Task LoadColleagueConfigurationAsync()
+        {
+            try
+            {
+                if (ServiceLocator.CurrentUserId != Guid.Empty)
+                {
+                    _currentUserConfig = await Task.Run(() =>
+                        ServiceLocator.ColleagueConfigurationService.GetColleagueConfiguration(ServiceLocator.CurrentUserId));
+                }
+                else
+                {
+                    _currentUserConfig = ColleagueConfiguration.CreateDefault();
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error loading colleague configuration: {ex.Message}");
+                _currentUserConfig = ColleagueConfiguration.CreateDefault();
+            }
+        }
+
         private async Task LoadProjectsAsync()
         {
             try
@@ -988,7 +1024,8 @@ namespace DHA.DSTC.WPF
 
         private void ClearTimeEntryForm()
         {
-            TimeEntryDatePicker.SelectedDate = DateTime.Today;
+            // Use the last selected date instead of always defaulting to today
+            TimeEntryDatePicker.SelectedDate = _lastSelectedTimeEntryDate;
             HoursTextBox.Clear();
             MinutesTextBox.Clear();
             CommentsTextBox.Clear();
@@ -1208,7 +1245,8 @@ namespace DHA.DSTC.WPF
                     BorderThickness = new Thickness(1),
                     Margin = new Thickness(1),
                     Padding = new Thickness(8),
-                    Background = _transparentBrush
+                    Background = _transparentBrush,
+                    Cursor = Cursors.Hand // Add hand cursor to indicate clickable
                 };
 
                 var stackPanel = new StackPanel();
@@ -1239,6 +1277,28 @@ namespace DHA.DSTC.WPF
                 _dayLabels[i] = dayLabel;
                 _hoursLabels[i] = hoursLabel;
 
+                // Add click handler with cell index
+                int cellIndex = i; // Capture for closure
+                cellBorder.MouseLeftButtonUp += (sender, e) => CalendarCell_Click(cellIndex);
+
+                // Add hover effects
+                cellBorder.MouseEnter += (sender, e) =>
+                {
+                    if (cellBorder.Background == _transparentBrush)
+                    {
+                        cellBorder.Background = new SolidColorBrush(Color.FromRgb(248, 250, 252)); // Light hover
+                    }
+                };
+
+                cellBorder.MouseLeave += (sender, e) =>
+                {
+                    // Restore original background based on stored date
+                    if (_calendarCellDates[cellIndex] != DateTime.MinValue)
+                    {
+                        UpdateSingleCalendarCell(cellIndex, _calendarCellDates[cellIndex]);
+                    }
+                };
+
                 CalendarGrid.Children.Add(cellBorder);
             }
         }
@@ -1264,13 +1324,7 @@ namespace DHA.DSTC.WPF
 
             var newMonth = _currentCalendarMonth.AddMonths(monthOffset);
 
-            // Prevent future months
-            if (newMonth > DateTime.Today)
-            {
-                MessageBox.Show("Cannot view future months.", "Navigation Restricted",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+            // REMOVED: Future month restriction - users can now navigate to future months
 
             _currentCalendarMonth = newMonth;
             UpdateCalendarHeader();
@@ -1343,10 +1397,11 @@ namespace DHA.DSTC.WPF
             int daysToSubtract = (dayOfWeek == 0) ? 6 : dayOfWeek - 1;
             var startDate = firstDayOfMonth.AddDays(-daysToSubtract);
 
-            // Update existing cells with new data
+            // Update existing cells with new data and store dates
             for (int i = 0; i < 42; i++)
             {
                 var currentDate = startDate.AddDays(i);
+                _calendarCellDates[i] = currentDate; // Store the date for this cell
                 UpdateSingleCalendarCell(i, currentDate);
             }
         }
@@ -1368,16 +1423,42 @@ namespace DHA.DSTC.WPF
             // Check if this day has hours logged
             if (_dailyHours.TryGetValue(date.Date, out decimal hours))
             {
-                // Colour code based on hours - use cached brushes for performance
-                cellBorder.Background = hours < 3
-                    ? _lightRedBrush
-                    : hours < 7
-                        ? _lightOrangeBrush
-                        : _lightGreenBrush;
+                // Get expected hours for this day of week
+                decimal expectedHours = _currentUserConfig?.GetExpectedHoursForDay(date.DayOfWeek) ?? 8;
 
-                // Show hours
-                hoursLabel.Text = $"{hours:F1}h";
-                hoursLabel.Visibility = Visibility.Visible;
+                // Calculate percentage only if expected hours > 0
+                if (expectedHours > 0)
+                {
+                    decimal percentage = (hours / expectedHours) * 100;
+
+                    // Colour code based on percentage of expected hours
+                    if (percentage < 50)
+                    {
+                        cellBorder.Background = new SolidColorBrush(Color.FromRgb(254, 226, 226)); // Light red
+                    }
+                    else if (percentage < 75)
+                    {
+                        cellBorder.Background = new SolidColorBrush(Color.FromRgb(194, 65, 12)); // Dark orange
+                    }
+                    else if (percentage < 100)
+                    {
+                        cellBorder.Background = new SolidColorBrush(Color.FromRgb(255, 237, 213)); // Light orange
+                    }
+                    else
+                    {
+                        cellBorder.Background = new SolidColorBrush(Color.FromRgb(220, 252, 231)); // Light green
+                    }
+
+                    // Show hours and percentage
+                    hoursLabel.Text = expectedHours > 0 ? $"{hours:F1}h ({percentage:F0}%)" : $"{hours:F1}h";
+                    hoursLabel.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    // Weekend or non-working day - just show hours without colour coding
+                    hoursLabel.Text = $"{hours:F1}h";
+                    hoursLabel.Visibility = Visibility.Visible;
+                }
             }
 
             // Different styling for current month vs other months
@@ -1390,6 +1471,44 @@ namespace DHA.DSTC.WPF
                 cellBorder.Background = _todayBrush;
                 dayLabel.Foreground = Brushes.White;
                 hoursLabel.Foreground = Brushes.White;
+            }
+        }
+
+        // Add the click handler method
+        private async void CalendarCell_Click(int cellIndex)
+        {
+            try
+            {
+                var clickedDate = _calendarCellDates[cellIndex];
+
+                if (clickedDate == DateTime.MinValue)
+                    return;
+
+                // Switch to Time Entries tab
+                MainTabControl.SelectedIndex = 0; // Assuming Time Entries is the first tab
+
+                // Set the date range to the clicked date (both from and to)
+                FromDatePicker.SelectedDate = clickedDate;
+                ToDatePicker.SelectedDate = clickedDate;
+
+                // Set the time entry date to the clicked date (this will update the sticky date via the event handler)
+                TimeEntryDatePicker.SelectedDate = clickedDate;
+
+                // Load time entries for that date
+                await LoadTimeEntriesAsync();
+
+                // Show status message
+                UpdateStatus($"Showing time entries for {clickedDate:dd/MM/yyyy}");
+
+                // Optional: Scroll to top of time entries if there are any
+                if (TimeEntries.Any())
+                {
+                    TimeEntriesDataGrid.ScrollIntoView(TimeEntries.First());
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error navigating to time entries: {ex.Message}");
             }
         }
 

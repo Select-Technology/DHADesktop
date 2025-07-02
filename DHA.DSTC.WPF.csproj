@@ -213,6 +213,7 @@
     <Compile Include="Models\TeamMember.cs" />
     <Compile Include="Models\TimeEntry.cs" />
     <Compile Include="Services\CalendarService.cs" />
+    <Compile Include="Services\ColleagueConfigurationService.cs" />
     <Compile Include="Services\DataverseAuthService.cs" />
     <Compile Include="Services\DataverseConnectionService.cs" />
     <Compile Include="Services\DataverseService.cs" />
