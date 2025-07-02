@@ -29,8 +29,7 @@ namespace DHA.DSTC.WPF.Services
                         "fwp_wednesdayexpectedhours",
                         "fwp_thursdayexpectedhours",
                         "fwp_fridayexpectedhours",
-                        "fwp_saturdayexpectedhours",
-                        "fwp_sundayexpectedhours",
+                        // Removed Saturday and Sunday - they don't exist in schema
                         "fwp_colleague"
                     ),
                     Criteria = new FilterExpression()
@@ -64,8 +63,10 @@ namespace DHA.DSTC.WPF.Services
         public decimal WednesdayExpectedHours { get; set; }
         public decimal ThursdayExpectedHours { get; set; }
         public decimal FridayExpectedHours { get; set; }
-        public decimal SaturdayExpectedHours { get; set; }
-        public decimal SundayExpectedHours { get; set; }
+
+        // Weekends always return 0 - no one expected to work weekends
+        public decimal SaturdayExpectedHours => 0m;
+        public decimal SundayExpectedHours => 0m;
 
         public decimal GetExpectedHoursForDay(DayOfWeek dayOfWeek)
         {
@@ -82,9 +83,8 @@ namespace DHA.DSTC.WPF.Services
                 case DayOfWeek.Friday:
                     return FridayExpectedHours;
                 case DayOfWeek.Saturday:
-                    return SaturdayExpectedHours;
                 case DayOfWeek.Sunday:
-                    return SundayExpectedHours;
+                    return 0m; // No work expected at weekends
                 default:
                     return 0;
             }
@@ -100,9 +100,8 @@ namespace DHA.DSTC.WPF.Services
                 TuesdayExpectedHours = entity.GetAttributeValue<decimal>("fwp_tuesdayexpectedhours"),
                 WednesdayExpectedHours = entity.GetAttributeValue<decimal>("fwp_wednesdayexpectedhours"),
                 ThursdayExpectedHours = entity.GetAttributeValue<decimal>("fwp_thursdayexpectedhours"),
-                FridayExpectedHours = entity.GetAttributeValue<decimal>("fwp_fridayexpectedhours"),
-                SaturdayExpectedHours = entity.GetAttributeValue<decimal>("fwp_saturdayexpectedhours"),
-                SundayExpectedHours = entity.GetAttributeValue<decimal>("fwp_sundayexpectedhours")
+                FridayExpectedHours = entity.GetAttributeValue<decimal>("fwp_fridayexpectedhours")
+                // No Saturday/Sunday fields to populate - properties return 0 by default
             };
         }
 
@@ -114,9 +113,8 @@ namespace DHA.DSTC.WPF.Services
                 TuesdayExpectedHours = 8,
                 WednesdayExpectedHours = 8,
                 ThursdayExpectedHours = 8,
-                FridayExpectedHours = 8,
-                SaturdayExpectedHours = 0,
-                SundayExpectedHours = 0
+                FridayExpectedHours = 8
+                // Weekends default to 0 via properties
             };
         }
     }
