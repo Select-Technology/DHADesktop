@@ -21,7 +21,7 @@
     <PublishWizardShown>false</PublishWizardShown>
     <InstallOptionalMessage>This will install DHA Time Management on your computer.</InstallOptionalMessage>
     <PublishLanguage>en-GB</PublishLanguage>
-    <ManifestCertificateThumbprint>459F5D72CC1D1CE1BF8DA0CF5A319231671DD5F9</ManifestCertificateThumbprint>
+    <ManifestCertificateThumbprint>9DC8267442CF8F1BF98D443EBF77D6A74C1F91EB</ManifestCertificateThumbprint>
     <ManifestKeyFile>DHA.DSTC.WPF_TemporaryKey.pfx</ManifestKeyFile>
     <GenerateManifests>true</GenerateManifests>
     <SignManifests>true</SignManifests>
@@ -250,6 +250,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="DHA.DSTC.WPF_TemporaryKey.pfx" />
     <None Include="packages.config" />
     <None Include="ProjectProperties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>

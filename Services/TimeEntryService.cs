@@ -1,4 +1,4 @@
-using DHA.DSTC.WPF.DataAccess;
+﻿using DHA.DSTC.WPF.DataAccess;
 using DHA.DSTC.WPF.Models;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
@@ -41,7 +41,37 @@ namespace DHA.DSTC.WPF.Services
                     "fwp_teammember"
                 };
 
-                List<Entity> entities = _connector.RetrieveMultiple("fwp_timeentry", columns);
+                var links = new List<LinkEntity>();
+
+                // First link: fwp_timeentry → msdyn_project
+                var projectLink = new LinkEntity
+                {
+                    LinkFromEntityName = "fwp_timeentry",
+                    LinkFromAttributeName = "fwp_project",
+                    LinkToEntityName = "msdyn_project",
+                    LinkToAttributeName = "msdyn_projectid",
+                    Columns = new ColumnSet("isc_projectnumbernew", "msdyn_customer"),
+                    EntityAlias = "project"
+                };
+
+                // Second link: msdyn_project → msdyn_customer (via EntityReference)
+                var customerLink = new LinkEntity
+                {
+                    LinkFromEntityName = "msdyn_project",
+                    LinkFromAttributeName = "msdyn_customer",
+                    LinkToEntityName = "account", // or "contact" if your customer is stored there
+                    LinkToAttributeName = "accountid", // or "contactid"
+                    Columns = new ColumnSet("name"),
+                    EntityAlias = "customer"
+                };
+
+                // Add nested link
+                projectLink.LinkEntities.Add(customerLink);
+
+                // Add to top-level links list
+                links.Add(projectLink);
+
+                List<Entity> entities = _connector.RetrieveMultiple("fwp_timeentry", columns, null, null, links);
                 return entities.Select(TimeEntry.FromEntity).Where(te => te != null).ToList();
             }
             catch (Exception ex)

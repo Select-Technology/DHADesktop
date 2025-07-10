@@ -79,7 +79,7 @@ namespace DHA.DSTC.WPF.Models
                     timeEntry.Date = DateTime.Today;
                 }
 
-                // Handle numeric values (with fallback to 0 if missing)
+                // Handle numeric values
                 try
                 {
                     timeEntry.Hours = entity.Contains("fwp_decimalhours") ? entity.GetAttributeValue<decimal>("fwp_decimalhours") : 0;
@@ -98,10 +98,10 @@ namespace DHA.DSTC.WPF.Models
                     timeEntry.Minutes = 0;
                 }
 
-                // Handle string values
+                // Notes
                 timeEntry.Comments = entity.Contains("fwp_notes") ? entity.GetAttributeValue<string>("fwp_notes") : string.Empty;
 
-                // Handle lookup references
+                // Handle project lookup
                 try
                 {
                     if (entity.Contains("fwp_project"))
@@ -110,35 +110,48 @@ namespace DHA.DSTC.WPF.Models
                         if (projectRef != null)
                         {
                             timeEntry.ProjectId = projectRef.Id;
-                            var fullProjectName = projectRef.Name ?? "Unknown Project";
+                            timeEntry.ProjectName = projectRef.Name ?? "Unknown Project";
 
-                            // Try to extract project number and name from the reference name
-                            // Assuming format like "12345 - Project Name" or just "Project Name"
-                            if (fullProjectName.Contains(" - "))
+                            // Try to get real project number from aliased value (joined msdyn_project)
+                            if (entity.Contains("project.isc_projectnumbernew"))
                             {
-                                var parts = fullProjectName.Split(new[] { " - " }, 2, StringSplitOptions.None);
-                                timeEntry.ProjectNumber = parts[0].Trim();
-                                timeEntry.ProjectName = parts[1].Trim();
+                                var aliased = entity.GetAttributeValue<AliasedValue>("project.isc_projectnumbernew");
+                                timeEntry.ProjectNumber = aliased?.Value?.ToString() ?? "";
                             }
                             else
                             {
-                                // Try to extract number from start of string
-                                var words = fullProjectName.Split(' ');
-                                if (words.Length > 0 && System.Text.RegularExpressions.Regex.IsMatch(words[0], @"^\d+$"))
+                                // Fallback: parse number from name
+                                var fullProjectName = projectRef.Name ?? "";
+                                if (fullProjectName.Contains(" - "))
                                 {
-                                    timeEntry.ProjectNumber = words[0];
-                                    timeEntry.ProjectName = string.Join(" ", words.Skip(1));
+                                    var parts = fullProjectName.Split(new[] { " - " }, 2, StringSplitOptions.None);
+                                    timeEntry.ProjectNumber = parts[0].Trim();
+                                    timeEntry.ProjectName = parts[1].Trim();
                                 }
                                 else
                                 {
-                                    timeEntry.ProjectNumber = "";
-                                    timeEntry.ProjectName = fullProjectName;
+                                    var words = fullProjectName.Split(' ');
+                                    if (words.Length > 0 && System.Text.RegularExpressions.Regex.IsMatch(words[0], @"^\d+$"))
+                                    {
+                                        timeEntry.ProjectNumber = words[0];
+                                        timeEntry.ProjectName = string.Join(" ", words.Skip(1));
+                                    }
+                                    else
+                                    {
+                                        timeEntry.ProjectNumber = "";
+                                    }
                                 }
                             }
-
-                            // Try to get client name from project reference
-                            // This might need enhancement based on your Dataverse schema
-                            timeEntry.ClientName = ""; // Will be populated if available in project data
+                            // Try to get client name from joined customer entity
+                            if (entity.Contains("customer.name"))
+                            {
+                                var clientAlias = entity.GetAttributeValue<AliasedValue>("customer.name");
+                                timeEntry.ClientName = clientAlias?.Value?.ToString() ?? "";
+                            }
+                            else
+                            {
+                                timeEntry.ClientName = "";
+                            }
                         }
                     }
                     else
@@ -155,6 +168,7 @@ namespace DHA.DSTC.WPF.Models
                     timeEntry.ClientName = "";
                 }
 
+                // Handle team member lookup
                 try
                 {
                     if (entity.Contains("fwp_teammember"))
@@ -168,7 +182,7 @@ namespace DHA.DSTC.WPF.Models
                 }
                 catch
                 {
-                    // Ignore team member errors
+                    // Ignore
                 }
 
                 return timeEntry;
