@@ -68,7 +68,7 @@ namespace DHA.DSTC.WPF.DataAccess
         }
 
         // Main RetrieveMultiple method - removed the ambiguous overloads
-        public List<Entity> RetrieveMultiple(string entityName, string[] columns = null, string filterAttribute = null, object filterValue = null)
+        public List<Entity> RetrieveMultiple(string entityName, string[] columns = null, string filterAttribute = null, object filterValue = null, List<LinkEntity> links = null)
         {
             try
             {
@@ -78,7 +78,7 @@ namespace DHA.DSTC.WPF.DataAccess
                     if (!Connect())
                     {
                         System.Diagnostics.Debug.WriteLine("DataverseConnector: Connection failed");
-                        return new List<Entity>(); // Return empty list instead of null
+                        return new List<Entity>();
                     }
                 }
 
@@ -93,15 +93,22 @@ namespace DHA.DSTC.WPF.DataAccess
                     query.Criteria.AddCondition(new ConditionExpression(filterAttribute, ConditionOperator.Equal, filterValue));
                 }
 
-                var result = _orgService.RetrieveMultiple(query);
+                // Add link-entity joins if provided
+                if (links != null)
+                {
+                    foreach (var link in links)
+                    {
+                        query.LinkEntities.Add(link);
+                    }
+                }
 
-                // Ensure we never return null - always return a list (even if empty)
+                var result = _orgService.RetrieveMultiple(query);
                 return result?.Entities?.ToList() ?? new List<Entity>();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error in RetrieveMultiple: {ex.Message}");
-                return new List<Entity>(); // Return empty list on error
+                return new List<Entity>();
             }
         }
 
