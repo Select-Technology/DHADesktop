@@ -22,6 +22,61 @@ namespace DHA.DSTC.WPF.Models
             return $"{Number} - {Name}";
         }
 
+        // Safe string retrieval method
+        private static string SafeGetString(Entity entity, string attributeName, string defaultValue = "")
+        {
+            if (entity == null || string.IsNullOrEmpty(attributeName))
+                return defaultValue;
+
+            try
+            {
+                // Check if attribute exists
+                if (!entity.Contains(attributeName))
+                    return defaultValue;
+
+                // Handle different possible types
+                var value = entity[attributeName];
+
+                // If it's a string, return it
+                if (value is string stringValue)
+                    return stringValue;
+
+                // If it's an EntityReference, try to get its name
+                if (value is EntityReference entityRef)
+                    return entityRef.Name ?? defaultValue;
+
+                // Convert to string as fallback
+                return value?.ToString() ?? defaultValue;
+            }
+            catch
+            {
+                return defaultValue;
+            }
+        }
+
+        // Special method to safely get client name
+        private static string SafeGetClientName(Entity entity)
+        {
+            if (entity == null)
+                return "";
+
+            try
+            {
+                // Check for customer field which might be an EntityReference
+                if (entity.Contains("msdyn_customer"))
+                {
+                    var customerRef = entity.GetAttributeValue<EntityReference>("msdyn_customer");
+                    return customerRef?.Name ?? "";
+                }
+
+                return "";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
         // Convert from Dataverse Entity to Project model
         public static Project FromEntity(Entity entity)
         {
@@ -37,23 +92,20 @@ namespace DHA.DSTC.WPF.Models
                 };
 
                 // Safely get string attributes with fallbacks
-                project.Name = entity.Contains("msdyn_subject") ? entity.GetAttributeValue<string>("msdyn_subject") : "Unknown";
-                project.Number = entity.Contains("isc_projectnumbernew") ? entity.GetAttributeValue<string>("isc_projectnumbernew") : "";
-                project.Client = entity.Contains("msydyn_customer") ? entity.GetAttributeValue<string>("msdyn_customer") : "";
+                project.Name = SafeGetString(entity, "msdyn_subject", "Unknown");
+                project.Number = SafeGetString(entity, "isc_projectnumbernew", "");
+                project.Client = SafeGetClientName(entity);
 
-                // Try to get state code
-                try
+                // Explicitly check and set IsActive based on statuscode
+                if (entity.Contains("statuscode"))
                 {
-                    if (entity.Contains("statecode"))
-                    {
-                        var stateCode = entity.GetAttributeValue<OptionSetValue>("statecode");
-                        project.IsActive = stateCode?.Value == 0; // 0 = Active, 1 = Inactive
-                    }
-                }
-                catch
-                {
-                    // Default to active if we can't determine state
-                    project.IsActive = true;
+                    var statusCode = entity.GetAttributeValue<OptionSetValue>("statuscode");
+
+                    // Explicitly set IsActive to false if statuscode is 192350001 (Completed)
+                    project.IsActive = statusCode?.Value != 192350001;
+
+                    // Optional: Additional logging or debugging
+                    System.Diagnostics.Debug.WriteLine($"Project {project.Number}: StatusCode = {statusCode?.Value}, IsActive = {project.IsActive}");
                 }
 
                 return project;
@@ -76,12 +128,17 @@ namespace DHA.DSTC.WPF.Models
 
             entity["msdyn_subject"] = Name;
             entity["isc_projectnumber"] = Number;
-            entity["msdyn_customer"] = Client;
+
+            // Only set customer if we have a value
+            if (!string.IsNullOrWhiteSpace(Client))
+            {
+                entity["msdyn_customer"] = Client;
+            }
 
             // Only set state if needed
             if (!IsActive)
             {
-                entity["isdisabled"] = true; // Inactive
+                entity["statuscode"] = new OptionSetValue(192350001); // Completed status code
             }
 
             return entity;

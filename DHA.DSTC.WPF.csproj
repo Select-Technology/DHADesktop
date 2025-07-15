@@ -21,10 +21,11 @@
     <PublishWizardShown>false</PublishWizardShown>
     <InstallOptionalMessage>This will install DHA Time Management on your computer.</InstallOptionalMessage>
     <PublishLanguage>en-GB</PublishLanguage>
-    <ManifestCertificateThumbprint>9DC8267442CF8F1BF98D443EBF77D6A74C1F91EB</ManifestCertificateThumbprint>
-    <ManifestKeyFile>DHA.DSTC.WPF_TemporaryKey.pfx</ManifestKeyFile>
+    <ManifestCertificateThumbprint>1BB6F10FA1F717E029D174CDA975EBE435785B61</ManifestCertificateThumbprint>
+    <ManifestKeyFile>DHA.DSTC.WPF_1_TemporaryKey.pfx</ManifestKeyFile>
     <GenerateManifests>true</GenerateManifests>
     <SignManifests>true</SignManifests>
+    <TargetFrameworkProfile />
     <PublishUrl>C:\temp\dhadesktop\publish\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Disk</InstallFrom>
@@ -49,7 +50,6 @@
     <CreateDesktopShortcut>true</CreateDesktopShortcut>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -69,6 +69,12 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>false</SignAssembly>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>TimeAndDisbursement.pfx</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.Xrm.Sdk.Deployment, Version=9.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
@@ -250,12 +256,15 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="DHA.DSTC.WPF_1_TemporaryKey.pfx" />
+    <None Include="DHA.DSTC.WPF_key.snk" />
     <None Include="DHA.DSTC.WPF_TemporaryKey.pfx" />
     <None Include="packages.config" />
     <None Include="ProjectProperties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
+    <None Include="TimeAndDisbursement.pfx" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Resources\app.ico" />

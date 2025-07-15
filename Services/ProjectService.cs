@@ -34,14 +34,21 @@ namespace DHA.DSTC.WPF.Services
                 // Use specific columns instead of retrieving all
                 var query = new QueryExpression(_entityName)
                 {
-                    ColumnSet = new ColumnSet("msdyn_subject", "isc_projectnumbernew", "msdyn_customer", "statecode"),
+                    ColumnSet = new ColumnSet(
+                        "msdyn_subject",
+                        "isc_projectnumbernew",
+                        "msdyn_customer",
+                        "statuscode"
+                    ),
                     Orders = {
                         new OrderExpression("msdyn_subject", OrderType.Ascending)
                     }
                 };
 
-                // Add condition to only get active projects
-                query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0); // 0 = Active
+                // Explicitly filter out completed projects
+                var statusFilter = new FilterExpression(LogicalOperator.And);
+                statusFilter.AddCondition("statuscode", ConditionOperator.NotEqual, 192350001);
+                query.Criteria = statusFilter;
 
                 // Increase page size to get more projects initially
                 query.PageInfo = new PagingInfo
@@ -60,7 +67,15 @@ namespace DHA.DSTC.WPF.Services
                 }
 
                 var entities = result.Entities.ToList();
-                return entities.Select(Project.FromEntity).Where(p => p != null).ToList();
+                var projects = entities
+                    .Select(Project.FromEntity)
+                    .Where(p => p != null && p.IsActive)
+                    .ToList();
+
+                // Debug logging
+                System.Diagnostics.Debug.WriteLine($"Retrieved {entities.Count} total entities, {projects.Count} active projects");
+
+                return projects;
             }
             catch (Exception ex)
             {
@@ -81,17 +96,25 @@ namespace DHA.DSTC.WPF.Services
 
                 var query = new QueryExpression(_entityName)
                 {
-                    ColumnSet = new ColumnSet("msdyn_subject", "isc_projectnumbernew", "msdyn_customer", "statecode"),
+                    ColumnSet = new ColumnSet(
+                        "msdyn_subject",
+                        "isc_projectnumbernew",
+                        "msdyn_customer",
+                        "statuscode"
+                    ),
                     Criteria = new FilterExpression()
                 };
 
+                // Explicitly filter out completed projects
+                query.Criteria.AddCondition("statuscode", ConditionOperator.NotEqual, 192350001);
                 query.Criteria.AddCondition("msdyn_projectid", ConditionOperator.Equal, id);
 
                 var result = _connector._orgService.RetrieveMultiple(query);
 
                 if (result?.Entities?.Count > 0)
                 {
-                    return Project.FromEntity(result.Entities[0]);
+                    var project = Project.FromEntity(result.Entities[0]);
+                    return project?.IsActive == true ? project : null;
                 }
 
                 return null;
@@ -120,12 +143,22 @@ namespace DHA.DSTC.WPF.Services
 
                 var query = new QueryExpression(_entityName)
                 {
-                    ColumnSet = new ColumnSet("msdyn_subject", "isc_projectnumbernew", "msdyn_customer", "statecode"),
+                    ColumnSet = new ColumnSet(
+                        "msdyn_subject",
+                        "isc_projectnumbernew",
+                        "msdyn_customer",
+                        "statuscode"
+                    ),
                     Criteria = new FilterExpression(LogicalOperator.And),
                     Orders = {
                         new OrderExpression("msdyn_subject", OrderType.Ascending)
                     }
                 };
+
+                // Explicitly filter out completed projects
+                var statusFilter = new FilterExpression(LogicalOperator.And);
+                statusFilter.AddCondition("statuscode", ConditionOperator.NotEqual, 192350001);
+                query.Criteria.AddFilter(statusFilter);
 
                 // Create the main search filter group using OR logic
                 var searchGroup = new FilterExpression(LogicalOperator.Or);
@@ -157,12 +190,8 @@ namespace DHA.DSTC.WPF.Services
                     searchGroup.AddCondition("isc_projectnumbernew", ConditionOperator.Like, $"%{searchTerm}%");
                 }
 
-                // Note: msdyn_customer is a lookup field (GUID) so we can't use LIKE searches on it
-
+                // Add search group to criteria
                 query.Criteria.AddFilter(searchGroup);
-
-                // Only active projects
-                query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
 
                 // Set page size for search results
                 query.PageInfo = new PagingInfo
@@ -180,14 +209,16 @@ namespace DHA.DSTC.WPF.Services
 
                 var entities = result.Entities.ToList();
 
-                // Remove duplicates that might occur from multiple field matches
-                // Group by project ID and take the first occurrence
+                // Remove duplicates and filter out inactive/completed projects
                 var uniqueProjects = entities
                     .GroupBy(e => e.Id)
                     .Select(g => g.First())
                     .Select(Project.FromEntity)
-                    .Where(p => p != null)
+                    .Where(p => p != null && p.IsActive)
                     .ToList();
+
+                // Debug logging
+                System.Diagnostics.Debug.WriteLine($"Search for '{searchTerm}' returned {entities.Count} total entities, {uniqueProjects.Count} active projects");
 
                 return uniqueProjects;
             }
@@ -199,6 +230,7 @@ namespace DHA.DSTC.WPF.Services
             }
         }
 
+        // Remaining methods (CreateProject, UpdateProject, DeleteProject) remain largely the same
         public Guid CreateProject(Project project)
         {
             try
