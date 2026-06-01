@@ -1,0 +1,465 @@
+# Dataverse Query Diagnostics Script
+# This script tests various query patterns to identify why NULL filters fail for specific users
+
+Write-Host "=== DATAVERSE QUERY DIAGNOSTICS ===" -ForegroundColor Cyan
+Write-Host "This script will test different query patterns against Dataverse" -ForegroundColor Cyan
+Write-Host ""
+
+# Load required assemblies from packages folder
+try {
+    $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $packagesPath = Join-Path $scriptPath "packages"
+
+    Write-Host "Loading assemblies from packages folder..." -ForegroundColor Yellow
+
+    # Find and load the required DLLs
+    $assemblies = @{
+        "Microsoft.Xrm.Sdk" = "Microsoft.CrmSdk.CoreAssemblies.9.0.2.59\lib\net462\Microsoft.Xrm.Sdk.dll"
+        "Microsoft.Crm.Sdk.Proxy" = "Microsoft.CrmSdk.CoreAssemblies.9.0.2.59\lib\net462\Microsoft.Crm.Sdk.Proxy.dll"
+        "Microsoft.Xrm.Tooling.Connector" = "Microsoft.CrmSdk.XrmTooling.CoreAssembly.9.1.1.65\lib\net462\Microsoft.Xrm.Tooling.Connector.dll"
+        "Microsoft.Rest.ClientRuntime" = "Microsoft.CrmSdk.XrmTooling.CoreAssembly.9.1.1.65\lib\net462\Microsoft.Rest.ClientRuntime.dll"
+        "Newtonsoft.Json" = "Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll"
+    }
+
+    $loadedCount = 0
+    foreach ($assembly in $assemblies.GetEnumerator()) {
+        $dllPath = Join-Path $packagesPath $assembly.Value
+        if (Test-Path $dllPath) {
+            try {
+                Add-Type -Path $dllPath -ErrorAction Stop
+                $loadedCount++
+                Write-Host "  ✓ Loaded: $($assembly.Key)" -ForegroundColor Gray
+            } catch {
+                # Might already be loaded
+                if ($_.Exception.Message -notlike "*already loaded*") {
+                    Write-Host "  ⚠ Warning loading $($assembly.Key): $($_.Exception.Message)" -ForegroundColor Yellow
+                } else {
+                    $loadedCount++
+                }
+            }
+        } else {
+            Write-Host "  ✗ Not found: $dllPath" -ForegroundColor Red
+        }
+    }
+
+    if ($loadedCount -ge 3) {
+        Write-Host "[OK] Dataverse SDK assemblies loaded ($loadedCount/5)" -ForegroundColor Green
+    } else {
+        throw "Failed to load required assemblies"
+    }
+} catch {
+    Write-Host "[ERROR] Could not load Dataverse SDK assemblies" -ForegroundColor Red
+    Write-Host "Please ensure the NuGet packages have been restored." -ForegroundColor Yellow
+    Write-Host "Run: nuget restore" -ForegroundColor Cyan
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Press Enter to exit..."
+    Read-Host
+    exit 1
+}
+
+# Connection configuration (from your App.config)
+$tenantId = "28f0e92f-184e-4166-84cd-af41a0b93f83"
+$clientId = "41cf8aa2-60ea-404e-b549-32491b2060dc"
+
+# Prompt for environment
+Write-Host ""
+Write-Host "Select environment:" -ForegroundColor Yellow
+Write-Host '1. Production (https://dhapd.crm11.dynamics.com)' -ForegroundColor Cyan
+Write-Host '2. Dev (https://dhapd-dev.crm11.dynamics.com)' -ForegroundColor Cyan
+$envChoice = Read-Host 'Enter choice (1 or 2)'
+
+if ($envChoice -eq "2") {
+    $orgUrl = "https://dhapd-dev.crm11.dynamics.com"
+} else {
+    $orgUrl = "https://dhapd.crm11.dynamics.com"
+}
+
+Write-Host "Using environment: $orgUrl" -ForegroundColor Green
+
+# Build OAuth connection string
+# This will prompt for interactive login using your browser
+$connectionString = "AuthType=OAuth;Url=$orgUrl;AppId=$clientId;RedirectUri=http://localhost;LoginPrompt=Auto;"
+
+# Ask if we should test as a different user
+Write-Host ""
+Write-Host 'Do you want to test as a specific user (impersonation)?' -ForegroundColor Yellow
+Write-Host "NOTE: You'll log in as yourself, but queries will run as the target user" -ForegroundColor Gray
+$impersonate = Read-Host "Enter 'y' to test as George Stow, or press Enter to test as yourself"
+
+$targetUserEmail = $null
+$targetUserId = $null
+
+if ($impersonate -eq 'y') {
+    Write-Host ""
+    Write-Host "Common users:" -ForegroundColor Cyan
+    Write-Host "  George Stow: George.Stow@dhatransport.co.uk" -ForegroundColor Gray
+    $targetUserEmail = Read-Host "Enter the user's email address"
+}
+
+Write-Host ""
+Write-Host "Connecting to Dataverse..." -ForegroundColor Yellow
+
+try {
+    # Create service client
+    $serviceClient = New-Object Microsoft.Xrm.Tooling.Connector.CrmServiceClient($connectionString)
+
+    if (-not $serviceClient.IsReady) {
+        throw "Connection failed: $($serviceClient.LastCrmError)"
+    }
+
+    Write-Host "[OK] Connected successfully as admin" -ForegroundColor Green
+    Write-Host "    User: $($serviceClient.OAuthUserId)" -ForegroundColor Gray
+
+    # Get admin WhoAmI info
+    $whoAmIRequest = New-Object Microsoft.Crm.Sdk.Messages.WhoAmIRequest
+    $whoAmIResponse = [Microsoft.Crm.Sdk.Messages.WhoAmIResponse]$serviceClient.Execute($whoAmIRequest)
+
+    Write-Host "    User ID: $($whoAmIResponse.UserId)" -ForegroundColor Gray
+    Write-Host "    Business Unit: $($whoAmIResponse.BusinessUnitId)" -ForegroundColor Gray
+
+    # If impersonation requested, look up the target user
+    if ($targetUserEmail) {
+        Write-Host ""
+        Write-Host "Looking up target user: $targetUserEmail..." -ForegroundColor Yellow
+
+        $query = New-Object Microsoft.Xrm.Sdk.Query.QueryExpression("systemuser")
+        $query.ColumnSet = New-Object Microsoft.Xrm.Sdk.Query.ColumnSet("systemuserid", "fullname", "domainname", "businessunitid")
+        $query.Criteria = New-Object Microsoft.Xrm.Sdk.Query.FilterExpression
+        $query.Criteria.AddCondition("domainname", [Microsoft.Xrm.Sdk.Query.ConditionOperator]::Equal, $targetUserEmail)
+
+        $userResult = $serviceClient.RetrieveMultiple($query)
+
+        if ($userResult.Entities.Count -eq 0) {
+            Write-Host "[ERROR] User not found: $targetUserEmail" -ForegroundColor Red
+            Write-Host "Continuing as admin instead..." -ForegroundColor Yellow
+            $targetUserEmail = $null
+        } else {
+            $targetUser = $userResult.Entities[0]
+            $targetUserId = $targetUser.Id
+            $targetFullName = $targetUser["fullname"]
+            $targetBusinessUnit = $targetUser.GetAttributeValue([Microsoft.Xrm.Sdk.EntityReference], "businessunitid")
+
+            Write-Host "[OK] Found user: $targetFullName" -ForegroundColor Green
+            Write-Host "    User ID: $targetUserId" -ForegroundColor Gray
+            Write-Host "    Business Unit: $($targetBusinessUnit.Id)" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "[IMPERSONATION] All queries will run as: $targetFullName" -ForegroundColor Cyan
+
+            # Set CallerId to impersonate the user
+            $serviceClient.CallerId = $targetUserId
+        }
+    }
+
+} catch {
+    Write-Host "[ERROR] Connection failed: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ""
+Write-Host "=== RUNNING DIAGNOSTIC TESTS ===" -ForegroundColor Cyan
+Write-Host ""
+
+$results = @()
+
+# Test 1: Baseline - Count all quotes
+Write-Host "Test 1: Counting all quotes (no filters)..." -ForegroundColor Yellow
+try {
+    $query1 = New-Object Microsoft.Xrm.Sdk.Query.QueryExpression("quote")
+    $query1.ColumnSet = New-Object Microsoft.Xrm.Sdk.Query.ColumnSet("quoteid")
+    $query1.PageInfo = New-Object Microsoft.Xrm.Sdk.Query.PagingInfo
+    $query1.PageInfo.Count = 5000
+    $query1.PageInfo.PageNumber = 1
+
+    $result1 = $serviceClient.RetrieveMultiple($query1)
+    $count1 = $result1.Entities.Count
+
+    Write-Host "  Result: $count1 quotes" -ForegroundColor Green
+    $results += [PSCustomObject]@{
+        Test = "Baseline (all quotes)"
+        Count = $count1
+        Status = "OK"
+    }
+} catch {
+    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+    $results += [PSCustomObject]@{
+        Test = "Baseline (all quotes)"
+        Count = 0
+        Status = "ERROR: $($_.Exception.Message)"
+    }
+}
+
+# Test 2: Status filter only
+Write-Host "Test 2: Quotes with status NOT IN (0,2,3,4)..." -ForegroundColor Yellow
+try {
+    $query2 = New-Object Microsoft.Xrm.Sdk.Query.QueryExpression("quote")
+    $query2.ColumnSet = New-Object Microsoft.Xrm.Sdk.Query.ColumnSet("quoteid")
+    $query2.Criteria = New-Object Microsoft.Xrm.Sdk.Query.FilterExpression
+    $query2.Criteria.AddCondition("statuscode", [Microsoft.Xrm.Sdk.Query.ConditionOperator]::NotIn, @(0, 2, 3, 4))
+    $query2.PageInfo = New-Object Microsoft.Xrm.Sdk.Query.PagingInfo
+    $query2.PageInfo.Count = 5000
+    $query2.PageInfo.PageNumber = 1
+
+    $result2 = $serviceClient.RetrieveMultiple($query2)
+    $count2 = $result2.Entities.Count
+
+    Write-Host "  Result: $count2 quotes" -ForegroundColor Green
+    $results += [PSCustomObject]@{
+        Test = "Status filter only"
+        Count = $count2
+        Status = "OK"
+    }
+} catch {
+    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+    $results += [PSCustomObject]@{
+        Test = "Status filter only"
+        Count = 0
+        Status = "ERROR: $($_.Exception.Message)"
+    }
+}
+
+# Test 3: NULL filter on isc_projectnumbervisible
+Write-Host "Test 3: Quotes with isc_projectnumbervisible IS NULL..." -ForegroundColor Yellow
+try {
+    $query3 = New-Object Microsoft.Xrm.Sdk.Query.QueryExpression("quote")
+    $query3.ColumnSet = New-Object Microsoft.Xrm.Sdk.Query.ColumnSet("quoteid", "isc_projectnumbervisible")
+    $query3.Criteria = New-Object Microsoft.Xrm.Sdk.Query.FilterExpression
+    $query3.Criteria.AddCondition("isc_projectnumbervisible", [Microsoft.Xrm.Sdk.Query.ConditionOperator]::Null)
+    $query3.PageInfo = New-Object Microsoft.Xrm.Sdk.Query.PagingInfo
+    $query3.PageInfo.Count = 5000
+    $query3.PageInfo.PageNumber = 1
+
+    $result3 = $serviceClient.RetrieveMultiple($query3)
+    $count3 = $result3.Entities.Count
+
+    Write-Host "  Result: $count3 quotes" -ForegroundColor $(if ($count3 -eq 0) { "Red" } else { "Green" })
+
+    if ($count3 -eq 0) {
+        Write-Host "  WARNING: NULL filter returns 0 results - this is the bug!" -ForegroundColor Red
+    }
+
+    $results += [PSCustomObject]@{
+        Test = "isc_projectnumbervisible IS NULL"
+        Count = $count3
+        Status = $(if ($count3 -eq 0) { "BUG FOUND" } else { "OK" })
+    }
+} catch {
+    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+    $results += [PSCustomObject]@{
+        Test = "isc_projectnumbervisible IS NULL"
+        Count = 0
+        Status = "ERROR: $($_.Exception.Message)"
+    }
+}
+
+# Test 4: Combined filter (status + NULL)
+Write-Host "Test 4: Combined filter (status + NULL)..." -ForegroundColor Yellow
+try {
+    $query4 = New-Object Microsoft.Xrm.Sdk.Query.QueryExpression("quote")
+    $query4.ColumnSet = New-Object Microsoft.Xrm.Sdk.Query.ColumnSet("quoteid")
+    $query4.Criteria = New-Object Microsoft.Xrm.Sdk.Query.FilterExpression
+    $query4.Criteria.FilterOperator = [Microsoft.Xrm.Sdk.Query.LogicalOperator]::And
+    $query4.Criteria.AddCondition("statuscode", [Microsoft.Xrm.Sdk.Query.ConditionOperator]::NotIn, @(0, 2, 3, 4))
+    $query4.Criteria.AddCondition("isc_projectnumbervisible", [Microsoft.Xrm.Sdk.Query.ConditionOperator]::Null)
+    $query4.PageInfo = New-Object Microsoft.Xrm.Sdk.Query.PagingInfo
+    $query4.PageInfo.Count = 5000
+    $query4.PageInfo.PageNumber = 1
+
+    $result4 = $serviceClient.RetrieveMultiple($query4)
+    $count4 = $result4.Entities.Count
+
+    Write-Host "  Result: $count4 quotes" -ForegroundColor $(if ($count4 -eq 0) { "Red" } else { "Green" })
+    $results += [PSCustomObject]@{
+        Test = "Combined (status + NULL)"
+        Count = $count4
+        Status = $(if ($count4 -eq 0) { "BUG FOUND" } else { "OK" })
+    }
+} catch {
+    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+    $results += [PSCustomObject]@{
+        Test = "Combined (status + NULL)"
+        Count = 0
+        Status = "ERROR: $($_.Exception.Message)"
+    }
+}
+
+# Test 5: Check field-level security on isc_projectnumbervisible
+Write-Host "Test 5: Checking field-level security on isc_projectnumbervisible..." -ForegroundColor Yellow
+try {
+    $query5 = New-Object Microsoft.Xrm.Sdk.Query.QueryExpression("quote")
+    $query5.ColumnSet = New-Object Microsoft.Xrm.Sdk.Query.ColumnSet("quoteid", "isc_projectnumbervisible", "name")
+    $query5.PageInfo = New-Object Microsoft.Xrm.Sdk.Query.PagingInfo
+    $query5.PageInfo.Count = 10
+    $query5.PageInfo.PageNumber = 1
+
+    $result5 = $serviceClient.RetrieveMultiple($query5)
+
+    $fieldsVisible = 0
+    $fieldsNull = 0
+    $fieldsEmpty = 0
+    $fieldsMissing = 0
+
+    foreach ($entity in $result5.Entities) {
+        if ($entity.Contains("isc_projectnumbervisible")) {
+            $fieldsVisible++
+            $value = $entity["isc_projectnumbervisible"]
+            if ($null -eq $value) {
+                $fieldsNull++
+            } elseif ([string]::IsNullOrWhiteSpace($value.ToString())) {
+                $fieldsEmpty++
+            }
+        } else {
+            $fieldsMissing++
+        }
+    }
+
+    Write-Host "  Sample of 10 quotes:" -ForegroundColor Gray
+    Write-Host "    Field present: $fieldsVisible" -ForegroundColor Gray
+    Write-Host "    Field NULL: $fieldsNull" -ForegroundColor Gray
+    Write-Host "    Field empty string: $fieldsEmpty" -ForegroundColor Gray
+    Write-Host "    Field missing (FLS?): $fieldsMissing" -ForegroundColor $(if ($fieldsMissing -gt 0) { "Red" } else { "Gray" })
+
+    if ($fieldsMissing -gt 0) {
+        Write-Host "  WARNING: Field-Level Security may be blocking access!" -ForegroundColor Red
+    }
+
+    $results += [PSCustomObject]@{
+        Test = "Field-Level Security check"
+        Count = "$fieldsVisible visible, $fieldsMissing missing"
+        Status = $(if ($fieldsMissing -gt 0) { "FLS ISSUE DETECTED" } else { "OK" })
+    }
+} catch {
+    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+    $results += [PSCustomObject]@{
+        Test = "Field-Level Security check"
+        Count = 0
+        Status = "ERROR: $($_.Exception.Message)"
+    }
+}
+
+# Test 6: NOT NULL filter (opposite test)
+Write-Host "Test 6: Quotes with isc_projectnumbervisible NOT NULL..." -ForegroundColor Yellow
+try {
+    $query6 = New-Object Microsoft.Xrm.Sdk.Query.QueryExpression("quote")
+    $query6.ColumnSet = New-Object Microsoft.Xrm.Sdk.Query.ColumnSet("quoteid")
+    $query6.Criteria = New-Object Microsoft.Xrm.Sdk.Query.FilterExpression
+    $query6.Criteria.AddCondition("isc_projectnumbervisible", [Microsoft.Xrm.Sdk.Query.ConditionOperator]::NotNull)
+    $query6.PageInfo = New-Object Microsoft.Xrm.Sdk.Query.PagingInfo
+    $query6.PageInfo.Count = 5000
+    $query6.PageInfo.PageNumber = 1
+
+    $result6 = $serviceClient.RetrieveMultiple($query6)
+    $count6 = $result6.Entities.Count
+
+    Write-Host "  Result: $count6 quotes" -ForegroundColor Green
+    $results += [PSCustomObject]@{
+        Test = "isc_projectnumbervisible NOT NULL"
+        Count = $count6
+        Status = "OK"
+    }
+} catch {
+    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+    $results += [PSCustomObject]@{
+        Test = "isc_projectnumbervisible NOT NULL"
+        Count = 0
+        Status = "ERROR: $($_.Exception.Message)"
+    }
+}
+
+# Test 7: Empty string filter
+Write-Host "Test 7: Quotes with isc_projectnumbervisible = '' (empty string)..." -ForegroundColor Yellow
+try {
+    $query7 = New-Object Microsoft.Xrm.Sdk.Query.QueryExpression("quote")
+    $query7.ColumnSet = New-Object Microsoft.Xrm.Sdk.Query.ColumnSet("quoteid")
+    $query7.Criteria = New-Object Microsoft.Xrm.Sdk.Query.FilterExpression
+    $query7.Criteria.AddCondition("isc_projectnumbervisible", [Microsoft.Xrm.Sdk.Query.ConditionOperator]::Equal, "")
+    $query7.PageInfo = New-Object Microsoft.Xrm.Sdk.Query.PagingInfo
+    $query7.PageInfo.Count = 5000
+    $query7.PageInfo.PageNumber = 1
+
+    $result7 = $serviceClient.RetrieveMultiple($query7)
+    $count7 = $result7.Entities.Count
+
+    Write-Host "  Result: $count7 quotes" -ForegroundColor Green
+    $results += [PSCustomObject]@{
+        Test = "isc_projectnumbervisible = ''"
+        Count = $count7
+        Status = "OK"
+    }
+} catch {
+    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+    $results += [PSCustomObject]@{
+        Test = "isc_projectnumbervisible = ''"
+        Count = 0
+        Status = "ERROR: $($_.Exception.Message)"
+    }
+}
+
+# Test 8: OR filter (NULL OR empty)
+Write-Host "Test 8: Quotes with isc_projectnumbervisible IS NULL OR = ''..." -ForegroundColor Yellow
+try {
+    $query8 = New-Object Microsoft.Xrm.Sdk.Query.QueryExpression("quote")
+    $query8.ColumnSet = New-Object Microsoft.Xrm.Sdk.Query.ColumnSet("quoteid")
+
+    $orFilter = New-Object Microsoft.Xrm.Sdk.Query.FilterExpression
+    $orFilter.FilterOperator = [Microsoft.Xrm.Sdk.Query.LogicalOperator]::Or
+    $orFilter.AddCondition("isc_projectnumbervisible", [Microsoft.Xrm.Sdk.Query.ConditionOperator]::Null)
+    $orFilter.AddCondition("isc_projectnumbervisible", [Microsoft.Xrm.Sdk.Query.ConditionOperator]::Equal, "")
+
+    $query8.Criteria = $orFilter
+    $query8.PageInfo = New-Object Microsoft.Xrm.Sdk.Query.PagingInfo
+    $query8.PageInfo.Count = 5000
+    $query8.PageInfo.PageNumber = 1
+
+    $result8 = $serviceClient.RetrieveMultiple($query8)
+    $count8 = $result8.Entities.Count
+
+    Write-Host "  Result: $count8 quotes" -ForegroundColor $(if ($count8 -eq 0) { "Red" } else { "Green" })
+    $results += [PSCustomObject]@{
+        Test = "isc_projectnumbervisible NULL OR ''"
+        Count = $count8
+        Status = $(if ($count8 -eq 0) { "BUG FOUND" } else { "OK" })
+    }
+} catch {
+    Write-Host "  Error: $($_.Exception.Message)" -ForegroundColor Red
+    $results += [PSCustomObject]@{
+        Test = "isc_projectnumbervisible NULL OR ''"
+        Count = 0
+        Status = "ERROR: $($_.Exception.Message)"
+    }
+}
+
+Write-Host ""
+Write-Host "=== SUMMARY ===" -ForegroundColor Cyan
+Write-Host ""
+$results | Format-Table -AutoSize
+
+Write-Host ""
+Write-Host "=== ANALYSIS ===" -ForegroundColor Cyan
+
+$test1Count = ($results | Where-Object { $_.Test -eq "Baseline (all quotes)" }).Count
+$test2Count = ($results | Where-Object { $_.Test -eq "Status filter only" }).Count
+$test3Count = ($results | Where-Object { $_.Test -eq "isc_projectnumbervisible IS NULL" }).Count
+$test4Count = ($results | Where-Object { $_.Test -eq "Combined (status + NULL)" }).Count
+
+if ($test3Count -eq 0 -and $test1Count -gt 0) {
+    Write-Host "[CRITICAL] NULL filter on isc_projectnumbervisible returns 0 results" -ForegroundColor Red
+    Write-Host "This is the root cause of the issue!" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Possible causes:" -ForegroundColor Yellow
+    Write-Host "  1. Field-Level Security restricting NULL queries" -ForegroundColor Yellow
+    Write-Host "  2. Custom field behavior in Dataverse" -ForegroundColor Yellow
+    Write-Host "  3. Business Unit restrictions" -ForegroundColor Yellow
+    Write-Host "  4. Field stored as empty string instead of NULL" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Recommendation: Use the fallback query (Test 2) and filter in C# code" -ForegroundColor Green
+} elseif ($test4Count -gt 0) {
+    Write-Host "[OK] Queries are working correctly for this user" -ForegroundColor Green
+    Write-Host "Expected $test4Count quotes to be displayed" -ForegroundColor Green
+} else {
+    Write-Host "[UNKNOWN] Unexpected results - manual investigation needed" -ForegroundColor Yellow
+}
+
+Write-Host ""
+Write-Host "Script completed. Press Enter to exit..."
+Read-Host
