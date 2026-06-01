@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="DHA.DSTC.WPF.ProjectProperties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="DataverseTenantId" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">28f0e92f-184e-4166-84cd-af41a0b93f83</Value>
+    </Setting>
+    <Setting Name="DataverseEnvironmentUrl" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">https://dhapd.crm11.dynamics.com</Value>
+    </Setting>
+    <Setting Name="DataverseClientId" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">41cf8aa2-60ea-404e-b549-32491b2060dc</Value>
+    </Setting>
+    <Setting Name="UpdateManifestUrl" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">https://dhaplanningcouk.sharepoint.com/sites/FutureWorkplace/Installation/apps/TimeDesktop/version.json</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>

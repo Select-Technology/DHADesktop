@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DHA Time Management – What's New</title>
+  <link rel="stylesheet" href="https://use.typekit.net/hum5mky.css">
+  <style>
+    /* ── Base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: itc-avant-garde-gothic-pro, 'Segoe UI', Arial, sans-serif;
+      font-style: normal;
+      font-weight: 300;
+      background: #f5f5f5;
+      color: #333;
+      line-height: 1.7;
+    }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    header {
+      background: #3c1053;
+      color: #fff;
+      padding: 48px 60px 36px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+
+    header .header-text {
+      flex: 1;
+      min-width: 240px;
+    }
+
+    header .header-logo {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    header .header-logo img {
+      height: 56px;
+      width: auto;
+      display: block;
+    }
+
+    header .label {
+      font-size: 0.8rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #e87722;
+      margin-bottom: 10px;
+    }
+
+    header h1 {
+      font-size: 2.4rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    header h1 span {
+      color: #e87722;
+    }
+
+    header p.subtitle {
+      margin-top: 14px;
+      font-size: 1.05rem;
+      color: #ddd;
+      max-width: 680px;
+    }
+
+    /* ── Orange accent bar ─────────────────────────────────────── */
+    .accent-bar {
+      height: 6px;
+      background: linear-gradient(90deg, #e87722 0%, #f0a050 100%);
+    }
+
+    /* ── Main content ──────────────────────────────────────────── */
+    main {
+      max-width: 900px;
+      margin: 48px auto;
+      padding: 0 32px 64px;
+    }
+
+    /* ── Section heading ───────────────────────────────────────── */
+    .section-heading {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 48px 0 24px;
+    }
+
+    .section-heading .icon-circle {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: #3c1053;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .section-heading .icon-circle svg {
+      width: 22px;
+      height: 22px;
+      fill: #fff;
+    }
+
+    .section-heading h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #3c1053;
+    }
+
+    /* ── Cards ─────────────────────────────────────────────────── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    @media (max-width: 620px) {
+      .card-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 22px 24px;
+      border-left: 5px solid #e87722;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+
+    .card.purple-border {
+      border-left-color: #3c1053;
+    }
+
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #3c1053;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card h3 .badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: #e87722;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .card h3 .badge.fix {
+      background: #3c1053;
+    }
+
+    .card p {
+      font-size: 0.93rem;
+      color: #555;
+    }
+
+    /* ── Single full-width card ─────────────────────────────────── */
+    .card-full {
+      background: #fff;
+      border-radius: 10px;
+      padding: 22px 24px;
+      border-left: 5px solid #e87722;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      margin-bottom: 18px;
+    }
+
+    .card-full h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #3c1053;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-full h3 .badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: #e87722;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .card-full h3 .badge.fix {
+      background: #3c1053;
+    }
+
+    .card-full p {
+      font-size: 0.93rem;
+      color: #555;
+    }
+
+    /* ── Intro blurb ────────────────────────────────────────────── */
+    .intro-blurb {
+      background: #fff;
+      border-radius: 10px;
+      padding: 28px 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      border-top: 4px solid #e87722;
+      margin-bottom: 12px;
+      font-size: 1rem;
+      color: #444;
+    }
+
+    .intro-blurb strong {
+      color: #3c1053;
+    }
+
+    /* ── Legend ─────────────────────────────────────────────────── */
+    .legend {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: #555;
+    }
+
+    .legend-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* ── Footer ─────────────────────────────────────────────────── */
+    footer {
+      background: #3c1053;
+      color: #bbb;
+      text-align: center;
+      padding: 28px 20px;
+      font-size: 0.85rem;
+    }
+
+    footer strong {
+      color: #e87722;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="header-text">
+      <p class="label">DHA Time Management</p>
+      <h1>What's <span>New</span></h1>
+      <p class="subtitle">
+        A summary of the latest improvements and fixes to the DHA Time Management application.
+      </p>
+    </div>
+    <div class="header-logo">
+      <img src="https://www.select-technology.co.uk/app/uploads/efooter/SelectTechnology.png" alt="Select Technology" />
+    </div>
+  </header>
+  <div class="accent-bar"></div>
+
+  <!-- ── Main ── -->
+  <main>
+
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#e87722;"></div>
+        <span><strong>New feature</strong> – something you can do now that you couldn't before</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#3c1053;"></div>
+        <span><strong>Fix</strong> – something that was broken and is now corrected</span>
+      </div>
+    </div>
+
+
+    <!-- ══ Section 1: Time Entry ══ -->
+    <div class="section-heading">
+      <div class="icon-circle">
+        <!-- Clock icon -->
+        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+      </div>
+      <h2>Recording Your Time</h2>
+    </div>
+
+    <div class="card-grid">
+
+      <div class="card purple-border">
+        <h3>Record Time in the Future <span class="badge">New</span></h3>
+        <p>
+          You can now log time for upcoming dates, not just today or the past.
+          Useful for planning ahead or recording time before the end of a period.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Multi-Day Time Entries <span class="badge">New</span></h3>
+        <p>
+          You can now create a single
+          entry that spans multiple days, saving you from repeating the same entry over and over.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Hours &amp; Minutes Display <span class="badge">New</span></h3>
+        <p>
+          Time is now shown in hours and minutes (e.g. <strong>1h 30m</strong>) instead of
+          a decimal figure (e.g. 1.5). This makes it much easier to read at a glance.
+        </p>
+      </div>
+
+      <div class="card purple-border">
+        <h3>Change Entry Category <span class="badge">New</span></h3>
+        <p>
+          When editing a time entry you can now switch its category — for example, from
+          <em>Chargeable</em> to <em>Non-Chargeable</em>, <em>Speculative</em>, or
+          <em>Hourly Rate</em> — without having to delete and re-enter it.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Hourly Rate Option Added <span class="badge">New</span></h3>
+        <p>
+          A new <em>Hourly Rate</em> category is now available when recording or editing time,
+          covering work that is billed at an agreed hourly rate.
+        </p>
+      </div>
+
+      <div class="card purple-border">
+        <h3>Monday Lock-Out Fix <span class="badge fix">Fix</span></h3>
+        <p>
+          Previously, time entered on a Monday could sometimes be locked immediately and
+          become impossible to edit, even though it had only just been saved.
+          This has now been corrected.
+        </p>
+      </div>
+
+    </div>
+
+
+    <!-- ══ Section 2: Deleting & Editing ══ -->
+    <div class="section-heading">
+      <div class="icon-circle">
+        <!-- Edit/pencil icon -->
+        <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      </div>
+      <h2>Editing &amp; Deleting Entries</h2>
+    </div>
+
+    <div class="card-grid">
+
+      <div class="card">
+        <h3>Delete Within a 5-Day Window <span class="badge">New</span></h3>
+        <p>
+          You can now delete time entries that fall within the last five working days.
+          Previously the ability to remove entries was more restricted.
+        </p>
+      </div>
+
+      <div class="card purple-border">
+        <h3>Auto-Updating Date Range <span class="badge">New</span></h3>
+        <p>
+          The date range shown on screen will now update itself automatically.
+          If you record time for yesterday, the view will expand to include yesterday
+          so you can see that entry straight away without adjusting the filters manually.
+        </p>
+      </div>
+
+    </div>
+
+
+    <!-- ══ Section 3: Disbursements ══ -->
+    <div class="section-heading">
+      <div class="icon-circle">
+        <!-- Receipt/document icon -->
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8zm0-4h8v2H8z"/></svg>
+      </div>
+      <h2>Disbursements</h2>
+    </div>
+
+    <div class="card-full">
+      <h3>Faster Disbursement Entry <span class="badge">New</span></h3>
+      <p>
+        When you add a new time entry, that time entry's job details are now automatically carried across
+        to the Disbursements section. This means you no longer have to search for the same
+        job a second time. Additionally, you can <strong>right-click any time entry</strong>
+        and choose <em>Add Disbursement</em> directly from the menu for even quicker access.
+      </p>
+    </div>
+
+
+    <!-- ══ Section 4: Search & Navigation ══ -->
+    <div class="section-heading">
+      <div class="icon-circle">
+        <!-- Search icon -->
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16a6.47 6.47 0 0 0 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      </div>
+      <h2>Searching &amp; Finding Jobs</h2>
+    </div>
+
+    <div class="card-grid">
+
+      <div class="card">
+        <h3>Recent Searches &amp; Pinned Jobs <span class="badge">New</span></h3>
+        <p>
+          The search panel now remembers your recent searches. You can also
+          <strong>pin your most-used jobs</strong> so they appear above the search when
+          you open the app — no need to search for frequently used projects at all.
+        </p>
+      </div>
+
+      <div class="card purple-border">
+        <h3>Search by Client <span class="badge">New</span></h3>
+        <p>
+          As well as searching by job number or name, you can now search by
+          <strong>client name</strong>. This is particularly handy when you know the client
+          but can't immediately recall the exact job reference.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Job Category Visible in List <span class="badge">New</span></h3>
+        <p>
+          Jobs in the search results now show their category (such as <em>Planning</em>
+          or <em>Infrastructure</em>), making it quicker to confirm you have selected
+          the right job before recording time.
+        </p>
+      </div>
+
+      <div class="card purple-border">
+        <h3>List No Longer Jumps on Selection <span class="badge fix">Fix</span></h3>
+        <p>
+          When clicking on a job that had multiple time entries, the list would
+          unexpectedly scroll down to the next job. This has been fixed — the list
+          stays exactly where you clicked.
+        </p>
+      </div>
+
+    </div>
+
+
+    <!-- ══ Section 5: Layout ══ -->
+    <div class="section-heading">
+      <div class="icon-circle">
+        <!-- Layout icon -->
+        <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 4h2v-2h2v2h2v2h-2v2h-2v-2h-2z"/></svg>
+      </div>
+      <h2>Layout &amp; Usability</h2>
+    </div>
+
+    <div class="card-full">
+      <h3>Resizeable Divider <span class="badge">New</span></h3>
+      <p>
+        The divider between the job list and the time entries panel can now be dragged to
+        resize each section. If you prefer to see more of your time entries or more of the
+        job list, simply drag the divider to suit your preference.
+      </p>
+    </div>
+
+
+    <!-- ══ Section 6: Sign-in & Reliability ══ -->
+    <div class="section-heading">
+      <div class="icon-circle">
+        <!-- Shield/lock icon -->
+        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+      </div>
+      <h2>Sign-In &amp; Reliability</h2>
+    </div>
+
+    <div class="card-grid">
+
+      <div class="card">
+        <h3>Automatic Sign-In Token Refresh <span class="badge">New</span></h3>
+        <p>
+          The app will now try to silently renew your sign-in session in the background
+          before it expires. In practice this means you should be asked to sign in
+          much less frequently during a working day. Please note: there are limits
+          to how long a session can remain active, so occasional sign-in prompts
+          cannot be avoided entirely, but they should become far less common.
+        </p>
+      </div>
+
+      <div class="card purple-border">
+        <h3>Anonymous Authentication Error Fix <span class="badge fix">Fix</span></h3>
+        <p>
+          Some users were seeing an unexpected error message related to authentication
+          on startup or after a period of inactivity. The underlying cause has been
+          identified and resolved.
+        </p>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <p>DHA Time Management &nbsp;·&nbsp; <strong>Latest Release</strong> &nbsp;·&nbsp; For support please contact your system administrator.</p>
+  </footer>
+
+</body>
+</html>
