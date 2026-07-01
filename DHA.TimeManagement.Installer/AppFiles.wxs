@@ -122,15 +122,6 @@
             <Component Id="cmpC91BFEFF501F5C69C8F325CE32921C40" Guid="*">
                 <File Id="filB829C3862F1FEA164719D0F8015AAD50" KeyPath="yes" Source="$(var.ReleaseDir)\System.Runtime.CompilerServices.Unsafe.xml" />
             </Component>
-            <Component Id="cmp5535623A0957F12A580F2E0AE9AB7F24" Guid="*">
-                <File Id="fil1F7505072F9E81ACFDD7E6910787823E" KeyPath="yes" Source="$(var.ReleaseDir)\System.Runtime.dll" />
-            </Component>
-            <Component Id="cmpFF30060800C65B79967082C32327291C" Guid="*">
-                <File Id="filAB211F3F0ECB04AF6C2378C73893A0C8" KeyPath="yes" Source="$(var.ReleaseDir)\System.Security.Cryptography.Algorithms.dll" />
-            </Component>
-            <Component Id="cmp5A1F20CF9AD2DA0DF26622F317779E8C" Guid="*">
-                <File Id="fil442CB099348F299818A47DAF4107BAD6" KeyPath="yes" Source="$(var.ReleaseDir)\System.Security.Cryptography.X509Certificates.dll" />
-            </Component>
             <Component Id="cmp51AA3CB97BB5B405B92BE7CE51FE7C0B" Guid="*">
                 <File Id="fil0AF2E10A67C130F9048A1E447DAD6412" KeyPath="yes" Source="$(var.ReleaseDir)\System.ServiceModel.Duplex.dll" />
             </Component>
@@ -172,9 +163,6 @@
             </Component>
             <Component Id="cmp6D1BF809CBAFF13493F3C31E9CCBBD48" Guid="*">
                 <File Id="fil5DCD112CC1157C7EB5EC973F77EBA411" KeyPath="yes" Source="$(var.ReleaseDir)\System.Threading.Tasks.Extensions.xml" />
-            </Component>
-            <Component Id="cmp3A99A623A71A716A198559E0C9D59400" Guid="*">
-                <File Id="filE6242AE03AF2509440ADF395C76688A4" KeyPath="yes" Source="$(var.ReleaseDir)\System.ValueTuple.dll" />
             </Component>
             <Directory Id="dir00122602D311392A9D483BE33FE17DEF" Name="app.publish">
                 <Component Id="cmpC364C08373FD68636CA630D5CC105F77" Guid="*">
@@ -248,9 +236,6 @@
             <ComponentRef Id="cmp7F4E1743772CD37619404A9AC36DC178" />
             <ComponentRef Id="cmpAFCF21A15F6EDA45A32D147050609285" />
             <ComponentRef Id="cmpC91BFEFF501F5C69C8F325CE32921C40" />
-            <ComponentRef Id="cmp5535623A0957F12A580F2E0AE9AB7F24" />
-            <ComponentRef Id="cmpFF30060800C65B79967082C32327291C" />
-            <ComponentRef Id="cmp5A1F20CF9AD2DA0DF26622F317779E8C" />
             <ComponentRef Id="cmp51AA3CB97BB5B405B92BE7CE51FE7C0B" />
             <ComponentRef Id="cmp9C6D2849845295B8A8188EE80AA931D5" />
             <ComponentRef Id="cmp3758397F1270BF5124FBA146AB2161CD" />
@@ -265,7 +250,6 @@
             <ComponentRef Id="cmpFF0F41562004EA077A4B84271D0ACCB7" />
             <ComponentRef Id="cmpB3AE432D48BF3A5AB43C6DAF12AB454A" />
             <ComponentRef Id="cmp6D1BF809CBAFF13493F3C31E9CCBBD48" />
-            <ComponentRef Id="cmp3A99A623A71A716A198559E0C9D59400" />
             <ComponentRef Id="cmpC364C08373FD68636CA630D5CC105F77" />
             <ComponentRef Id="cmpAA1177B16890BF04C945489DAB0B96FC" />
             <ComponentRef Id="cmpB9D685AE58FEB3A95799FCF678486AA2" />

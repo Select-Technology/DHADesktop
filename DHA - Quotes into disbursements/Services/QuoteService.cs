@@ -712,13 +712,17 @@ namespace DHA.DSTC.WPF.Services
                 var combinedFilter = new FilterExpression(LogicalOperator.And);
                 combinedFilter.AddFilter(searchGroup);
 
-                // Exclude Draft/Inactive, Won, Lost, Closed quotes AND where project number is not visible
+                // Exclude Draft/Inactive, Won, Lost, Closed quotes.
                 combinedFilter.AddCondition("statuscode", ConditionOperator.NotIn, new object[] { 0, 2, 3, 4 });
-                combinedFilter.AddCondition("isc_projectnumbervisible", ConditionOperator.Null);
 
+                // NOTE: We deliberately do NOT add a server-side "isc_projectnumbervisible IS NULL"
+                // condition here. For users without field-level-security read access to that column,
+                // Dataverse makes the IS NULL predicate match zero rows, which made search return
+                // empty for them. The project-number rule is enforced in C# via Quote.IsActive below
+                // (see the .Where(q.IsActive) filter), mirroring the fallback already used in GetQuotes.
                 query.Criteria = combinedFilter;
 
-                System.Diagnostics.Debug.WriteLine("SearchQuotes: Query filters - (name LIKE OR quotenumber LIKE) AND statuscode NOT IN (0,2,3,4) AND isc_projectnumbervisible = NULL");
+                System.Diagnostics.Debug.WriteLine("SearchQuotes: Query filters - (name LIKE OR quotenumber LIKE) AND statuscode NOT IN (0,2,3,4); project-number filtered in C# via IsActive");
 
                 // Page size for search results
                 query.PageInfo = new PagingInfo
