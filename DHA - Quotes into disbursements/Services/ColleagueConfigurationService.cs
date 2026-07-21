@@ -30,7 +30,11 @@ namespace DHA.DSTC.WPF.Services
                         "fwp_thursdayexpectedhours",
                         "fwp_fridayexpectedhours",
                         // Removed Saturday and Sunday - they don't exist in schema
-                        "fwp_colleague"
+                        "fwp_colleague",
+                        // Per-user charge band rate amounts (currency fields)
+                        "fwp_ratea",
+                        "fwp_rateb",
+                        "fwp_ratec"
                     ),
                     Criteria = new FilterExpression()
                 };
@@ -63,6 +67,29 @@ namespace DHA.DSTC.WPF.Services
         public decimal WednesdayExpectedHours { get; set; }
         public decimal ThursdayExpectedHours { get; set; }
         public decimal FridayExpectedHours { get; set; }
+
+        // Per-user charge band rate amounts, maintained in Dynamics by administrators.
+        public decimal RateA { get; set; }
+        public decimal RateB { get; set; }
+        public decimal RateC { get; set; }
+
+        /// <summary>
+        /// Returns this user's rate amount for the given charge band.
+        /// </summary>
+        public decimal GetRateForBand(Models.ChargeBand band)
+        {
+            switch (band)
+            {
+                case Models.ChargeBand.RateA:
+                    return RateA;
+                case Models.ChargeBand.RateB:
+                    return RateB;
+                case Models.ChargeBand.RateC:
+                    return RateC;
+                default:
+                    return 0m;
+            }
+        }
 
         // Weekends always return 0 - no one expected to work weekends
         public decimal SaturdayExpectedHours => 0m;
@@ -100,8 +127,13 @@ namespace DHA.DSTC.WPF.Services
                 TuesdayExpectedHours = entity.GetAttributeValue<decimal>("fwp_tuesdayexpectedhours"),
                 WednesdayExpectedHours = entity.GetAttributeValue<decimal>("fwp_wednesdayexpectedhours"),
                 ThursdayExpectedHours = entity.GetAttributeValue<decimal>("fwp_thursdayexpectedhours"),
-                FridayExpectedHours = entity.GetAttributeValue<decimal>("fwp_fridayexpectedhours")
+                FridayExpectedHours = entity.GetAttributeValue<decimal>("fwp_fridayexpectedhours"),
                 // No Saturday/Sunday fields to populate - properties return 0 by default
+
+                // Currency fields come back as Money - unwrap to decimal (0 when unset)
+                RateA = entity.GetAttributeValue<Money>("fwp_ratea")?.Value ?? 0m,
+                RateB = entity.GetAttributeValue<Money>("fwp_rateb")?.Value ?? 0m,
+                RateC = entity.GetAttributeValue<Money>("fwp_ratec")?.Value ?? 0m
             };
         }
 

@@ -895,9 +895,51 @@ namespace DHA.DSTC.WPF
             return dates;
         }
 
-        private async Task AddBlockTimeEntriesAsync(decimal hours, int minutes,
-            TimeEntryCategory category, string comments)
+        /// <summary>
+        /// Gets the charge band currently selected in the add-time-entry form.
+        /// Defaults to Rate A if nothing valid is selected.
+        /// </summary>
+        private ChargeBand GetSelectedChargeBand()
         {
+            var item = ChargeBandComboBox?.SelectedItem as System.Windows.Controls.ComboBoxItem;
+            if (item?.Tag != null
+                && int.TryParse(item.Tag.ToString(), out int value)
+                && Enum.IsDefined(typeof(ChargeBand), value))
+            {
+                return (ChargeBand)value;
+            }
+            return ChargeBand.RateA;
+        }
+
+        private void ChargeBandComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            UpdateChargeBandRateLabel();
+        }
+
+        /// <summary>
+        /// Updates the read-only label beside the charge band selector to show the
+        /// current user's configured rate for the selected band.
+        /// </summary>
+        private void UpdateChargeBandRateLabel()
+        {
+            // Guard: SelectionChanged can fire during InitializeComponent before the
+            // label element and user config exist.
+            if (ChargeBandRateLabel == null) return;
+
+            if (_currentUserConfig == null)
+            {
+                ChargeBandRateLabel.Text = string.Empty;
+                return;
+            }
+
+            var rate = _currentUserConfig.GetRateForBand(GetSelectedChargeBand());
+            ChargeBandRateLabel.Text = rate > 0m ? $"{rate:C}/hr" : string.Empty;
+        }
+
+        private async Task AddBlockTimeEntriesAsync(decimal hours, int minutes,
+            TimeEntryCategory category, ChargeBand chargeBand, string comments)
+        {
+            decimal chargeRateValue = _currentUserConfig?.GetRateForBand(chargeBand) ?? 0m;
             var start = TimeEntryDatePicker.SelectedDate.Value.Date;
             var end   = BlockEndDatePicker.SelectedDate.Value.Date;
             bool skipWeekends = SkipWeekendsCheckBox.IsChecked == true;
@@ -943,7 +985,9 @@ namespace DHA.DSTC.WPF
                             Minutes      = minutes,
                             Comments     = comments,
                             TeamMemberId = userId,
-                            Category     = category
+                            Category     = category,
+                            ChargeBand   = chargeBand,
+                            ChargeRateValue = chargeRateValue
                         };
 
                         if (isProjectMode && selectedProject != null)
@@ -986,6 +1030,7 @@ namespace DHA.DSTC.WPF
             MinutesTextBox.Text = "0";
             CommentsTextBox.Clear();
             ChargeableRadioButton.IsChecked = true;
+            ChargeBandComboBox.SelectedIndex = 0; // Reset charge band to default (Rate A)
             BlockModeCheckBox.IsChecked = false;
 
             // Expand the visible date range to cover the entries just created
@@ -1886,6 +1931,7 @@ namespace DHA.DSTC.WPF
                 _currentUserConfig = ColleagueConfiguration.CreateDefault();
             }
             UpdateDailyProgress();
+            UpdateChargeBandRateLabel(); // Reflect the newly-loaded per-user rates
         }
 
         private async Task LoadProjectsAsync()
@@ -2280,10 +2326,13 @@ namespace DHA.DSTC.WPF
                 else if (HourlyRateRadioButton.IsChecked == true)
                     selectedCategory = TimeEntryCategory.HourlyRate;
 
+                // Get selected charge band from the selector
+                ChargeBand selectedChargeBand = GetSelectedChargeBand();
+
                 // Multi-day block entry — delegate to dedicated method
                 if (BlockModeCheckBox?.IsChecked == true)
                 {
-                    await AddBlockTimeEntriesAsync(hours, minutes, selectedCategory, CommentsTextBox.Text.Trim());
+                    await AddBlockTimeEntriesAsync(hours, minutes, selectedCategory, selectedChargeBand, CommentsTextBox.Text.Trim());
                     return;
                 }
 
@@ -2356,7 +2405,9 @@ namespace DHA.DSTC.WPF
                     TeamMemberId = DHA.DSTC.WPF.Utilities.ServiceLocator.CurrentUserId != Guid.Empty
                         ? DHA.DSTC.WPF.Utilities.ServiceLocator.CurrentUserId
                         : _currentUser.Id,
-                    Category = selectedCategory
+                    Category = selectedCategory,
+                    ChargeBand = selectedChargeBand,
+                    ChargeRateValue = _currentUserConfig?.GetRateForBand(selectedChargeBand) ?? 0m
                 };
 
                 // Set classification and related fields
@@ -2397,6 +2448,9 @@ namespace DHA.DSTC.WPF
 
                     // Reset category to default
                     ChargeableRadioButton.IsChecked = true;
+
+                    // Reset charge band to default (Rate A) for the next entry
+                    ChargeBandComboBox.SelectedIndex = 0;
 
                     // Keep date and selection for convenience
 

@@ -300,6 +300,7 @@ namespace DHA.DSTC.WPF.Services
                 "fwp_hours",         // Keep original field name
                 "fwp_minutes",
                 "fwp_notes",
+                "fwp_chargerate",    // Charge band choice
                 "fwp_project",
                 "fwp_teammember");
 
@@ -329,6 +330,7 @@ namespace DHA.DSTC.WPF.Services
                     "fwp_hours",      // Keep original field name
                     "fwp_minutes",
                     "fwp_notes",
+                    "fwp_chargerate", // Charge band choice
                     "fwp_project",
                     "fwp_teammember"));
 

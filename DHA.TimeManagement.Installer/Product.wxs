@@ -10,7 +10,7 @@
     Build with:  BuildInstaller.bat
   -->
 
-  <?define ProductVersion = "1.2.0" ?>
+  <?define ProductVersion = "1.3.0" ?>
   <?define Manufacturer   = "Select Technology" ?>
   <?define ProductName    = "DHA Time Management" ?>
   <?define UpgradeCode    = "65694575-FAE5-4EB3-B371-61A715B8ED24" ?>

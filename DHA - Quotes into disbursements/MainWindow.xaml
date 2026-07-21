@@ -607,11 +607,33 @@
                  Margin="0,0,20,4" GroupName="TimeCategory"/>
                                     <RadioButton x:Name="SpeculativeRadioButton" Content="Speculative" 
                  Margin="0,0,20,4" GroupName="TimeCategory"/>
-                                    <RadioButton x:Name="HourlyRateRadioButton" Content="Hourly Rate" 
+                                    <RadioButton x:Name="HourlyRateRadioButton" Content="Hourly Rate"
                  Margin="0,0,20,4" GroupName="TimeCategory"/>
                                 </WrapPanel>
 
-                                <Button x:Name="AddTimeEntryButton" Content="Add Time Entry" 
+                                <!-- Charge Band Selection -->
+                                <TextBlock Text="Charge Band" Style="{StaticResource FormLabelStyle}"/>
+                                <Grid Margin="4,0,4,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="ChargeBandComboBox" Grid.Column="0" Height="32"
+                                              SelectedValuePath="Tag"
+                                              SelectionChanged="ChargeBandComboBox_SelectionChanged"
+                                              ToolTip="Rate defaults to Rate A. Choose an alternative band when recording time.">
+                                        <ComboBoxItem Content="Rate A" Tag="800470000" IsSelected="True"/>
+                                        <ComboBoxItem Content="Rate B (Expert Witness)" Tag="800470001"/>
+                                        <ComboBoxItem Content="Rate C" Tag="800470002"/>
+                                    </ComboBox>
+                                    <TextBlock x:Name="ChargeBandRateLabel" Grid.Column="1"
+                                               VerticalAlignment="Center" Margin="10,0,0,0"
+                                               FontSize="12" FontWeight="Medium"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text=""/>
+                                </Grid>
+
+                                <Button x:Name="AddTimeEntryButton" Content="Add Time Entry"
                                       Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Stretch"
                                       Click="AddTimeEntryButton_Click"/>
                             </StackPanel>
@@ -687,6 +709,7 @@
                                     </DataGridTextColumn>
                                     <DataGridTextColumn Header="Client" Binding="{Binding ClientName}" Width="120"/>
                                     <DataGridTextColumn Header="Category" Binding="{Binding CategoryName}" Width="90"/>
+                                    <DataGridTextColumn Header="Rate" Binding="{Binding ChargeBandLetter}" Width="50"/>
                                     <DataGridTextColumn Header="Time" Binding="{Binding TotalTime}" Width="70"/>
                                     <DataGridTextColumn Header="Comments" Binding="{Binding Comments}" Width="*"/>
                                 </DataGrid.Columns>

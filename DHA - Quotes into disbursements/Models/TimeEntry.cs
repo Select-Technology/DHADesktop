@@ -21,6 +21,15 @@ namespace DHA.DSTC.WPF.Models
         Quote = 800470001
     }
 
+    // Charge band choice stored on fwp_timeentry.fwp_chargerate.
+    // Values use the Dataverse publisher-prefix range for this option set.
+    public enum ChargeBand
+    {
+        RateA = 800470000,
+        RateB = 800470001,
+        RateC = 800470002
+    }
+
     public class TimeEntry : INotifyPropertyChanged
     {
         // Private backing fields
@@ -41,6 +50,8 @@ namespace DHA.DSTC.WPF.Models
         private string _clientName;
         private TimeEntryCategory _category = TimeEntryCategory.Chargeable;
         private TimeEntryClassification _classification = TimeEntryClassification.Project;
+        private ChargeBand _chargeBand = ChargeBand.RateA;
+        private decimal _chargeRateValue;
 
         #region Properties
 
@@ -111,6 +122,60 @@ namespace DHA.DSTC.WPF.Models
                         return "Unknown";
                 }
             }
+        }
+
+        // Charge band property (stored on fwp_timeentry.fwp_chargerate)
+        public ChargeBand ChargeBand
+        {
+            get => _chargeBand;
+            set { _chargeBand = value; OnPropertyChanged(); OnPropertyChanged(nameof(ChargeBandName)); OnPropertyChanged(nameof(ChargeBandLetter)); }
+        }
+
+        public string ChargeBandName
+        {
+            get
+            {
+                switch (ChargeBand)
+                {
+                    case ChargeBand.RateA:
+                        return "Rate A";
+                    case ChargeBand.RateB:
+                        return "Rate B (Expert Witness)";
+                    case ChargeBand.RateC:
+                        return "Rate C";
+                    default:
+                        return "Unknown";
+                }
+            }
+        }
+
+        // Single-letter form of the charge band (A, B, C) for compact display.
+        public string ChargeBandLetter
+        {
+            get
+            {
+                switch (ChargeBand)
+                {
+                    case ChargeBand.RateA:
+                        return "A";
+                    case ChargeBand.RateB:
+                        return "B";
+                    case ChargeBand.RateC:
+                        return "C";
+                    default:
+                        return "";
+                }
+            }
+        }
+
+        // The monetary rate applied for the selected band, resolved from the
+        // team member's colleague configuration. Not persisted on the time entry
+        // itself (the entry stores only the band choice); populated for display,
+        // billing and reporting.
+        public decimal ChargeRateValue
+        {
+            get => _chargeRateValue;
+            set { _chargeRateValue = value; OnPropertyChanged(); }
         }
 
         // Core properties
@@ -297,6 +362,7 @@ namespace DHA.DSTC.WPF.Models
             ClientName = string.Empty;
             Category = TimeEntryCategory.Chargeable;
             Classification = TimeEntryClassification.Project;
+            ChargeBand = ChargeBand.RateA; // Default charge band for new entries
         }
 
         #endregion
@@ -410,6 +476,24 @@ namespace DHA.DSTC.WPF.Models
                     catch (Exception catEx)
                     {
                         System.Diagnostics.Debug.WriteLine($"  ? ERROR with category: {catEx.Message}");
+                    }
+                }
+
+                // Charge band
+                if (entity.Contains("fwp_chargerate"))
+                {
+                    try
+                    {
+                        var chargeBandValue = entity.GetAttributeValue<OptionSetValue>("fwp_chargerate");
+                        if (chargeBandValue != null)
+                        {
+                            timeEntry.ChargeBand = (ChargeBand)chargeBandValue.Value;
+                            System.Diagnostics.Debug.WriteLine($"  ChargeBand: {timeEntry.ChargeBand}");
+                        }
+                    }
+                    catch (Exception bandEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"  ? ERROR with charge band: {bandEx.Message}");
                     }
                 }
 
@@ -564,6 +648,10 @@ namespace DHA.DSTC.WPF.Models
             // Set classification
             entity["fwp_classification"] = new OptionSetValue((int)Classification);
             System.Diagnostics.Debug.WriteLine($"║ fwp_classification: {(int)Classification} ({ClassificationName})");
+
+            // Set charge band
+            entity["fwp_chargerate"] = new OptionSetValue((int)ChargeBand);
+            System.Diagnostics.Debug.WriteLine($"║ fwp_chargerate: {(int)ChargeBand} ({ChargeBandName})");
 
             // Set project or quote reference based on classification
             if (Classification == TimeEntryClassification.Project && ProjectId != Guid.Empty)

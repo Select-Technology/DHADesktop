@@ -47,6 +47,7 @@ namespace DHA.DSTC.WPF.Services
             "fwp_notes",
             "fwp_category",
             "fwp_classification",
+            "fwp_chargerate",      // Charge band choice
             "fwp_project",
             "fwp_quote",
             "fwp_teammember",
@@ -484,7 +485,7 @@ namespace DHA.DSTC.WPF.Services
                 {
                     ColumnSet = new ColumnSet("fwp_date", "fwp_description", "fwp_decimalhours",
                                             "fwp_minutes", "fwp_notes", "fwp_category",
-                                            "fwp_classification", "fwp_project", "fwp_quote",
+                                            "fwp_classification", "fwp_chargerate", "fwp_project", "fwp_quote",
                                             "fwp_teammember"),
                     Orders = { new OrderExpression("fwp_date", OrderType.Descending) }
                 };
@@ -563,6 +564,7 @@ namespace DHA.DSTC.WPF.Services
                     "fwp_notes",
                     "fwp_category",
                     "fwp_classification", // NEW: Add classification field
+                    "fwp_chargerate",     // Charge band choice
                     "fwp_project",
                     "fwp_quote", // NEW: Add quote field
                     "fwp_teammember"

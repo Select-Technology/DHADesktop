@@ -155,6 +155,25 @@
                         </WrapPanel>
                     </Border>
 
+                    <!-- Charge Band -->
+                    <TextBlock Text="Charge Band" Style="{StaticResource FormLabelStyle}"/>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="ChargeBandComboBox" Grid.Column="0" Height="32"
+                                  SelectionChanged="ChargeBandComboBox_SelectionChanged">
+                            <ComboBoxItem Content="Rate A" Tag="800470000"/>
+                            <ComboBoxItem Content="Rate B (Expert Witness)" Tag="800470001"/>
+                            <ComboBoxItem Content="Rate C" Tag="800470002"/>
+                        </ComboBox>
+                        <TextBlock x:Name="ChargeBandRateLabel" Grid.Column="1"
+                                   VerticalAlignment="Center" Margin="10,0,0,0"
+                                   FontSize="12" FontWeight="Medium"
+                                   Foreground="#64748B" Text=""/>
+                    </Grid>
+
                     <!-- Lock Information -->
                     <Border x:Name="LockInfoBorder" Background="#FEF3C7" BorderBrush="#F59E0B" 
                            BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,8,0,0">

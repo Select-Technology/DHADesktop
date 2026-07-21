@@ -14,6 +14,7 @@ namespace DHA.DSTC.WPF
         private readonly TimeEntry _originalTimeEntry;
         private readonly List<Project> _projects;
         private readonly TeamMember _currentUser;
+        private readonly ColleagueConfiguration _userConfig;
 
         public TimeEntry UpdatedTimeEntry { get; private set; }
 
@@ -23,6 +24,7 @@ namespace DHA.DSTC.WPF
 
             _originalTimeEntry = timeEntry;
             _currentUser = currentUser;
+            _userConfig = LoadUserConfig(currentUser?.Id ?? Guid.Empty);
 
             // ENHANCED: Ensure the required project is available
             _projects = EnsureProjectAvailable(projects, timeEntry.ProjectId);
@@ -30,6 +32,22 @@ namespace DHA.DSTC.WPF
             ProjectComboBox.Loaded += ProjectComboBox_Loaded;
             LoadData();
             SetupLockInfo();
+        }
+
+        private static ColleagueConfiguration LoadUserConfig(Guid userId)
+        {
+            try
+            {
+                if (userId != Guid.Empty && ServiceLocator.ColleagueConfigurationService != null)
+                {
+                    return ServiceLocator.ColleagueConfigurationService.GetColleagueConfiguration(userId);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EditTimeEntryDialog: failed to load colleague config: {ex.Message}");
+            }
+            return ColleagueConfiguration.CreateDefault();
         }
 
         private void LoadData()
@@ -62,6 +80,10 @@ namespace DHA.DSTC.WPF
                     ChargeableRadioButton.IsChecked = true;
                     break;
             }
+
+            // Select the current charge band
+            SelectChargeBand(_originalTimeEntry.ChargeBand);
+            UpdateChargeBandRateLabel();
 
             // 🔥 AGGRESSIVE FIX: Use Timer for delayed selection
             if (_originalTimeEntry.Classification == TimeEntryClassification.Project &&
@@ -275,6 +297,7 @@ namespace DHA.DSTC.WPF
                 NonChargeableRadioButton.IsEnabled = false;
                 SpeculativeRadioButton.IsEnabled = false;
                 HourlyRateRadioButton.IsEnabled = false;
+                ChargeBandComboBox.IsEnabled = false;
                 SaveButton.IsEnabled = false;
             }
         }
@@ -342,7 +365,9 @@ namespace DHA.DSTC.WPF
                     ProjectId = ((Project)ProjectComboBox.SelectedItem).Id,
                     TeamMemberId = _currentUser.Id,
                     ProjectName = ((Project)ProjectComboBox.SelectedItem).Name,
-                    Category = selectedCategory
+                    Category = selectedCategory,
+                    ChargeBand = GetSelectedChargeBand(),
+                    ChargeRateValue = _userConfig?.GetRateForBand(GetSelectedChargeBand()) ?? 0m
                 };
 
                 System.Diagnostics.Debug.WriteLine("✅ UpdatedTimeEntry created - closing dialog");
@@ -363,6 +388,48 @@ namespace DHA.DSTC.WPF
         }
 
 
+
+        private void ChargeBandComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            UpdateChargeBandRateLabel();
+        }
+
+        private ChargeBand GetSelectedChargeBand()
+        {
+            var item = ChargeBandComboBox?.SelectedItem as System.Windows.Controls.ComboBoxItem;
+            if (item?.Tag != null
+                && int.TryParse(item.Tag.ToString(), out int value)
+                && Enum.IsDefined(typeof(ChargeBand), value))
+            {
+                return (ChargeBand)value;
+            }
+            return ChargeBand.RateA;
+        }
+
+        private void SelectChargeBand(ChargeBand band)
+        {
+            if (ChargeBandComboBox == null) return;
+
+            foreach (var obj in ChargeBandComboBox.Items)
+            {
+                if (obj is System.Windows.Controls.ComboBoxItem item
+                    && int.TryParse(item.Tag?.ToString(), out int value)
+                    && value == (int)band)
+                {
+                    ChargeBandComboBox.SelectedItem = item;
+                    return;
+                }
+            }
+            ChargeBandComboBox.SelectedIndex = 0; // Fall back to Rate A
+        }
+
+        private void UpdateChargeBandRateLabel()
+        {
+            if (ChargeBandRateLabel == null) return;
+
+            var rate = _userConfig?.GetRateForBand(GetSelectedChargeBand()) ?? 0m;
+            ChargeBandRateLabel.Text = rate > 0m ? $"{rate:C}/hr" : string.Empty;
+        }
 
         private bool ValidateInput()
         {
