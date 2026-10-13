@@ -760,7 +760,7 @@
             </TabItem>
 
             <!-- Leave Tab (DHA-9 phase B) -->
-            <TabItem Header="🌴 Leave">
+            <TabItem Header="Leave">
                 <local:LeaveView x:Name="LeaveTabView"/>
             </TabItem>
 
