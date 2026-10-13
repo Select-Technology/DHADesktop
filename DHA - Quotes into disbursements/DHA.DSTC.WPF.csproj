@@ -216,6 +216,14 @@
     <Page Include="EditTimeEntryDialog.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="LeaveApprovalsView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="LeaveTabView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="LeaveView.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -236,6 +244,12 @@
       <DependentUpon>EditTimeEntryDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="InputDialog.cs" />
+    <Compile Include="LeaveApprovalsView.xaml.cs">
+      <DependentUpon>LeaveApprovalsView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="LeaveTabView.xaml.cs">
+      <DependentUpon>LeaveTabView.xaml</DependentUpon>
+    </Compile>
     <Compile Include="LeaveView.xaml.cs">
       <DependentUpon>LeaveView.xaml</DependentUpon>
     </Compile>

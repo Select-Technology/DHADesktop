@@ -19,6 +19,17 @@ namespace DHA.DSTC.WPF.Services
         // Colleague configuration only has Monday-Friday; weekends stay as non-working days
         private static readonly string[] Days = { "monday", "tuesday", "wednesday", "thursday", "friday" };
 
+        // Who sees the Approvals screen: members of the HR Microsoft 365 group (HR@dhaplanning.co.uk, synced to a
+        // Dataverse group team by provision_leave_approvers.py) and, for now, stsadmin
+        private const string ApproverGroupObjectId = "5760dd7d-5244-4e06-b8fa-6ce9284e9d3c";
+        private static readonly string[] ApproverEmails = { "stsadmin@dhaplanning.co.uk" };
+
+        private static readonly string[] RequestColumns =
+        {
+            "fwp_employee", "fwp_leavetype", "fwp_startdate", "fwp_enddate", "fwp_starttime", "fwp_endtime",
+            "fwp_hours", "fwp_status", "fwp_approver", "fwp_requestercomments", "fwp_approvercomments", "createdon"
+        };
+
         public LeaveService(DataverseConnector connector)
         {
             _connector = connector;
@@ -31,8 +42,7 @@ namespace DHA.DSTC.WPF.Services
 
             var q = new QueryExpression("fwp_leaverequest")
             {
-                ColumnSet = new ColumnSet("fwp_employee", "fwp_leavetype", "fwp_startdate", "fwp_enddate", "fwp_starttime", "fwp_endtime",
-                    "fwp_hours", "fwp_status", "fwp_approver", "fwp_requestercomments", "fwp_approvercomments"),
+                ColumnSet = new ColumnSet(RequestColumns),
                 Orders = { new OrderExpression("fwp_startdate", OrderType.Descending) }
             };
             q.Criteria.AddCondition("fwp_employee", ConditionOperator.Equal, employeeId);
@@ -79,6 +89,87 @@ namespace DHA.DSTC.WPF.Services
 
             var status = request.Status == LeaveRequestStatus.Pending ? LeaveRequestStatus.Cancelled : LeaveRequestStatus.CancellationRequested;
             var e = new Entity("fwp_leaverequest", request.Id) { ["fwp_status"] = new OptionSetValue((int)status) };
+            _connector._orgService.Update(e);
+        }
+
+        // ---------- Approvals ----------
+
+        public bool CanApprove(Guid userId, string email)
+        {
+            if (!string.IsNullOrEmpty(email) && ApproverEmails.Any(a => a.Equals(email, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            if (userId == Guid.Empty || !_connector.Connect())
+                return false;
+
+            try
+            {
+                var q = new QueryExpression("team") { ColumnSet = new ColumnSet(false), TopCount = 1 };
+                q.Criteria.AddCondition("azureactivedirectoryobjectid", ConditionOperator.Equal, new Guid(ApproverGroupObjectId));
+                var member = q.AddLink("teammembership", "teamid", "teamid");
+                member.LinkCriteria.AddCondition("systemuserid", ConditionOperator.Equal, userId);
+                return _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities.Count > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LeaveService.CanApprove: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>Everyone's requests waiting for a decision: new requests and requests to cancel approved leave.</summary>
+        public List<LeaveRequest> GetRequestsAwaitingDecision()
+        {
+            if (!_connector.Connect())
+                return new List<LeaveRequest>();
+
+            var q = new QueryExpression("fwp_leaverequest")
+            {
+                ColumnSet = new ColumnSet(RequestColumns),
+                Orders = { new OrderExpression("fwp_startdate", OrderType.Ascending) }
+            };
+            q.Criteria.AddCondition("fwp_status", ConditionOperator.In,
+                (int)LeaveRequestStatus.Pending, (int)LeaveRequestStatus.CancellationRequested);
+
+            return _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q))
+                .Entities.Select(LeaveRequest.FromEntity).ToList();
+        }
+
+        /// <summary>Approved leave overlapping the given window - who's off.</summary>
+        public List<LeaveRequest> GetApprovedLeave(DateTime from, DateTime to)
+        {
+            if (!_connector.Connect())
+                return new List<LeaveRequest>();
+
+            var q = new QueryExpression("fwp_leaverequest")
+            {
+                ColumnSet = new ColumnSet(RequestColumns),
+                Orders = { new OrderExpression("fwp_startdate", OrderType.Ascending) }
+            };
+            q.Criteria.AddCondition("fwp_status", ConditionOperator.In,
+                (int)LeaveRequestStatus.Approved, (int)LeaveRequestStatus.CancellationRequested);
+            q.Criteria.AddCondition("fwp_startdate", ConditionOperator.OnOrBefore, to.Date);
+            q.Criteria.AddCondition("fwp_enddate", ConditionOperator.OnOrAfter, from.Date);
+
+            return _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q))
+                .Entities.Select(LeaveRequest.FromEntity).ToList();
+        }
+
+        /// <summary>
+        /// Records an approver's decision. Approving creates the time entries and cancelling removes them -
+        /// that happens server-side in LeaveRequestPlugin.
+        /// </summary>
+        public void Decide(LeaveRequest request, LeaveRequestStatus newStatus, string comment, Guid approverId)
+        {
+            if (!_connector.Connect())
+                throw new InvalidOperationException("Not connected to Dynamics.");
+
+            var e = new Entity("fwp_leaverequest", request.Id)
+            {
+                ["fwp_status"] = new OptionSetValue((int)newStatus),
+                ["fwp_approver"] = new EntityReference("systemuser", approverId)
+            };
+            if (!string.IsNullOrWhiteSpace(comment))
+                e["fwp_approvercomments"] = comment.Trim();
             _connector._orgService.Update(e);
         }
 

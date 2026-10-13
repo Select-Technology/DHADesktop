@@ -27,6 +27,8 @@ namespace DHA.DSTC.WPF.Models
     {
         public Guid Id { get; set; }
         public Guid EmployeeId { get; set; }
+        public string EmployeeName { get; set; }
+        public DateTime? RequestedOn { get; set; }
         public Guid? LeaveTypeId { get; set; }
         public string LeaveTypeName { get; set; }
         public DateTime StartDate { get; set; }
@@ -63,13 +65,18 @@ namespace DHA.DSTC.WPF.Models
 
         public bool CanCancel => Status == LeaveRequestStatus.Pending || Status == LeaveRequestStatus.Approved;
 
+        public bool IsCancellationRequest => Status == LeaveRequestStatus.CancellationRequested;
+
         public static LeaveRequest FromEntity(Entity e)
         {
             var type = e.GetAttributeValue<EntityReference>("fwp_leavetype");
+            var employee = e.GetAttributeValue<EntityReference>("fwp_employee");
             return new LeaveRequest
             {
                 Id = e.Id,
-                EmployeeId = e.GetAttributeValue<EntityReference>("fwp_employee")?.Id ?? Guid.Empty,
+                EmployeeId = employee?.Id ?? Guid.Empty,
+                EmployeeName = employee?.Name ?? "",
+                RequestedOn = e.GetAttributeValue<DateTime?>("createdon")?.ToLocalTime(),
                 LeaveTypeId = type?.Id,
                 LeaveTypeName = type?.Name ?? "",
                 StartDate = e.GetAttributeValue<DateTime>("fwp_startdate"),

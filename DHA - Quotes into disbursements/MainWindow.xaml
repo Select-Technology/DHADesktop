@@ -761,7 +761,7 @@
 
             <!-- Leave Tab (DHA-9 phase B) -->
             <TabItem Header="Leave">
-                <local:LeaveView x:Name="LeaveTabView"/>
+                <local:LeaveTabView/>
             </TabItem>
 
             <!-- Disbursements Tab -->
