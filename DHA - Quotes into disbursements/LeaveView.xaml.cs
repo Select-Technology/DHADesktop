@@ -24,7 +24,7 @@ namespace DHA.DSTC.WPF
         private WorkingDay[] _pattern = LeaveDayCalculator.DefaultPattern();
         private HashSet<DateTime> _bankHolidays = new HashSet<DateTime>();
         private List<LeaveType> _types = new List<LeaveType>();
-        private bool _loaded;
+        private bool _loading;
 
         public LeaveView()
         {
@@ -35,17 +35,18 @@ namespace DHA.DSTC.WPF
 
         private Guid EmployeeId => ServiceLocator.EffectiveUserId;
 
-        private async void LeaveView_Loaded(object sender, RoutedEventArgs e)
+        // Reload each time the tab is shown: the user may have switched environment (DEV button) or user
+        private async void LeaveView_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
-            if (_loaded || ServiceLocator.DataverseConnector == null)
+            if (!IsVisible || _loading || ServiceLocator.DataverseConnector == null)
                 return;
-            _loaded = true;
-            _leaveService = new LeaveService(ServiceLocator.DataverseConnector);
+            _leaveService = _leaveService ?? new LeaveService(ServiceLocator.DataverseConnector);
             await LoadAsync();
         }
 
         private async Task LoadAsync()
         {
+            _loading = true;
             try
             {
                 var employeeId = EmployeeId;
@@ -74,6 +75,10 @@ namespace DHA.DSTC.WPF
             catch (Exception ex)
             {
                 MessageBox.Show($"Could not load your leave: {ex.Message}", "Leave", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _loading = false;
             }
         }
 

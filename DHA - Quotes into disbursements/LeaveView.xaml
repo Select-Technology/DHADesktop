@@ -1,7 +1,7 @@
 <UserControl x:Class="DHA.DSTC.WPF.LeaveView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Loaded="LeaveView_Loaded">
+             IsVisibleChanged="LeaveView_IsVisibleChanged">
     <!-- Leave booking (DHA-9 phase B). Styles come from MainWindow.Resources, hence DynamicResource. -->
     <Grid Margin="16">
         <Grid.ColumnDefinitions>
