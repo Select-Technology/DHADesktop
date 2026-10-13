@@ -68,6 +68,7 @@ if s == 404:
             "DisplayName": lbl("Name"), "RequiredLevel": {"Value": "ApplicationRequired"}, "MaxLength": 100, "FormatName": {"Value": "Text"}}]
     }, solution=SOL)
     ok(s, d, "create table fwp_publicholiday")
+if dv.call("GET", "EntityDefinitions(LogicalName='fwp_publicholiday')/Attributes(LogicalName='fwp_date')?$select=MetadataId")[0] == 404:
     s, d, _ = dv.call("POST", "EntityDefinitions(LogicalName='fwp_publicholiday')/Attributes", {
         "@odata.type": "Microsoft.Dynamics.CRM.DateTimeAttributeMetadata", "SchemaName": "fwp_Date", "DisplayName": lbl("Date"),
         "RequiredLevel": {"Value": "ApplicationRequired"}, "Format": "DateOnly", "DateTimeBehavior": {"Value": "TimeZoneIndependent"}}, solution=SOL)

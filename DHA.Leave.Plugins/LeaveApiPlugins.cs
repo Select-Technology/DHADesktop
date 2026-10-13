@@ -36,6 +36,13 @@ namespace DHA.Leave.Plugins
             return context.InputParameters.TryGetValue(name, out var v) && v is T t ? t : default(T);
         }
 
+        /// <summary>Optional DateTime parameters arrive as DateTime.MinValue when omitted, not null.</summary>
+        protected static DateTime? InputDate(IPluginExecutionContext context, string name)
+        {
+            var value = Input<DateTime?>(context, name);
+            return value.HasValue && value.Value.Year > 1900 ? value : null;
+        }
+
         protected static TimeSpan? InputTime(IPluginExecutionContext context, string name)
         {
             var text = Input<string>(context, name);
@@ -57,8 +64,8 @@ namespace DHA.Leave.Plugins
         protected override void Run(IPluginExecutionContext context, LeaveTimeEntryService service)
         {
             var userId = service.ResolveUser(Input<Guid?>(context, "UserId"), Input<string>(context, "UserEmail"));
-            var start = Input<DateTime?>(context, "StartDate") ?? throw new InvalidPluginExecutionException("StartDate is required.");
-            var end = Input<DateTime?>(context, "EndDate") ?? start;
+            var start = InputDate(context, "StartDate") ?? throw new InvalidPluginExecutionException("StartDate is required.");
+            var end = InputDate(context, "EndDate") ?? start;
 
             var result = service.RecordLeave(userId, start, end,
                 InputTime(context, "StartTime"), InputTime(context, "EndTime"),
@@ -88,8 +95,8 @@ namespace DHA.Leave.Plugins
     {
         protected override void Run(IPluginExecutionContext context, LeaveTimeEntryService service)
         {
-            var from = Input<DateTime?>(context, "FromDate") ?? DateTime.UtcNow.Date;
-            var to = Input<DateTime?>(context, "ToDate") ?? from.AddDays(31);
+            var from = InputDate(context, "FromDate") ?? DateTime.UtcNow.Date;
+            var to = InputDate(context, "ToDate") ?? from.AddDays(31);
             var result = service.RecordBankHolidays(from, to);
 
             context.OutputParameters["EntriesCreated"] = result.Created;

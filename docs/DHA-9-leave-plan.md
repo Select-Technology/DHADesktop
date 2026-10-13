@@ -46,6 +46,19 @@ is thrown away.
 The plug-in runs as the caller, so the flow connection must be able to create and delete any time
 entry. Use the `Automated #` service account, which already owns the leave flows.
 
+### Phase A – dev status (2026-10-13)
+
+Provisioned in dev with test Jobs "Approved Leave" and "Bank Holiday" (env var values set in dev only)
+and 2026–2028 bank holidays. Tested against the API directly:
+
+- 21–31 Dec 2026 → 7 entries of 7.5h. 25 Dec and the 28 Dec substitute day are skipped and get bank holiday entries instead.
+- Part day 11:00–13:00 by email → 2h. Afternoon from 13:30 → 4h.
+- Re-sending a key replaces its entries. Removing deletes them, and a second remove is a no-op. An unknown email gives a clear error.
+- Bank holidays over Christmas → 140 entries (70 active colleagues × 2 days) in ~17s. A repeat run creates nothing (0.2s).
+- `fwp_value` stayed empty on the test entries because the value flow/plug-in isn't active in dev.
+
+All test entries were removed afterwards.
+
 ### Phase A – flows to build (maker portal, in `FWPLeaveTimeEntries`)
 
 Flows need a connection, which can't be created from a script, so these are built by hand.

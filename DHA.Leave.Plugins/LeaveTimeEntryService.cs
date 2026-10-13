@@ -113,9 +113,11 @@ namespace DHA.Leave.Plugins
             if (holidays.Count == 0)
                 return result;
 
+            // Runs daily, so only fill in who's missing rather than recreating everyone's entries
+            var existing = GetExistingKeys("BH-", fromDate, toDate);
             foreach (var userId in GetActiveColleagues())
             {
-                foreach (var date in holidays)
+                foreach (var date in holidays.Where(d => !existing.Contains(BankHolidayKey(d, userId))))
                 {
                     var r = RecordLeave(userId, date, date, null, null, KindBankHoliday, BankHolidayKey(date, userId));
                     result.Created += r.Created;
@@ -150,7 +152,8 @@ namespace DHA.Leave.Plugins
 
         public WorkingDay[] LoadWorkingPattern(Guid userId, decimal defaultDayHours)
         {
-            var names = new[] { "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday" };
+            // Colleague configuration only has Monday-Friday; weekends stay as non-working days
+            var names = new[] { "monday", "tuesday", "wednesday", "thursday", "friday" };
             var cols = names.SelectMany(n => new[] { $"fwp_{n}expectedhours", $"fwp_{n}start", $"fwp_{n}finish" }).ToArray();
 
             var q = new QueryExpression("fwp_colleagueconfiguration") { ColumnSet = new ColumnSet(cols), TopCount = 1 };
@@ -165,7 +168,7 @@ namespace DHA.Leave.Plugins
                 return pattern;
             }
 
-            for (int i = 0; i < 7; i++)
+            for (int i = 0; i < names.Length; i++)
             {
                 var hours = cfg.GetAttributeValue<decimal?>($"fwp_{names[i]}expectedhours");
                 if (!hours.HasValue)
@@ -200,6 +203,15 @@ namespace DHA.Leave.Plugins
                 .Select(e => e.GetAttributeValue<EntityReference>("fwp_colleague").Id)
                 .Distinct()
                 .ToList();
+        }
+
+        private HashSet<string> GetExistingKeys(string prefix, DateTime from, DateTime to)
+        {
+            var q = new QueryExpression("fwp_timeentry") { ColumnSet = new ColumnSet("fwp_leavesourcekey") };
+            q.Criteria.AddCondition("fwp_leavesourcekey", ConditionOperator.BeginsWith, prefix);
+            q.Criteria.AddCondition("fwp_date", ConditionOperator.OnOrAfter, from.Date);
+            q.Criteria.AddCondition("fwp_date", ConditionOperator.OnOrBefore, to.Date);
+            return new HashSet<string>(_svc.RetrieveMultiple(q).Entities.Select(e => e.GetAttributeValue<string>("fwp_leavesourcekey")));
         }
 
         private IEnumerable<Entity> GetEntries(string sourceKey)
