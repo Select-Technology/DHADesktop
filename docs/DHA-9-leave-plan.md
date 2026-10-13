@@ -153,6 +153,25 @@ it. Project managers have no access. Time entries stay generic.
 A small model-driven app ("DHA Leave") over the same tables lets managers approve from a phone or
 browser. It's nearly free once the data is in Dataverse, and covers the desktop-only gap.
 
+### Phase B – dev status (2026-10-13)
+
+`provision_leave_management.py` has been run in dev: tables, approver column and the four
+LeaveRequestPlugin steps. Tested end to end against the API as a System Administrator:
+
+- Request 9–13 Nov → 37.5h, Pending, named "Jessica Bache - 09/11/2026 to 13/11/2026".
+- An overlapping request is rejected with a readable message.
+- Approve → 5 time entries. Shortening to 9 Nov plus the morning of 10 Nov → entries replaced (7.5h + 3.75h).
+- Cancellation requested → entries kept. Cancelled → entries removed.
+
+Not yet done:
+- **Security roles.** Only System Administrators can use the new tables, so the desktop Leave tab
+  fails for everyone else until roles grant access to fwp_leaverequest (user level), fwp_leavetype
+  and fwp_publicholiday (read), and fwp_leaveentitlement (own).
+- **Approvers.** No approver is set in dev: Jessica has no manager and no `fwp_leaveapprover`.
+  Approvers come from the SharePoint *Employee Configuration* list at migration.
+- **Plug-in assembly.** Dev now runs the phase B build (it includes LeaveRequestPlugin). Deploy
+  from this branch from now on; uploading the phase A build would fail because it lacks that plug-in type.
+
 ### Migration and cutover
 
 1. Read the SharePoint lists (needs Sites.Read access or an Excel export from Harriet): employee

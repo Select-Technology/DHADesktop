@@ -8,13 +8,23 @@ Creates: fwp_leavetype, fwp_leaverequest, fwp_leaveentitlement, fwp_colleaguecon
 and the LeaveRequestPlugin steps. Security roles (who can read leave types, approve, administer) are a
 manual step - see docs/DHA-9-leave-plan.md.
 """
-import os, sys
+import os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dv
 
 SOL = "FWPLeaveManagement"
 PUBLISHER = "11f741bf-e290-4fc6-8729-94230f9b6c7a"  # SelectTechnology (fwp)
 REQ = {"Value": "None", "CanBeChanged": True, "ManagedPropertyLogicalName": "canmodifyrequirementlevelsettings"}
+
+
+def post_metadata(path, body):
+    """Columns added straight after their table is created can fail with 0x80040216 / 0x80041102 until the table settles - retry."""
+    for attempt in range(6):
+        s, d, h = dv.call("POST", path, body, solution=SOL)
+        if not (s >= 400 and isinstance(d, str) and ("0x80040216" in d or "0x80041102" in d)):
+            return s, d, h
+        time.sleep(10)
+    return s, d, h
 
 
 def ok(s, d, what):
@@ -58,7 +68,7 @@ def column(entity, body):
     if exists(entity, body["SchemaName"].lower()):
         return
     body.setdefault("RequiredLevel", REQ)
-    s, d, _ = dv.call("POST", f"EntityDefinitions(LogicalName='{entity}')/Attributes", body, solution=SOL)
+    s, d, _ = post_metadata(f"EntityDefinitions(LogicalName='{entity}')/Attributes", body)
     ok(s, d, f"  {entity}.{body['SchemaName'].lower()}")
 
 
@@ -92,14 +102,14 @@ def boolean(schema, name, default):
 def lookup(entity, schema, name, target):
     if exists(entity, schema.lower()):
         return
-    s, d, _ = dv.call("POST", "RelationshipDefinitions", {
+    s, d, _ = post_metadata("RelationshipDefinitions", {
         "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
         "SchemaName": f"fwp_{target}_{entity}_{schema.lower()}",
         "ReferencedEntity": target, "ReferencingEntity": entity,
         "CascadeConfiguration": {"Assign": "NoCascade", "Delete": "RemoveLink", "Merge": "NoCascade", "Reparent": "NoCascade",
                                  "Share": "NoCascade", "Unshare": "NoCascade"},
         "Lookup": {"@odata.type": "Microsoft.Dynamics.CRM.LookupAttributeMetadata", "SchemaName": schema, "DisplayName": lbl(name),
-                   "RequiredLevel": REQ}}, solution=SOL)
+                   "RequiredLevel": REQ}})
     ok(s, d, f"  {entity}.{schema.lower()} -> {target}")
 
 

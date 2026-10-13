@@ -16,7 +16,8 @@ namespace DHA.DSTC.WPF.Services
     public class LeaveService
     {
         private readonly DataverseConnector _connector;
-        private static readonly string[] Days = { "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday" };
+        // Colleague configuration only has Monday-Friday; weekends stay as non-working days
+        private static readonly string[] Days = { "monday", "tuesday", "wednesday", "thursday", "friday" };
 
         public LeaveService(DataverseConnector connector)
         {
@@ -99,7 +100,7 @@ namespace DHA.DSTC.WPF.Services
             if (cfg == null)
                 return pattern;
 
-            for (int i = 0; i < 7; i++)
+            for (int i = 0; i < Days.Length; i++)
             {
                 var hours = cfg.GetAttributeValue<decimal?>($"fwp_{Days[i]}expectedhours");
                 if (!hours.HasValue)

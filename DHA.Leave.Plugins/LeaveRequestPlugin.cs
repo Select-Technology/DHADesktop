@@ -95,6 +95,11 @@ namespace DHA.Leave.Plugins
                 }
                 if (!target.Contains("fwp_bookedby"))
                     target["fwp_bookedby"] = new EntityReference("systemuser", context.InitiatingUserId);
+                if (string.IsNullOrWhiteSpace(target.GetAttributeValue<string>("fwp_name")))
+                {
+                    var name = svc.Retrieve("systemuser", employee.Id, new ColumnSet("fullname")).GetAttributeValue<string>("fullname");
+                    target["fwp_name"] = $"{name} - {start.Value:dd/MM/yyyy}" + (end.Value.Date != start.Value.Date ? $" to {end.Value:dd/MM/yyyy}" : "");
+                }
             }
 
             // Hours are always worked out here, so the desktop app's preview can't drift from what's stored
