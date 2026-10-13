@@ -232,6 +232,7 @@
       <DependentUpon>EditTimeEntryDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="InputDialog.cs" />
+    <Compile Include="ProjectOnStopWarningDialog.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>

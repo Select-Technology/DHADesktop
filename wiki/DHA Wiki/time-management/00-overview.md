@@ -55,3 +55,4 @@ never neither. The app enforces this itself; it isn't a Dynamics-level rule.
 - [02-disbursements.md](02-disbursements.md) — fields, types, and the (thin) validation that exists
 - [03-reconciliation-and-charge-bands.md](03-reconciliation-and-charge-bands.md) — how reconciliation blocks edits, and how charge bands/rates resolve
 - [04-pitfalls-and-faq.md](04-pitfalls-and-faq.md) — symptom → cause → fix
+- [05-project-on-stop.md](05-project-on-stop.md) — Finance's On Stop flag on Jobs and the red warning when time is recorded against one (DHA-7/DHA-8)

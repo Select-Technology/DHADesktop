@@ -12,6 +12,11 @@ namespace DHA.DSTC.WPF.Models
         public string Discipline { get; set; }
         public bool IsActive { get; set; }
 
+        // Set by Finance on the project record (fwp_onstop) - DHA-7/DHA-8
+        public bool IsOnStop { get; set; }
+
+        public const string OnStopWarningMessage = "Warning: Project on stop";
+
         public Project()
         {
             Id = Guid.Empty;
@@ -114,6 +119,7 @@ namespace DHA.DSTC.WPF.Models
                 project.Number = SafeGetString(entity, "isc_projectnumbernew", "");
                 project.Client = SafeGetClientName(entity);
                 project.Discipline = SafeGetDiscipline(entity);
+                project.IsOnStop = entity.GetAttributeValue<bool?>("fwp_onstop") == true;
 
                 // Explicitly check and set IsActive based on statuscode
                 if (entity.Contains("statuscode"))
