@@ -1,10 +1,10 @@
-# DHA test run - 2026-10-14 11:54 (dev, 113s)
+# DHA test run - 2026-10-14 15:08 (dev, 139s)
 
 | Card | Pass | Fail | Known gap | Skipped |
 |---|---|---|---|---|
 | DHA-7 Finance can place a project on stop | 11 | 0 | 0 | 1 |
 | DHA-8 Warning when recording time on a stopped project | 7 | 0 | 0 | 0 |
-| DHA-9 Approved absence creates the time entry | 48 | 0 | 1 | 0 |
+| DHA-9 Approved absence creates the time entry | 56 | 0 | 1 | 0 |
 | DHA-10 Cancelling an absence deactivates the time entry | 10 | 0 | 1 | 0 |
 | DHA-16 Internal source is mandatory on a quote | 2 | 2 | 0 | 1 |
 | .NET unit tests (leave day calculation, leave events) | 1 | 0 | 0 | 0 |
@@ -75,6 +75,7 @@
 - ✅ `Dha09PhaseA.test_end_date_defaults_to_start_date` - pass
 - ✅ `Dha09PhaseA.test_entries_are_generic_non_chargeable_approved_leave_for_the_right_person_and_job` - pass
 - ✅ `Dha09PhaseA.test_full_week_gives_five_working_days_of_7_5_hours` - pass
+- ✅ `Dha09PhaseA.test_half_day_for_a_part_timer_uses_their_day` - pass
 - ✅ `Dha09PhaseA.test_half_days_at_each_end_of_a_multi_day_booking` - pass
 - ✅ `Dha09PhaseA.test_part_day_11_to_13_is_two_hours` - pass
 - ✅ `Dha09PhaseA.test_part_time_pattern_only_books_working_days` - pass
@@ -86,8 +87,15 @@
 - ✅ `Dha09PhaseA.test_resending_the_same_request_changes_nothing` - pass
 - ✅ `Dha09PhaseA.test_source_key_is_required` - pass
 - ✅ `Dha09PhaseA.test_unknown_email_is_rejected_clearly` - pass
+- ✅ `Dha09PhaseA.test_valto_afternoon_half_day_is_exactly_half_a_day` - pass
+- ✅ `Dha09PhaseA.test_valto_half_days_at_both_ends_of_a_booking` - pass
+- ✅ `Dha09PhaseA.test_valto_morning_half_day_is_exactly_half_a_day` - pass
 - ✅ `Dha09PhaseA.test_weekend_only_booking_creates_nothing` - pass
 - ✅ `Dha09PhaseA.test_whole_working_day_window_counts_expected_hours_not_elapsed` - pass
+- ✅ `Dha09SharePointFlows.test_flows_exist` - pass
+- ✅ `Dha09SharePointFlows.test_request_flow_records_approved_absence_and_withdraws_everything_else` - pass
+- ✅ `Dha09SharePointFlows.test_request_flow_watches_the_leave_request_list` - pass
+- ✅ `Dha09SharePointFlows.test_working_from_home_is_excluded_by_default` - pass
 
 ## DHA-10 Cancelling an absence deactivates the time entry
 
@@ -122,4 +130,4 @@
 
 ## .NET unit tests (leave day calculation, leave events)
 
-- ✅ `26 unit tests` - pass
+- ✅ `30 unit tests` - pass

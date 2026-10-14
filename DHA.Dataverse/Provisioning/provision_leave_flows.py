@@ -57,7 +57,7 @@ def env_var(schema, name, desc, default):
 env_var("fwp_LeaveSharePointSite", "Leave - SharePoint Site", "The Valto leave app's SharePoint site.",
         "https://dhaplanningcouk.sharepoint.com/sites/Leave-Request")
 env_var("fwp_LeaveRequestListId", "Leave - Request List Id", "Id of the 'Leave Request Data' list on that site.",
-        "87127c05-5e31-4e1f-9385-791de0f1a004")
+        "718145ce-0b2d-4396-af86-ce36aabc8a29")
 env_var("fwp_LeaveExcludedRequestTypes", "Leave - Excluded Request Types",
         "Request types that are NOT absence and never become time entries, separated by ';'.", "Working From Home")
 
@@ -69,7 +69,7 @@ PARAMETERS = {
     "$authentication": {"defaultValue": {}, "type": "SecureObject"},
     SITE: {"defaultValue": "https://dhaplanningcouk.sharepoint.com/sites/Leave-Request", "type": "String",
            "metadata": {"schemaName": "fwp_LeaveSharePointSite"}},
-    LIST: {"defaultValue": "87127c05-5e31-4e1f-9385-791de0f1a004", "type": "String", "metadata": {"schemaName": "fwp_LeaveRequestListId"}},
+    LIST: {"defaultValue": "718145ce-0b2d-4396-af86-ce36aabc8a29", "type": "String", "metadata": {"schemaName": "fwp_LeaveRequestListId"}},
     EXCLUDED: {"defaultValue": "Working From Home", "type": "String", "metadata": {"schemaName": "fwp_LeaveExcludedRequestTypes"}},
 }
 

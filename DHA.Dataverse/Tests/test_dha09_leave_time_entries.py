@@ -106,6 +106,33 @@ class Dha09PhaseA(DataverseTestCase):
         self.assertActionOk(r)
         self.assertEqual({"2027-03-17": 7.5}, day_hours(leave_entries(key)))
 
+    # ---- Valto half days (StartHalfDay / EndHalfDay) ----
+
+    def test_valto_afternoon_half_day_is_exactly_half_a_day(self):
+        key = KEY + "pm-half"
+        self.keys.add(key)
+        self.assertActionOk(action("fwp_RecordLeave", {"UserId": JESSICA, "StartDate": "2027-03-22", "StartHalfDay": True, "SourceKey": key}))
+        self.assertEqual({"2027-03-22": 3.75}, day_hours(leave_entries(key)))
+
+    def test_valto_morning_half_day_is_exactly_half_a_day(self):
+        key = KEY + "am-half"
+        self.keys.add(key)
+        self.assertActionOk(action("fwp_RecordLeave", {"UserId": JESSICA, "StartDate": "2027-03-23", "EndHalfDay": True, "SourceKey": key}))
+        self.assertEqual({"2027-03-23": 3.75}, day_hours(leave_entries(key)))
+
+    def test_valto_half_days_at_both_ends_of_a_booking(self):
+        key = KEY + "both-halves"
+        self.keys.add(key)
+        self.assertActionOk(action("fwp_RecordLeave", {"UserId": JESSICA, "StartDate": "2027-04-14", "EndDate": "2027-04-16",
+                                                       "StartHalfDay": True, "EndHalfDay": True, "SourceKey": key}))
+        self.assertEqual({"2027-04-14": 3.75, "2027-04-15": 7.5, "2027-04-16": 3.75}, day_hours(leave_entries(key)))
+
+    def test_half_day_for_a_part_timer_uses_their_day(self):
+        key = KEY + "harriet-half"
+        self.keys.add(key)
+        self.assertActionOk(action("fwp_RecordLeave", {"UserId": HARRIET, "StartDate": "2027-04-21", "StartHalfDay": True, "SourceKey": key}))
+        self.assertEqual({"2027-04-21": 3.75}, day_hours(leave_entries(key)))
+
     # ---- what the entry looks like ----
 
     def test_entries_are_generic_non_chargeable_approved_leave_for_the_right_person_and_job(self):
@@ -215,5 +242,43 @@ class Dha09PhaseA(DataverseTestCase):
                         f"Jessica (Project Manager) was able to create leave time entries for Harriet: {status} {body}")
 
 
+
+class Dha09SharePointFlows(DataverseTestCase):
+    """The flows that connect the Valto leave app to the Custom APIs (built off in dev; switched on in prod)."""
+
+    FLOWS = ("Leave Request - Record Time Entries", "Leave - Record Bank Holidays", "Leave Request - Backfill Approved Leave")
+
+    def _flow(self, name):
+        import json
+        w = rows(f"workflows?$select=clientdata,statecode&$filter=category eq 5 and name eq '{name}'")
+        self.assertEqual(1, len(w), f"{name} missing")
+        return json.loads(w[0]["clientdata"])["properties"]["definition"]
+
+    def test_flows_exist(self):
+        for name in self.FLOWS:
+            with self.subTest(flow=name):
+                self._flow(name)
+
+    def test_working_from_home_is_excluded_by_default(self):
+        self.assertIn("working from home", env_value("fwp_LeaveExcludedRequestTypes").lower())
+
+    def test_request_flow_watches_the_leave_request_list(self):
+        d = self._flow("Leave Request - Record Time Entries")
+        trig = list(d["triggers"].values())[0]
+        self.assertEqual("GetOnUpdatedItems", trig["inputs"]["host"]["operationId"], "must fire on modification (approval/cancel), not just creation")
+        self.assertEqual(1, trig["runtimeConfiguration"]["concurrency"]["runs"], "one request at a time")
+        self.assertEqual("718145ce-0b2d-4396-af86-ce36aabc8a29", env_value("fwp_LeaveRequestListId"))
+
+    def test_request_flow_records_approved_absence_and_withdraws_everything_else(self):
+        import json
+        d = json.dumps(self._flow("Leave Request - Record Time Entries"))
+        self.assertIn('"actionName": "fwp_RecordLeave"', d)
+        self.assertIn('"actionName": "fwp_RemoveLeave"', d)
+        self.assertIn("fwp_LeaveExcludedRequestTypes", d)
+        self.assertIn("item/StartHalfDay", d)
+        self.assertIn("concat('LR-'", d, "source key must be LR-<SharePoint ID> so the right entries are found later")
+
+
 if __name__ == "__main__":
     unittest.main()
+

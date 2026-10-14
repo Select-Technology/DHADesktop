@@ -78,6 +78,33 @@ its steps belong to `FWPLeaveManagement`, which is not deployed.
   3. Release the desktop app with the DHA-10 active-only filter **before** F1 starts deactivating entries.
   4. Tell staff to stop entering leave by hand. Run F3 (backfill).
 
+### Phase A – production update (2026-10-14, v1.0.2.0)
+
+`FWPLeaveTimeEntries` **v1.0.2.0** imported into prod (package in `DHA.Dataverse/Solutions`). It adds:
+
+- **Flows** (built by `provision_leave_flows.py`, the spec below is now implemented):
+  - "Leave Request - Record Time Entries" (F1): **off**.
+  - "Leave - Record Bank Holidays" (F2): **off**.
+  - "Leave Request - Backfill Approved Leave" (F3): **on, manual only**, not run.
+- **Connections:** stsadmin's SharePoint and Dataverse connections. Switching F3 on proved they can reach the list.
+- **Settings:** `fwp_LeaveSharePointSite`; `fwp_LeaveRequestListId` = `718145ce-0b2d-4396-af86-ce36aabc8a29`, the
+  real prod list (the id in the Valto app package is Valto's own tenant's); and `fwp_LeaveExcludedRequestTypes` =
+  "Working From Home".
+- **Half days:** `StartHalfDay`/`EndHalfDay` on `fwp_RecordLeave`. A Valto "Days" half day (a PM start or an AM
+  finish) is exactly half the person's day, not Valto's 09:00–12:30 / 12:30–17:00. "Hours" requests (Medical)
+  use their exact times.
+
+What real Valto data showed (prod flow history, 326 requests since 11 Sep):
+
+- Working From Home 184, Holiday Request 102, Medical 19 (Hours), Sick Leave 16, Other 3, Study Leave 2. No TOIL.
+- Dates are plain dates ("2026-10-15"), so there's no BST shift. A full day is 09:00–17:00.
+
+**Go-live still needs:** the "Approved Leave" Job and `fwp_LeaveProjectId`; switching F1 and F2 on; running F3 once;
+the desktop release with the active-only filter; and telling staff to stop entering leave by hand.
+
+Note: the existing "Holiday" Job (36225) carries **£2.18m** of `fwp_valueofhours` from manual holiday entries valued at
+Rate A. Leave entries will add to the Approved Leave Job in the same way, so the valuation question is now pressing.
+
 ### Phase A – flows to build (maker portal, in `FWPLeaveTimeEntries`)
 
 Flows need a connection, which can't be created from a script, so these are built by hand.
