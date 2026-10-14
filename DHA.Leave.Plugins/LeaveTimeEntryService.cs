@@ -48,7 +48,7 @@ namespace DHA.Leave.Plugins
 
         /// <summary>Makes the active leave entries for <paramref name="sourceKey"/> match the given range, one per working day.</summary>
         public Result RecordLeave(Guid userId, DateTime startDate, DateTime endDate, TimeSpan? startTime, TimeSpan? endTime,
-            string kind, string sourceKey)
+            string kind, string sourceKey, bool startHalfDay = false, bool endHalfDay = false)
         {
             if (string.IsNullOrWhiteSpace(sourceKey))
                 throw new InvalidPluginExecutionException("SourceKey is required.");
@@ -63,7 +63,7 @@ namespace DHA.Leave.Plugins
             var pattern = LoadWorkingPattern(userId, settings.DefaultDayHours);
             // Leave never lands on a bank holiday - the bank holiday has its own entry
             var skip = bankHoliday ? null : LoadBankHolidays(startDate, endDate);
-            var days = LeaveDayCalculator.Calculate(startDate, endDate, startTime, endTime, pattern, skip);
+            var days = LeaveDayCalculator.Calculate(startDate, endDate, startTime, endTime, pattern, skip, startHalfDay, endHalfDay);
 
             var result = new Result();
             var existing = GetEntries(sourceKey).ToList();

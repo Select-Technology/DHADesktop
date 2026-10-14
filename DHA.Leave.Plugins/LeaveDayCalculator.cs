@@ -50,8 +50,11 @@ namespace DHA.Leave.Plugins
         /// <param name="startTime">Time leave starts on the first day; null means the start of that working day.</param>
         /// <param name="endTime">Time leave ends on the last day; null (or midnight) means the end of that working day.</param>
         /// <param name="skipDates">Dates that never get a leave entry (bank holidays, which get their own entry).</param>
+        /// <param name="startHalfDay">The first day is a half day: exactly half that day's expected hours (times are ignored for that day).</param>
+        /// <param name="endHalfDay">The last day is a half day. On a single-day booking either flag makes it a half day.</param>
         public static List<LeaveDay> Calculate(DateTime startDate, DateTime endDate,
-            TimeSpan? startTime, TimeSpan? endTime, WorkingDay[] pattern, ISet<DateTime> skipDates = null)
+            TimeSpan? startTime, TimeSpan? endTime, WorkingDay[] pattern, ISet<DateTime> skipDates = null,
+            bool startHalfDay = false, bool endHalfDay = false)
         {
             if (pattern == null || pattern.Length != 7)
                 throw new ArgumentException("Working pattern must have seven days, Monday first.", nameof(pattern));
@@ -78,7 +81,10 @@ namespace DHA.Leave.Plugins
                 var from = date == startDate && startTime.HasValue ? startTime.Value : workingDay.Start;
                 var to = date == endDate && endTime.HasValue ? endTime.Value : workingDay.Finish;
 
-                decimal hours = HoursForWindow(workingDay, from, to);
+                bool halfDay = (date == startDate && startHalfDay) || (date == endDate && endHalfDay);
+                decimal hours = halfDay
+                    ? Math.Round(workingDay.ExpectedHours / 2m, 2)
+                    : HoursForWindow(workingDay, from, to);
                 if (hours > 0m)
                     days.Add(new LeaveDay { Date = date, Hours = hours });
             }

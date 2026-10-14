@@ -56,7 +56,8 @@ namespace DHA.Leave.Plugins
 
     /// <summary>
     /// Custom API fwp_RecordLeave - creates (or replaces) the time entries for one approved leave request.
-    /// In: UserId | UserEmail, StartDate, EndDate, StartTime?, EndTime? ("HH:mm"), LeaveKind? ("Leave" | "BankHoliday"), SourceKey.
+    /// In: UserId | UserEmail, StartDate, EndDate, StartTime?, EndTime? ("HH:mm"), StartHalfDay?, EndHalfDay?,
+    ///     LeaveKind? ("Leave" | "BankHoliday"), SourceKey.
     /// Out: EntriesCreated, EntriesRemoved, TotalHours.
     /// </summary>
     public class RecordLeavePlugin : LeaveApiPluginBase
@@ -70,7 +71,9 @@ namespace DHA.Leave.Plugins
             var result = service.RecordLeave(userId, start, end,
                 InputTime(context, "StartTime"), InputTime(context, "EndTime"),
                 Input<string>(context, "LeaveKind") ?? LeaveTimeEntryService.KindLeave,
-                Input<string>(context, "SourceKey"));
+                Input<string>(context, "SourceKey"),
+                Input<bool?>(context, "StartHalfDay") ?? false,
+                Input<bool?>(context, "EndHalfDay") ?? false);
 
             context.OutputParameters["EntriesCreated"] = result.Created;
             context.OutputParameters["EntriesRemoved"] = result.Removed;

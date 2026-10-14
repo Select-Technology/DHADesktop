@@ -143,6 +143,8 @@ api("fwp_RecordLeave", "Creates, updates or reactivates the time entries for one
     ("EndDate", DT, True, "Last day of leave (defaults to StartDate)."),
     ("StartTime", STR, True, "HH:mm leave starts on the first day; omit for the start of the working day."),
     ("EndTime", STR, True, "HH:mm leave ends on the last day; omit for the end of the working day."),
+    ("StartHalfDay", 0, True, "The first day is a half day (exactly half that day's expected hours)."),
+    ("EndHalfDay", 0, True, "The last day is a half day. On a one-day booking either flag makes it a half day."),
     ("LeaveKind", STR, True, "Leave (default) or BankHoliday."),
     ("SourceKey", STR, False, "Identifies the request, e.g. LR-123. Re-sending the same key replaces its entries.")], counts)
 api("fwp_RemoveLeave", "Deactivates (never deletes) the time entries for a cancelled or rejected leave request (DHA-9, DHA-10).", "RemoveLeavePlugin", [

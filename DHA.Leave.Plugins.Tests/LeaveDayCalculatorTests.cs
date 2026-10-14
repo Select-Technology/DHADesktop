@@ -98,6 +98,42 @@ namespace DHA.Leave.Plugins.Tests
                 LeaveDayCalculator.Calculate(new DateTime(2026, 10, 15), new DateTime(2026, 10, 14), None, None, Standard));
         }
 
+        // ---- half days (Valto "Days" requests: half = exactly half the person's day) ----
+
+        [Fact]
+        public void SingleHalfDay_IsHalfTheExpectedHours_EitherFlag()
+        {
+            var day = new DateTime(2026, 10, 14);
+            Assert.Equal(3.75m, LeaveDayCalculator.Calculate(day, day, None, None, Standard, null, startHalfDay: true).Single().Hours);
+            Assert.Equal(3.75m, LeaveDayCalculator.Calculate(day, day, None, None, Standard, null, endHalfDay: true).Single().Hours);
+        }
+
+        [Fact]
+        public void HalfDayFlags_OverrideValtoTimes()
+        {
+            // Valto stores an afternoon as 12:30-17:00 (4.5h by the clock) - the flag makes it 3.75
+            var day = new DateTime(2026, 10, 14);
+            Assert.Equal(3.75m, LeaveDayCalculator.Calculate(day, day, T(12, 30), T(17), Standard, null, startHalfDay: true).Single().Hours);
+        }
+
+        [Fact]
+        public void MultiDay_WithHalfDaysAtBothEnds()
+        {
+            // Wed afternoon to Fri morning = 0.5 + 1 + 0.5 days
+            var days = LeaveDayCalculator.Calculate(new DateTime(2026, 10, 14), new DateTime(2026, 10, 16), None, None, Standard,
+                null, startHalfDay: true, endHalfDay: true);
+            Assert.Equal(new[] { 3.75m, 7.5m, 3.75m }, days.Select(d => d.Hours).ToArray());
+        }
+
+        [Fact]
+        public void HalfDay_UsesThatDaysOwnExpectedHours()
+        {
+            var pattern = LeaveDayCalculator.DefaultPattern();
+            pattern[4] = new WorkingDay { ExpectedHours = 5m, Start = T(9), Finish = T(14, 30) };   // Friday 5h
+            var fri = new DateTime(2026, 10, 16);
+            Assert.Equal(2.5m, LeaveDayCalculator.Calculate(fri, fri, None, None, pattern, null, startHalfDay: true).Single().Hours);
+        }
+
         [Theory]
         [InlineData("09:00", false, 9, 0)]
         [InlineData("9.00", false, 9, 0)]
