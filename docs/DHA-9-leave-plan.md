@@ -164,9 +164,16 @@ LeaveRequestPlugin steps. Tested end to end against the API as a System Administ
 - Cancellation requested → entries kept. Cancelled → entries removed.
 
 Not yet done:
-- **Security roles.** Only System Administrators can use the new tables, so the desktop Leave tab
-  fails for everyone else until roles grant access to fwp_leaverequest (user level), fwp_leavetype
-  and fwp_publicholiday (read), and fwp_leaveentitlement (own).
+- **Staff access (done in dev 2026-10-14).** No new role. `provision_leave_staff_access.py` adds the
+  leave privileges to **DHA-1: Individual**, which everyone holds. Leave requests: create/read/write/append
+  **own only**. Entitlements: read **own only**. Leave types and public holidays: read all. Also read
+  own colleague configuration and append-to user. `fwp_leaveentitlement` was recreated as
+  **user-owned** (owner = employee) so "own" works; organisation-owned would have meant all-or-nothing.
+- **HR access** (`provision_leave_approvers.py`: HR group team + "DHA - Leave Administrator" role) is
+  written but **not yet run**. It needs explicit sign-off because it grants read/write on everyone's leave.
+- **Ownership when booking on behalf.** A request is owned by whoever creates it. When HR books for
+  someone, the plug-in will need to assign the request (and entitlements created by HR) to the employee,
+  or they won't see it under "own".
 - **Approvers.** No approver is set in dev: Jessica has no manager and no `fwp_leaveapprover`.
   Approvers come from the SharePoint *Employee Configuration* list at migration.
 - **Plug-in assembly.** Dev now runs the phase B build (it includes LeaveRequestPlugin). Deploy

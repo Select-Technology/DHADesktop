@@ -48,7 +48,7 @@ wanted = [f"prv{p}fwp_leaverequest" for p in ["Create", "Read", "Write", "Append
           "prvReadfwp_colleagueconfiguration", "prvReadUser", "prvAppendToUser", "prvReadTeam"]
 names = " or ".join(f"name eq '{n}'" for n in wanted)
 privs = q(f"privileges?$select=privilegeid,name&$filter={names}")
-missing = set(wanted) - {p["name"] for p in privs}
+missing = {w.lower() for w in wanted} - {p["name"].lower() for p in privs}
 if missing:
     print("  privileges not found:", missing)
 s, d, _ = dv.call("POST", f"roles({role})/Microsoft.Dynamics.CRM.AddPrivilegesRole",

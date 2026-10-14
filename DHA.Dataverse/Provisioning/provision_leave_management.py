@@ -147,8 +147,9 @@ column("fwp_leaverequest", {
         {"Value": 800470004, "Label": lbl("Cancelled")}]},
     "DefaultFormValue": 800470000})
 
-# Entitlements - held in hours; the desktop app shows days using the colleague's usual day
-table("fwp_LeaveEntitlement", "Leave Entitlement", "Leave Entitlements", "One row per person per leave year.", "OrganizationOwned")
+# Entitlements - held in hours; the desktop app shows days using the colleague's usual day.
+# User-owned with owner = employee, so staff can be given "read my own" without seeing everyone's.
+table("fwp_LeaveEntitlement", "Leave Entitlement", "Leave Entitlements", "One row per person per leave year. Owner must be the employee.", "UserOwned")
 lookup("fwp_leaveentitlement", "fwp_Employee", "Employee", "systemuser")
 column("fwp_leaveentitlement", date("fwp_YearStart", "Leave Year Start"))
 column("fwp_leaveentitlement", number("fwp_EntitlementHours", "Entitlement (hours)"))
