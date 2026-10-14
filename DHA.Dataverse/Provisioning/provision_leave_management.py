@@ -139,6 +139,7 @@ column("fwp_leaverequest", memo("fwp_RequesterComments", "Requester Comments"))
 column("fwp_leaverequest", memo("fwp_ApproverComments", "Approver Comments"))
 column("fwp_leaverequest", text("fwp_CalendarEventId", "Calendar Event Id", 400))
 column("fwp_leaverequest", text("fwp_LegacyId", "Legacy Id", 100))
+column("fwp_leaverequest", text("fwp_LastEvent", "Last Event", 50))  # set by LeaveRequestPlugin; triggers the notifications flow
 column("fwp_leaverequest", {
     "@odata.type": "Microsoft.Dynamics.CRM.PicklistAttributeMetadata", "SchemaName": "fwp_Status", "DisplayName": lbl("Status"),
     "OptionSet": {"@odata.type": "Microsoft.Dynamics.CRM.OptionSetMetadata", "IsGlobal": False, "OptionSetType": "Picklist", "Options": [
@@ -156,6 +157,18 @@ column("fwp_leaveentitlement", number("fwp_EntitlementHours", "Entitlement (hour
 column("fwp_leaveentitlement", number("fwp_CarriedForwardHours", "Carried Forward (hours)"))
 column("fwp_leaveentitlement", number("fwp_PurchasedHours", "Purchased (hours)"))
 column("fwp_leaveentitlement", number("fwp_AdjustmentHours", "Adjustment (hours)"))
+
+# Email settings for the notification flows
+def env_var(schema, name, desc, default):
+    if q(f"environmentvariabledefinitions?$select=environmentvariabledefinitionid&$filter=schemaname eq '{schema}'"):
+        return
+    s, d, _ = dv.call("POST", "environmentvariabledefinitions", {"schemaname": schema, "displayname": name, "description": desc,
+                                                                "type": 100000000, "defaultvalue": default}, solution=SOL)
+    ok(s, d, "env var " + schema)
+
+env_var("fwp_LeaveApproverEmail", "Leave - Approver Email", "Where new requests, cancellation requests and the daily reminder are sent.", "HR@dhaplanning.co.uk")
+env_var("fwp_LeaveEmailOverride", "Leave - Email Override (testing)",
+        "If set, EVERY leave email goes to this address instead of the real recipient. Set in dev/test; leave blank in prod.", "")
 
 # Approver on the existing colleague configuration (falls back to the user's manager)
 lookup("fwp_colleagueconfiguration", "fwp_LeaveApprover", "Leave Approver", "systemuser")

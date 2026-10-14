@@ -17,6 +17,42 @@ namespace DHA.Leave.Plugins
     }
 
     /// <summary>
+    /// Values of fwp_leaverequest.fwp_lastevent - what just happened to a request. The "Leave - Notifications"
+    /// flow triggers on this column; Dataverse flow triggers can't see the previous status, so without it an
+    /// approval and a declined cancellation (both "now Approved") would be indistinguishable.
+    /// </summary>
+    public static class LeaveEvent
+    {
+        public const string Requested = "Requested";
+        public const string Approved = "Approved";
+        public const string Rejected = "Rejected";
+        public const string Withdrawn = "Withdrawn";                       // employee cancelled a pending request
+        public const string CancellationRequested = "CancellationRequested";
+        public const string CancellationApproved = "CancellationApproved";
+        public const string CancellationDeclined = "CancellationDeclined";
+        public const string CancelledByHR = "CancelledByHR";               // approved leave cancelled directly
+
+        public static string For(int? oldStatus, int newStatus)
+        {
+            switch (newStatus)
+            {
+                case LeaveStatus.Approved:
+                    return oldStatus == LeaveStatus.CancellationRequested ? CancellationDeclined : Approved;
+                case LeaveStatus.Rejected:
+                    return Rejected;
+                case LeaveStatus.CancellationRequested:
+                    return CancellationRequested;
+                case LeaveStatus.Cancelled:
+                    return oldStatus == LeaveStatus.CancellationRequested ? CancellationApproved
+                         : oldStatus == LeaveStatus.Approved ? CancelledByHR
+                         : Withdrawn;
+                default:
+                    return Requested;
+            }
+        }
+    }
+
+    /// <summary>
     /// Server-side rules for fwp_leaverequest (phase B: leave booked in the desktop app).
     ///
     /// REGISTER on fwp_leaverequest, synchronous:
@@ -88,6 +124,7 @@ namespace DHA.Leave.Plugins
             {
                 if (!target.Contains("fwp_status"))
                     target["fwp_status"] = new OptionSetValue(LeaveStatus.Pending);
+                target["fwp_lastevent"] = LeaveEvent.Requested;
                 if (getRef("fwp_approver") == null)
                 {
                     var approver = DefaultApprover(svc, employee.Id);
@@ -115,6 +152,15 @@ namespace DHA.Leave.Plugins
             int status = getOption("fwp_status")?.Value ?? LeaveStatus.Pending;
             if (status != LeaveStatus.Rejected && status != LeaveStatus.Cancelled)
                 RejectOverlaps(svc, target.Id, employee.Id, start.Value, end.Value);
+
+            // Record what happened for the notifications flow (only when the status actually changes)
+            if (context.MessageName == "Update" && target.Contains("fwp_status"))
+            {
+                var pre = context.PreEntityImages.Contains("PreImage") ? context.PreEntityImages["PreImage"] : null;
+                int? oldStatus = pre?.GetAttributeValue<OptionSetValue>("fwp_status")?.Value;
+                if (oldStatus != status)
+                    target["fwp_lastevent"] = LeaveEvent.For(oldStatus, status);
+            }
         }
 
         private static void PostOperationRules(IPluginExecutionContext context, Entity target, Entity pre, IOrganizationService svc, ITracingService trace,

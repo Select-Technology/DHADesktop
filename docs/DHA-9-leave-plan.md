@@ -179,6 +179,43 @@ Not yet done:
 - **Plug-in assembly.** Dev now runs the phase B build (it includes LeaveRequestPlugin). Deploy
   from this branch from now on; uploading the phase A build would fail because it lacks that plug-in type.
 
+### Phase B – notification emails (done in dev 2026-10-14)
+
+`provision_leave_emails.py` creates two flows in `FWPLeaveManagement`:
+
+- **Leave - Notifications.** Triggered when `LeaveRequestPlugin` sets `fwp_lastevent`. Emails HR on
+  Requested / CancellationRequested / Withdrawn, and the employee on Approved / Rejected /
+  CancellationApproved / CancellationDeclined / CancelledByHR. The event column exists because Dataverse
+  flow triggers can't see the previous status, so "approved" and "cancellation declined" would look the same.
+- **Leave - Approval reminder.** Weekdays 10:00 UK. Emails HR the requests waiting for a decision, if there are any.
+
+Settings: `fwp_LeaveApproverEmail` (default HR@dhaplanning.co.uk). `fwp_LeaveEmailOverride` sends
+**every** leave email to one address, with the intended recipient in the subject. **It is set to
+stsadmin in dev and must be blank in prod.** In dev the emails send from stsadmin's Outlook
+connection. Several older dev Outlook connections are expired ("Error" in make.powerapps.com), and
+they fail every send with 401.
+
+Tested in dev: all 8 event emails and the reminder sent successfully.
+
+Known gap: deleting an approved request (rather than cancelling it) leaves its time entries behind.
+The plug-in has no Delete step yet.
+
+### Phase B – what the Valto canvas app does that the flows didn't show (2026-10-14)
+
+Read from the app package in prod (*Core Leave Request App*, last saved 21 Mar 2023):
+
+| Valto screen / feature | Desktop app |
+|---|---|
+| **TOIL.** Claim time off in lieu (date, from/to, breaks, a description of what was done). Approved TOIL builds a TOIL balance that a "Take TOIL" leave type draws from. Behind an App Configuration "TOIL Toggle" | ❌ **Ask Harriet if TOIL is switched on and used** |
+| Leave types flagged "Has Entitlement?" and "Forced Units" (days/hours); entitlement units per person per year; half day AM (09:00–12:30) / PM (12:30–17:00) | Partly: deducts-from-entitlement flag, morning/afternoon split on the working pattern; hours only |
+| Validation: a request can't span two holiday years; the end date can't be before the start | Partly: end-before-start only |
+| Leave balance for the previous, current and next year: base, purchased, carry forward, total, taken (**counts pending**), remaining, carried to next year, TOIL; shows your approver | Current year only; pending shown separately |
+| My requests: filter upcoming/past, status, type; details include approver comments; cancel **with a comment**; pending future requests cancel instantly | No filters; no cancellation comment |
+| Manager area: "my employees" (approver, or an **Additional Approver** who can only approve), each one's balance, all their requests with filters, **cancel on behalf** (instant, emails the employee), overlap view by all / my employees / **department** | HR-only approvals; no per-employee balance or request browser; no cancel on behalf |
+| Book on behalf, restricted to people on a "Book on behalf of users" list, choosing the employee and their approver | ❌ |
+| "Company Holidays" list screen | ❌ (bank holidays are only skipped in the hours) |
+| Admin settings: branding, US date format, debug, show purchased leave, impersonate a user | Not needed (the desktop app has its own impersonation) |
+
 ### Migration and cutover
 
 1. Read the SharePoint lists (needs Sites.Read access or an Excel export from Harriet): employee
