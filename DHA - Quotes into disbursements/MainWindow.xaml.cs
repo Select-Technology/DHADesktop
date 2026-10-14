@@ -5464,6 +5464,7 @@ namespace DHA.DSTC.WPF
                             "fwp_teammember"),
                         Orders = { new OrderExpression("fwp_date", OrderType.Descending) }
                     };
+                    query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0); // active only (DHA-10)
 
                     var entities = ServiceLocator.DataverseConnector._orgService
                         .RetrieveMultiple(query).Entities.ToList();

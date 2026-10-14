@@ -8,7 +8,11 @@ namespace DHA.Leave.Plugins
 {
     /// <summary>
     /// Writes leave as fwp_timeentry rows (DHA-9). Every row carries fwp_leavesourcekey so a request can
-    /// be re-applied (approval edited) or removed (cancelled) without touching anything else.
+    /// be re-applied (approval edited) or withdrawn (cancelled) without touching anything else.
+    ///
+    /// Time entries are never deleted (DHA-10): entries no longer wanted are deactivated, and a day that comes
+    /// back (e.g. a cancelled request re-approved) reactivates its old entry rather than creating a duplicate.
+    /// Reconciled entries are part of a billing run and are never changed.
     /// </summary>
     public class LeaveTimeEntryService
     {
@@ -29,14 +33,20 @@ namespace DHA.Leave.Plugins
             _trace = trace;
         }
 
+        private const int StateActive = 0, StateInactive = 1;
+        private const int StatusActive = 1, StatusInactive = 2;
+
         public class Result
         {
+            /// <summary>Entries created or reactivated.</summary>
             public int Created { get; set; }
+            /// <summary>Entries deactivated (never deleted).</summary>
             public int Removed { get; set; }
+            public int Updated { get; set; }
             public decimal TotalHours { get; set; }
         }
 
-        /// <summary>Replaces all leave entries for <paramref name="sourceKey"/> with entries for the given range.</summary>
+        /// <summary>Makes the active leave entries for <paramref name="sourceKey"/> match the given range, one per working day.</summary>
         public Result RecordLeave(Guid userId, DateTime startDate, DateTime endDate, TimeSpan? startTime, TimeSpan? endTime,
             string kind, string sourceKey)
         {
@@ -56,51 +66,94 @@ namespace DHA.Leave.Plugins
             var days = LeaveDayCalculator.Calculate(startDate, endDate, startTime, endTime, pattern, skip);
 
             var result = new Result();
-            var keep = new HashSet<DateTime>();
-            foreach (var existing in GetEntries(sourceKey))
-            {
-                // Reconciled entries are part of a billing run - never delete them, and don't duplicate their day
-                if (existing.GetAttributeValue<object>("fwp_calculatedreconciledvalue") != null)
-                {
-                    keep.Add(existing.GetAttributeValue<DateTime>("fwp_date").Date);
-                    continue;
-                }
-                _svc.Delete("fwp_timeentry", existing.Id);
-                result.Removed++;
-            }
+            var existing = GetEntries(sourceKey).ToList();
+            var reconciledDays = new HashSet<DateTime>(existing.Where(IsReconciled).Select(DateOf));
+            var editable = existing.Where(e => !IsReconciled(e)).ToList();
+            var claimed = new HashSet<Guid>();
 
             string label = bankHoliday ? settings.BankHolidayLabel : settings.LeaveLabel;
-            foreach (var day in days.Where(d => !keep.Contains(d.Date)))
+            foreach (var day in days.Where(d => !reconciledDays.Contains(d.Date)))
             {
-                _svc.Create(BuildEntry(userId, project, day, label, sourceKey));
-                result.Created++;
+                // Prefer the active entry for that day; otherwise bring back an inactive one; otherwise create
+                var match = editable.Where(e => DateOf(e) == day.Date && !claimed.Contains(e.Id))
+                                    .OrderBy(e => IsActive(e) ? 0 : 1).FirstOrDefault();
+                if (match == null)
+                {
+                    _svc.Create(BuildEntry(userId, project, day, label, sourceKey));
+                    result.Created++;
+                }
+                else
+                {
+                    claimed.Add(match.Id);
+                    bool reactivate = !IsActive(match);
+                    if (reactivate || match.GetAttributeValue<decimal?>("fwp_decimalhours") != day.Hours)
+                    {
+                        var update = new Entity("fwp_timeentry", match.Id);
+                        SetHours(update, day.Hours);
+                        if (reactivate)
+                        {
+                            update["statecode"] = new OptionSetValue(StateActive);
+                            update["statuscode"] = new OptionSetValue(StatusActive);
+                            result.Created++;
+                        }
+                        else
+                        {
+                            result.Updated++;
+                        }
+                        _svc.Update(update);
+                    }
+                }
                 result.TotalHours += day.Hours;
             }
 
-            _trace?.Trace($"RecordLeave {sourceKey}: user {userId}, {startDate:yyyy-MM-dd}..{endDate:yyyy-MM-dd}, created {result.Created}, removed {result.Removed}, {result.TotalHours}h");
+            // Anything still active that the request no longer covers is deactivated, never deleted
+            foreach (var leftover in editable.Where(e => IsActive(e) && !claimed.Contains(e.Id)))
+            {
+                Deactivate(leftover.Id);
+                result.Removed++;
+            }
+
+            _trace?.Trace($"RecordLeave {sourceKey}: user {userId}, {startDate:yyyy-MM-dd}..{endDate:yyyy-MM-dd}, " +
+                          $"created/reactivated {result.Created}, updated {result.Updated}, deactivated {result.Removed}, {result.TotalHours}h");
             return result;
         }
 
-        /// <summary>Removes the (unreconciled) leave entries for a cancelled or rejected request.</summary>
+        /// <summary>
+        /// Cancelled or rejected request: deactivates its active, unreconciled leave entries (DHA-10 - never deleted).
+        /// Returns how many were deactivated.
+        /// </summary>
         public int RemoveLeave(string sourceKey)
         {
             if (string.IsNullOrWhiteSpace(sourceKey))
                 throw new InvalidPluginExecutionException("SourceKey is required.");
 
             int removed = 0;
-            foreach (var existing in GetEntries(sourceKey))
+            foreach (var existing in GetEntries(sourceKey).Where(IsActive))
             {
-                if (existing.GetAttributeValue<object>("fwp_calculatedreconciledvalue") != null)
+                if (IsReconciled(existing))
                 {
                     _trace?.Trace($"RemoveLeave {sourceKey}: kept reconciled entry {existing.Id}");
                     continue;
                 }
-                _svc.Delete("fwp_timeentry", existing.Id);
+                Deactivate(existing.Id);
                 removed++;
             }
-            _trace?.Trace($"RemoveLeave {sourceKey}: removed {removed}");
+            _trace?.Trace($"RemoveLeave {sourceKey}: deactivated {removed}");
             return removed;
         }
+
+        private void Deactivate(Guid timeEntryId)
+        {
+            _svc.Update(new Entity("fwp_timeentry", timeEntryId)
+            {
+                ["statecode"] = new OptionSetValue(StateInactive),
+                ["statuscode"] = new OptionSetValue(StatusInactive)
+            });
+        }
+
+        private static bool IsReconciled(Entity e) => e.GetAttributeValue<object>("fwp_calculatedreconciledvalue") != null;
+        private static bool IsActive(Entity e) => (e.GetAttributeValue<OptionSetValue>("statecode")?.Value ?? StateActive) == StateActive;
+        private static DateTime DateOf(Entity e) => e.GetAttributeValue<DateTime>("fwp_date").Date;
 
         /// <summary>
         /// Gives every active colleague (with a colleague configuration) a bank holiday entry for each
@@ -216,16 +269,25 @@ namespace DHA.Leave.Plugins
 
         private IEnumerable<Entity> GetEntries(string sourceKey)
         {
-            var q = new QueryExpression("fwp_timeentry") { ColumnSet = new ColumnSet("fwp_date", "fwp_calculatedreconciledvalue") };
+            var q = new QueryExpression("fwp_timeentry")
+            {
+                ColumnSet = new ColumnSet("fwp_date", "fwp_decimalhours", "fwp_calculatedreconciledvalue", "statecode")
+            };
             q.Criteria.AddCondition("fwp_leavesourcekey", ConditionOperator.Equal, sourceKey);
             return _svc.RetrieveMultiple(q).Entities;
         }
 
+        // Same three fields the desktop app writes (Models/TimeEntry.ToEntity)
+        private static void SetHours(Entity e, decimal hours)
+        {
+            int wholeHours = (int)Math.Floor(hours);
+            e["fwp_durationhours"] = (decimal)wholeHours;
+            e["fwp_minutes"] = (int)Math.Round((hours - wholeHours) * 60m);
+            e["fwp_decimalhours"] = hours;
+        }
+
         private static Entity BuildEntry(Guid userId, Guid projectId, LeaveDay day, string label, string sourceKey)
         {
-            int wholeHours = (int)Math.Floor(day.Hours);
-            int minutes = (int)Math.Round((day.Hours - wholeHours) * 60m);
-
             var e = new Entity("fwp_timeentry");
             e["fwp_date"] = DateTime.SpecifyKind(day.Date, DateTimeKind.Unspecified);
             e["fwp_teammember"] = new EntityReference("systemuser", userId);
@@ -233,9 +295,7 @@ namespace DHA.Leave.Plugins
             e["fwp_classification"] = new OptionSetValue(ClassificationProject);
             e["fwp_category"] = new OptionSetValue(CategoryNonChargeable);
             e["fwp_chargerate"] = new OptionSetValue(ChargeRateA);
-            e["fwp_durationhours"] = (decimal)wholeHours;
-            e["fwp_minutes"] = minutes;
-            e["fwp_decimalhours"] = day.Hours;
+            SetHours(e, day.Hours);
             e["fwp_notes"] = label;
             e["fwp_leavesourcekey"] = sourceKey;
             return e;

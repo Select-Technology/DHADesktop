@@ -136,7 +136,7 @@ def api(name, desc, cls, params, outputs):
     ok(s, d, "custom api " + name)
 
 counts = [("EntriesCreated", INT), ("EntriesRemoved", INT), ("TotalHours", DEC)]
-api("fwp_RecordLeave", "Creates or replaces the time entries for one approved leave request (DHA-9).", "RecordLeavePlugin", [
+api("fwp_RecordLeave", "Creates, updates or reactivates the time entries for one approved leave request; days no longer covered are deactivated (DHA-9, DHA-10).", "RecordLeavePlugin", [
     ("UserId", GUID, True, "Dynamics user (systemuserid). Give this or UserEmail."),
     ("UserEmail", STR, True, "Email of the person on leave. Give this or UserId."),
     ("StartDate", DT, False, "First day of leave."),
@@ -145,7 +145,7 @@ api("fwp_RecordLeave", "Creates or replaces the time entries for one approved le
     ("EndTime", STR, True, "HH:mm leave ends on the last day; omit for the end of the working day."),
     ("LeaveKind", STR, True, "Leave (default) or BankHoliday."),
     ("SourceKey", STR, False, "Identifies the request, e.g. LR-123. Re-sending the same key replaces its entries.")], counts)
-api("fwp_RemoveLeave", "Removes the time entries for a cancelled or rejected leave request (DHA-9).", "RemoveLeavePlugin", [
+api("fwp_RemoveLeave", "Deactivates (never deletes) the time entries for a cancelled or rejected leave request (DHA-9, DHA-10).", "RemoveLeavePlugin", [
     ("SourceKey", STR, False, "The key the entries were recorded with.")], [("EntriesRemoved", INT)])
 api("fwp_RecordBankHolidays", "Creates bank holiday time entries for every active colleague for public holidays in a date range (DHA-9).",
     "RecordBankHolidaysPlugin", [
