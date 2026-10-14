@@ -47,8 +47,9 @@ namespace DHA.Leave.Plugins
         }
 
         /// <summary>Makes the active leave entries for <paramref name="sourceKey"/> match the given range, one per working day.</summary>
+        /// <param name="leaveRequestId">Phase B only: the fwp_leaverequest the entries came from, written to fwp_timeentry.fwp_leaverequest.</param>
         public Result RecordLeave(Guid userId, DateTime startDate, DateTime endDate, TimeSpan? startTime, TimeSpan? endTime,
-            string kind, string sourceKey, bool startHalfDay = false, bool endHalfDay = false)
+            string kind, string sourceKey, bool startHalfDay = false, bool endHalfDay = false, Guid? leaveRequestId = null)
         {
             if (string.IsNullOrWhiteSpace(sourceKey))
                 throw new InvalidPluginExecutionException("SourceKey is required.");
@@ -79,7 +80,9 @@ namespace DHA.Leave.Plugins
                                     .OrderBy(e => IsActive(e) ? 0 : 1).FirstOrDefault();
                 if (match == null)
                 {
-                    _svc.Create(BuildEntry(userId, project, day, label, sourceKey));
+                    var entry = BuildEntry(userId, project, day, label, sourceKey);
+                    LinkToRequest(entry, leaveRequestId);
+                    _svc.Create(entry);
                     result.Created++;
                 }
                 else
@@ -90,6 +93,7 @@ namespace DHA.Leave.Plugins
                     {
                         var update = new Entity("fwp_timeentry", match.Id);
                         SetHours(update, day.Hours);
+                        LinkToRequest(update, leaveRequestId);
                         if (reactivate)
                         {
                             update["statecode"] = new OptionSetValue(StateActive);
@@ -265,6 +269,12 @@ namespace DHA.Leave.Plugins
             };
             q.Criteria.AddCondition("fwp_leavesourcekey", ConditionOperator.Equal, sourceKey);
             return _svc.RetrieveMultiple(q).Entities;
+        }
+
+        private static void LinkToRequest(Entity e, Guid? leaveRequestId)
+        {
+            if (leaveRequestId.HasValue && leaveRequestId.Value != Guid.Empty)
+                e["fwp_leaverequest"] = new EntityReference("fwp_leaverequest", leaveRequestId.Value);
         }
 
         // Same three fields the desktop app writes (Models/TimeEntry.ToEntity)

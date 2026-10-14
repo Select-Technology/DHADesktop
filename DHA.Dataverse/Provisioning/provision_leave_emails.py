@@ -122,11 +122,11 @@ CASES = {
     "Rejected": email(EMPLOYEE_EMAIL, f"Your leave request from {SUBJECT_DATES} was not approved",
                       "<p>Your leave request has not been approved.</p>" + DETAILS + APPROVER_COMMENT),
     "CancellationApproved": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} has been cancelled",
-                                  "<p>Your cancellation has been approved. The leave and its timesheet entries have been removed.</p>" + DETAILS + APPROVER_COMMENT),
+                                  "<p>Your cancellation has been approved. The leave has been taken off your timesheet.</p>" + DETAILS + APPROVER_COMMENT),
     "CancellationDeclined": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} is still booked",
                                   "<p>Your request to cancel this leave was not approved, so it remains booked.</p>" + DETAILS + APPROVER_COMMENT),
     "CancelledByHR": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} has been cancelled by HR",
-                           "<p>HR has cancelled this approved leave. Its timesheet entries have been removed.</p>" + DETAILS + APPROVER_COMMENT),
+                           "<p>HR has cancelled this approved leave, and it has been taken off your timesheet.</p>" + DETAILS + APPROVER_COMMENT),
 }
 
 notifications = {

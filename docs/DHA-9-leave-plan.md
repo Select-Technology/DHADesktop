@@ -24,14 +24,16 @@ is thrown away.
 | Job | New **"Approved Leave"** Job, created by Finance in prod. Its id goes in env var `fwp_LeaveProjectId` |
 | Bank holidays | Every active colleague (anyone with an active Colleague Configuration) gets their expected hours on each bank holiday that falls on one of their working days. Recorded against the existing **"Bank Holiday"** Job (36235), env var `fwp_BankHolidayProjectId`. Leave is never recorded on a bank holiday |
 | Backfill | Already-approved leave from go-live onwards. Earlier leave was probably entered by hand |
-| Reconciled entries | Never deleted or duplicated when a request is changed or cancelled |
+| Cancelled / changed leave (DHA-10) | Time entries are **deactivated, never deleted**. A re-approved day reactivates its old entry; a day dropped from a request is deactivated. Every entry is traceable to its absence: `fwp_leavesourcekey` (`LR-<SharePoint ID>` / `LV-<request id>`), plus a `fwp_leaverequest` lookup for desktop requests. The desktop app only shows active entries |
+| Reconciled entries | Never changed when a request is changed or cancelled |
 
 ## Phase A – what's built
 
 **Dataverse (`FWPLeaveTimeEntries` solution, provisioned by `DHA.Dataverse/Provisioning/provision_leave_time_entries.py`):**
 
 - `fwp_timeentry.fwp_leavesourcekey`: identifies which request created an entry (`LR-<SharePoint ID>`,
-  `BH-<date>-<user>`). Re-sending a key replaces its entries; removing a key deletes them.
+  `BH-<date>-<user>`). Re-sending a key brings its entries into line with the new dates; removing a key
+  **deactivates** them (DHA-10, records are never deleted).
 - `fwp_publicholiday` table (name, date), seeded from GOV.UK by `seed_public_holidays.py`.
 - Environment variables: `fwp_LeaveProjectId`, `fwp_BankHolidayProjectId`, `fwp_LeaveDefaultDayHours` (7.5),
   `fwp_LeaveEntryLabel` ("Approved leave"), `fwp_BankHolidayEntryLabel` ("Bank holiday").
@@ -39,8 +41,8 @@ is thrown away.
 
 | Custom API | Inputs | Does |
 |---|---|---|
-| `fwp_RecordLeave` | `UserEmail` or `UserId`, `StartDate`, `EndDate`, `StartTime`?, `EndTime`? (HH:mm), `LeaveKind`? (Leave/BankHoliday), `SourceKey` | Replaces the entries for `SourceKey` with one entry per working day |
-| `fwp_RemoveLeave` | `SourceKey` | Deletes that request's entries |
+| `fwp_RecordLeave` | `UserEmail` or `UserId`, `StartDate`, `EndDate`, `StartTime`?, `EndTime`? (HH:mm), `LeaveKind`? (Leave/BankHoliday), `SourceKey` | One active entry per working day: updates or reactivates existing entries, deactivates days no longer covered |
+| `fwp_RemoveLeave` | `SourceKey` | **Deactivates** that request's entries (DHA-10) |
 | `fwp_RecordBankHolidays` | `FromDate`?, `ToDate`? | Bank holiday entries for every active colleague, idempotent |
 
 The plug-in runs as the caller, so the flow connection must be able to create and delete any time
@@ -77,7 +79,7 @@ Flows need a connection, which can't be created from a script, so these are buil
     - `EndTime` = same with `RequestEndHour` / `RequestEndMinutes`
     - `SourceKey` = `concat('LR-', triggerBody()?['ID'])`
   - **No** (Pending, Rejected, Cancelled, anything else): `fwp_RemoveLeave` with the same `SourceKey`.
-    Removing a key with no entries does nothing.
+    Removing a key with no active entries does nothing.
 - On failure (*Configure run after → has failed*): email the support mailbox the request ID and the
   error. The usual cause is an employee email that doesn't match a Dynamics user.
 
@@ -106,6 +108,16 @@ Flows need a connection, which can't be created from a script, so these are buil
 5. Build F1–F3. Turn on F1 and F2, run F3 once.
 6. Tell staff: stop entering leave by hand. Leave already entered by hand **and** approved after
    go-live would be doubled, which is why the backfill starts at go-live, not earlier.
+
+### DHA-10 – check before go-live
+
+Deactivated time entries must not count anywhere. The desktop app and the default Dynamics views
+("Active Time Entries", "My Time Entries") already filter to active. Not yet checked:
+
+- The **"Time Records for Reconciliation"** view has no status filter, so it will list deactivated leave entries.
+- The reconciliation process (`DHA.ReconciliationPlugin`, the reconciliation Azure Function) and the WIP and
+  invoice flows: do they filter on `statecode`? Leave entries are Non-chargeable, so the risk is mainly to
+  hours totals, but it needs confirming.
 
 ### Phase A – open points
 
@@ -197,8 +209,8 @@ they fail every send with 401.
 
 Tested in dev: all 8 event emails and the reminder sent successfully.
 
-Known gap: deleting an approved request (rather than cancelling it) leaves its time entries behind.
-The plug-in has no Delete step yet.
+Deleting an approved (or cancellation-requested) request is blocked by the plug-in (DHA-10): it has to be cancelled, which
+deactivates its time entries and keeps the request.
 
 ### Phase B – what the Valto canvas app does that the flows didn't show (2026-10-14)
 

@@ -170,6 +170,9 @@ env_var("fwp_LeaveApproverEmail", "Leave - Approver Email", "Where new requests,
 env_var("fwp_LeaveEmailOverride", "Leave - Email Override (testing)",
         "If set, EVERY leave email goes to this address instead of the real recipient. Set in dev/test; leave blank in prod.", "")
 
+# DHA-10: each leave time entry links back to the request it came from (phase A entries use fwp_leavesourcekey "LR-<SharePoint id>")
+lookup("fwp_timeentry", "fwp_LeaveRequest", "Leave Request", "fwp_leaverequest")
+
 # Approver on the existing colleague configuration (falls back to the user's manager)
 lookup("fwp_colleagueconfiguration", "fwp_LeaveApprover", "Leave Approver", "systemuser")
 
@@ -194,8 +197,9 @@ else:
 
 FILTER = "fwp_startdate,fwp_enddate,fwp_starttime,fwp_endtime,fwp_status,fwp_approver"
 IMAGE = "fwp_employee,fwp_approver,fwp_startdate,fwp_enddate,fwp_starttime,fwp_endtime,fwp_status,fwp_legacyid"
-for message, stage in [("Create", 20), ("Update", 20), ("Create", 40), ("Update", 40)]:
-    name = f"LeaveRequestPlugin: {message} of fwp_leaverequest ({'Pre' if stage == 20 else 'Post'})"
+STAGE_NAMES = {10: "PreValidation", 20: "Pre", 40: "Post"}
+for message, stage in [("Create", 20), ("Update", 20), ("Create", 40), ("Update", 40), ("Delete", 10)]:
+    name = f"LeaveRequestPlugin: {message} of fwp_leaverequest ({STAGE_NAMES[stage]})"
     if q(f"sdkmessageprocessingsteps?$select=sdkmessageprocessingstepid&$filter=name eq '{name}'"):
         continue
     msg = q(f"sdkmessages?$select=sdkmessageid&$filter=name eq '{message}'")[0]["sdkmessageid"]

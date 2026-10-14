@@ -61,6 +61,7 @@ namespace DHA.Leave.Plugins
     ///                             Pre Image "PreImage": fwp_employee, fwp_approver, fwp_startdate, fwp_enddate, fwp_starttime, fwp_endtime, fwp_status, fwp_legacyid
     ///   Create, Post-operation  - share with the approver
     ///   Update, Post-operation  - status/date changes drive time entries; same filtering attributes and Pre Image
+    ///   Delete, Pre-validation  - approved leave can't be deleted (DHA-10: records are never deleted - cancel it instead)
     ///
     /// Time entries are written through LeaveTimeEntryService - the same code the phase A Custom APIs use -
     /// so a request migrated from SharePoint (fwp_legacyid "LR-123") keeps the entries phase A created.
@@ -73,6 +74,11 @@ namespace DHA.Leave.Plugins
         public void Execute(IServiceProvider serviceProvider)
         {
             var context = (IPluginExecutionContext)serviceProvider.GetService(typeof(IPluginExecutionContext));
+            if (context.MessageName == "Delete")
+            {
+                BlockDeletingBookedLeave(context, serviceProvider);
+                return;
+            }
             if (!context.InputParameters.TryGetValue("Target", out var boxed) || !(boxed is Entity target)) return;
             if (target.LogicalName != "fwp_leaverequest") return;
 
@@ -196,12 +202,26 @@ namespace DHA.Leave.Plugins
                 var endTime = LeaveDayCalculator.ParseTime(getText("fwp_endtime"), true);
                 leave.RecordLeave(getRef("fwp_employee").Id, getDate("fwp_startdate").Value, end,
                     LeaveDayCalculator.ParseTime(getText("fwp_starttime"), false), endTime,
-                    LeaveTimeEntryService.KindLeave, sourceKey);
+                    LeaveTimeEntryService.KindLeave, sourceKey, leaveRequestId: requestId);
             }
             else
             {
                 leave.RemoveLeave(sourceKey);
             }
+        }
+
+        private static void BlockDeletingBookedLeave(IPluginExecutionContext context, IServiceProvider serviceProvider)
+        {
+            if (!(context.InputParameters["Target"] is EntityReference target) || target.LogicalName != "fwp_leaverequest")
+                return;
+
+            var factory = (IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory));
+            var request = factory.CreateOrganizationService(null).Retrieve("fwp_leaverequest", target.Id, new ColumnSet("fwp_status"));
+            int? status = request.GetAttributeValue<OptionSetValue>("fwp_status")?.Value;
+            if (status == LeaveStatus.Approved || status == LeaveStatus.CancellationRequested)
+                throw new InvalidPluginExecutionException(
+                    "Approved leave can't be deleted because it is on the person's timesheet. Cancel it instead - " +
+                    "its time entries will be deactivated and the request kept for the record.");
         }
 
         private static EntityReference DefaultApprover(IOrganizationService svc, Guid employeeId)
