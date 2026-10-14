@@ -2,7 +2,8 @@
 
 Adds leave privileges to DHA-1 (Individual) - the base role everyone holds - rather than a new role.
 Leave requests and entitlements are at User ("own") level; leave types and public holidays are
-reference lists, readable by everyone. Only adds privileges the role doesn't already have, so it
+reference lists, readable by everyone. Deliberately does NOT touch fwp_colleagueconfiguration: it holds
+colleagues' charge rates, and the desktop app's existing access to it is a separate decision. Only adds privileges the role doesn't already have, so it
 never lowers an existing access level. Idempotent.
 
 Run after provision_leave_management.py. Requires `az login` as a System Administrator.
@@ -24,7 +25,6 @@ WANTED = {
     "prvReadfwp_leavetype": ORG,
     "prvAppendTofwp_leavetype": ORG,
     "prvReadfwp_publicholiday": ORG,
-    "prvReadfwp_colleagueconfiguration": USER,   # working pattern for the hours preview
     "prvAppendToUser": ORG,                      # employee/approver lookups on the request
 }
 

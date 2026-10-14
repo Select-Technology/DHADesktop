@@ -111,3 +111,35 @@ current or legacy.
 - [08-ig-legacy-layer.md](08-ig-legacy-layer.md)
 - [13-pitfalls-and-faq.md](13-pitfalls-and-faq.md)
 - `DHA - Quotes into disbursements/DHA-Security-Roles-Guide.md` — the original guide this page is adapted from
+
+## ⚠️ Colleague rates are readable by all staff (found 2026-10-14)
+
+`fwp_colleagueconfiguration` holds each person's working pattern **and their charge rates**
+(`fwp_ratea` … `fwp_ratef`). In prod:
+
+- **DHA-1: Individual** (so everyone), DHA Time & Disbursement User and DHA Time & Disbursement PM all
+  have **Read at Everyone level** on the table.
+- **None of the rate columns are column-secured.**
+
+So any member of staff can read every colleague's rates through Dynamics (Advanced Find, Excel
+export, the Web API), even though the desktop app only shows them their own.
+
+Things that read rates today, and would need handling if the columns were secured with a
+column security profile:
+
+- **Desktop app.** `ColleagueConfigurationService` loads the signed-in user's own rates to show "£x/hr"
+  beside the charge band, and to fill `ChargeRateValue` on screen (it isn't written back as a rate).
+  Without read access it would show £0 / blank. It would need a profile that lets people read their
+  own rates, or the label removed.
+- **`SetTimeEntryValuePlugin`** (not yet registered). It reads the rate as the **calling user**
+  (`CreateOrganizationService(context.UserId)`), so it would compute £0 for ordinary users. It
+  should switch to the SYSTEM context before being registered.
+- **The `fwp_setTimeEntryValue_2` flows.** They run as their connection owner, who would need to be
+  in the profile.
+
+The rows are owned by whoever created them (Harriet 74, Grace 10, Select Support 2), never by the
+colleague. So "own" level access on this table gives staff nothing; it isn't a usable middle
+ground.
+
+The leave work (DHA-9) deliberately adds nothing on this table: `provision_leave_staff_access.py`
+leaves it alone, and the leave plug-in reads working patterns as SYSTEM.
