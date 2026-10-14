@@ -148,7 +148,9 @@ notifications = {
             "$expand": "fwp_Employee($select=fullname,internalemailaddress),fwp_LeaveType($select=fwp_name)"}),
         "Which_event": {
             "type": "Switch", "runAfter": {"Get_the_request": ["Succeeded"]},
-            "expression": f"@{R}/fwp_lastevent']",
+            # The event as it was when THIS run was triggered - the row may already have moved on (e.g. approved
+            # seconds after being requested), and reading it back would send the wrong email twice.
+            "expression": "@triggerOutputs()?['body/fwp_lastevent']",
             "cases": {name: {"case": name, "actions": {f"Email_{name}": action}} for name, action in CASES.items()},
             "default": {"actions": {}}
         }
