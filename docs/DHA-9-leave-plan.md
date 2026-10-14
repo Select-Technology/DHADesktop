@@ -61,6 +61,23 @@ and 2026–2028 bank holidays. Tested against the API directly:
 
 All test entries were removed afterwards.
 
+### Phase A – production (2026-10-14)
+
+`FWPLeaveTimeEntries` **v1.0.1.0 imported into prod as a managed solution**. It was exported from dev; the
+package is `DHA.Dataverse/Solutions/FWPLeaveTimeEntries_1_0_1_0_managed.zip`. It includes the DHA-10
+deactivate-not-delete behaviour. The assembly also carries `LeaveRequestPlugin`, which is inert in prod:
+its steps belong to `FWPLeaveManagement`, which is not deployed.
+
+- `fwp_BankHolidayProjectId` = prod "Bank Holiday" Job 36235 (`59e66ab8-2c48-f011-877a-6045bdcf7311`).
+- Bank holidays 2026–2028 loaded into `fwp_publicholiday`.
+- Smoke-tested without writing anything: bank holidays over a range with none → 0; removing an
+  unknown key → 0; recording leave → "fwp_LeaveProjectId is not set".
+- **Still to do before go-live:**
+  1. Finance creates the "Approved Leave" Job, and `fwp_LeaveProjectId` is set to its id.
+  2. Build flows F1–F3 below in prod.
+  3. Release the desktop app with the DHA-10 active-only filter **before** F1 starts deactivating entries.
+  4. Tell staff to stop entering leave by hand. Run F3 (backfill).
+
 ### Phase A – flows to build (maker portal, in `FWPLeaveTimeEntries`)
 
 Flows need a connection, which can't be created from a script, so these are built by hand.
