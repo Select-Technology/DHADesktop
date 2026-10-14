@@ -66,6 +66,24 @@ client **only after** the column exists in prod, or every user's project list wi
 3. Confirm auditing is on for Project in prod.
 4. Release the WPF client.
 
+## Production (deployed 2026-10-14)
+
+`FWPProjectOnStop` **v1.0.1.0, managed**. Deployed by `DHA.Dataverse/Provisioning/deploy_project_on_stop_prod.py`
+(on the leave branches). The package is in `DHA.Dataverse/Solutions`.
+
+- **Forms.** Dev and prod forms had drifted. "Project - DHA1" and Time Entry "Information" were rebuilt from
+  **prod's** current definitions plus only our change, so prod kept "Unreconciled Value" and DHA1's roles. Prod's
+  Project **Information** form, the one Finance uses (DHA1 is admin-only in prod), has unmanaged edits on top,
+  so On Stop was added to its header **directly in prod**. A future managed form change to that form won't show
+  until its unmanaged layer is dealt with.
+- **Profile members (prod):** Read ← `dhapd` root team (everyone). Finance ← Harriet Baker, Grace Paternoster,
+  Alex Hicken, Elizabeth Homewood, David Hicken, Julie Thorne, Theo Homewood, Louise Overton. The service
+  accounts (Select Support, Dynamics Automation) were left out.
+- **Verified:** column secured and audited, both forms carry On Stop, the time entry form carries the warning
+  script, and a planner and a finance user can both read the flag.
+- **Not yet live:** the **desktop** warning (banner and dialog). It ships with the next desktop release, which must
+  come after this, since the app queries `fwp_onstop`.
+
 ## Dev test status (2026-10-13)
 
 - A Project Manager (Jessica Bache, impersonated) can **read** `fwp_onstop` but is refused
