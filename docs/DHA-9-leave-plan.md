@@ -99,8 +99,15 @@ What real Valto data showed (prod flow history, 326 requests since 11 Sep):
 - Working From Home 184, Holiday Request 102, Medical 19 (Hours), Sick Leave 16, Other 3, Study Leave 2. No TOIL.
 - Dates are plain dates ("2026-10-15"), so there's no BST shift. A full day is 09:00–17:00.
 
-**Go-live still needs:** the "Approved Leave" Job and `fwp_LeaveProjectId`; switching F1 and F2 on; running F3 once;
-the desktop release with the active-only filter; and telling staff to stop entering leave by hand.
+**Go-live (agreed 2026-10-14: as soon as the Job exists).** F2 (bank holidays) was switched **on** on 2026-10-14; the
+first entries come around 24 Nov, for Christmas. When Finance has created the "Approved Leave" Job through the
+normal quote-to-Job process, run:
+
+    set DATAVERSE_URL=https://dhapd.crm11.dynamics.com
+    python -I DHA.Dataverse/Provisioning/go_live_leave_time_entries.py <its Job number>
+
+That links the Job, smoke-tests, switches F1 on, and runs the backfill once. Alongside it: tell staff to stop
+entering leave by hand, and release the desktop app with the DHA-10 active-only filter.
 
 Note: the existing "Holiday" Job (36225) carries **£2.18m** of `fwp_valueofhours` from manual holiday entries valued at
 Rate A. Leave entries will add to the Approved Leave Job in the same way, so the valuation question is now pressing.
