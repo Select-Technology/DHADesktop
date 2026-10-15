@@ -3,13 +3,39 @@
 **Goal:** DHA staff, managers and HR do everything they do today in Valto's *Core – Leave Request App* inside the
 DHA Time Management desktop app, with the data in Dynamics. Then the Valto app is retired.
 
-**Status (15 Oct 2026):**
+**Status (15 Oct 2026):** decisions received from HR (§0).
 
 - **Phase A is live in prod.** Approved Valto leave becomes time entries; switch-on is waiting for the
   "Approved Leave" Job. See [DHA-9-leave-plan.md](DHA-9-leave-plan.md).
 - **Phase B (this plan) is part-built in dev** on `feature/leave-in-desktop-app`.
 
 Owner: Select Technology (Tom Halverson). Business owner: Harriet Baker (HR).
+
+## 0. Decisions (Harriet Baker, 15 Oct 2026)
+
+**Full parity is required.** Staff shouldn't use two systems for leave and for working from home or appointments.
+
+| # | Decision | Effect on this plan |
+|---|---|---|
+| Q1 | Entitlement is counted in **days**, the same for everyone. Part-timers work **specific days**, which HR sets | D1: days only (hours stay internal, for timesheets). Working days come from the colleague's pattern |
+| Q2 | **Line managers approve, with additional approvers** | M1–M6, N1, N3 in scope. HR keeps admin and oversight |
+| Q3 | Leave year starts **1 January for everyone**. **Carry forward up to 5 days**, which HR can override. **No purchased leave** | D3 simplified; A3 with a per-person override; purchased leave dropped |
+| Q4 | **TOIL not needed** | E8 dropped |
+| Q5 | **The shared Outlook leave calendar stays** | N4 in scope |
+| Q6 | **Pending counts as taken** in the balance | E9 changes to match Valto |
+| Q7 | **No automatic new-starter entitlement.** HR sets each one up as people start | A5 dropped; the A2 HR screen must make set-up quick |
+| Q8 | **Working From Home still needs approval and appears in team views** | E7, M3 |
+
+### Follow-up questions (raised by these answers)
+
+| # | Question | Why |
+|---|---|---|
+| F1 | "8.5 hours Mon–Thu, 8 hours Friday": is that the office day or the hours worked? Prod colleague configurations hold **08:30–17:30 with a 1h break = 8h worked Mon–Thu**, and **08:30–17:00 = 7.5h on Friday**. What should a day's leave put on the timesheet: 8 / 7.5, or 8.5 / 8? | A leave day records that day's expected hours from colleague configuration. That's live in phase A as soon as it's switched on |
+| F2 | Should **next year's entitlement** be created automatically each January for **existing** staff (Valto's flow does this), with only new starters done by hand? | A4 |
+| F3 | Part-timers' working days are set in the Valto app. Dynamics also holds a working pattern for every colleague (used for timesheet reminders). Once Valto is retired, **HR maintains the Dynamics pattern**. OK? 8 people currently have no working days at all in Dynamics | Single source of truth; migration compares the two |
+| F4 | Do line managers need to approve from a **phone or browser**? The canvas app works on phones; the desktop app doesn't | X1. More relevant now that line managers approve |
+| F5 | Shared calendar: whose calendar is it, and what should events say? Valto's emails use the request type; a staff-wide calendar showing "Medical" or "Sick Leave" has the same privacy issue DHA-9 avoids on timesheets | N4 |
+| F6 | The "By Department" filter when approving: where is department held today? | M3 |
 
 ---
 
@@ -61,14 +87,14 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 | ID | Valto feature | Desktop today | Work |
 |---|---|---|---|
 | **E1** | Choose a request type from the configured list (icons) | 🟡 Dropdown of `fwp_leavetype` | Add the type flags in **D2**; hide TOIL "add" from the normal form |
-| **E2** | **Days** requests: dates + Full day / ½ AM / ½ PM. Balance and cost shown in **days** | 🟡 Morning/afternoon split the working pattern; everything is in **hours** | Days/hours units (**D1**); show cost and new balance in the person's units |
+| **E2** | **Days** requests: dates + Full day / ½ AM / ½ PM. Balance and cost shown in **days** | 🟡 Morning/afternoon split the working pattern; everything is in **hours** | Show cost, balance and new balance in **days** (**D1**, Q1). Hours remain for the timesheet only |
 | **E3** | **Hours** requests: number of hours (default from config) + start/end times | 🟡 "Set times" gives the hours | Hours-unit types (e.g. Medical) default to the times entry; default duration from settings |
 | **E4** | Shows current balance, cost of this request, new balance; public holidays in the range | 🟡 Preview hours + bank holiday note; balance on the side | Cost and new balance on the form, in units |
 | **E5** | Validation: end before start; **can't span two leave years** | 🟡 End before start; overlaps (Valto doesn't check overlaps) | Leave-year span rule in the plug-in and the form |
 | **E6** | Mandatory "Details" field; confirmation summary before submitting | ❌ Comment optional, no confirmation | Required details; confirmation dialog |
 | **E7** | **Working From Home** requests (approved, not absence, no entitlement, no time entry) | ❌ | Non-absence types (**D2**). The plug-in must not create time entries for them; they are still approved and shown |
-| **E8** | **TOIL**: claim (date, from/to, breaks, what was achieved) → approved claims build a TOIL balance; "Take TOIL" spends it | ❌ | **Only if Harriet confirms TOIL is used** (**Q4**). TOIL claim form, TOIL balance, take-TOIL type |
-| **E9** | Leave balance for **previous / current / next** year: base, purchased (toggle), carried forward, total, taken (**counts pending**), remaining, carried to next year, TOIL; shows your approver | 🟡 Current year only; pending separate; no approver | Year picker; full breakdown; approver shown; agree how pending counts (**Q6**) |
+| ~~E8~~ | TOIL claims and balance | – | **Out of scope** (Q4: not needed) |
+| **E9** | Leave balance for **previous / current / next** year: base, carried forward, total, taken (**counts pending**), remaining, carried to next year; shows your approver | 🟡 Current year only; pending separate; no approver | Year picker; full breakdown; approver shown; **pending counted as taken** (Q6). No purchased leave or TOIL (Q3, Q4) |
 | **E10** | My requests: filter upcoming/past, status, type; detail with approver comments and when cancellation was requested | 🟡 List only | Filters; detail panel |
 | **E11** | Cancel **with a comment**. Pending future requests cancel instantly; approved ones go to the approver | 🟡 Instant/approval logic done; no comment | Cancellation comment (`fwp_cancellationcomments`); pending *past* requests go to the approver (Valto rule) |
 | **E12** | "Company Holidays" list (past ones optional) | ❌ | Read-only list in the Leave tab |
@@ -78,7 +104,7 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 
 | ID | Valto feature | Desktop today | Work |
 |---|---|---|---|
-| **M1** | **Line managers** approve their own people; an **Additional Approver** can approve too ("Approvals only") | ❌ HR only (by decision, 14 Oct) | Approver and additional approver per person (**D4**); Approvals tab for anyone who approves someone. **Q2** decides whether this happens or HR stays the only approver |
+| **M1** | **Line managers** approve their own people; an **Additional Approver** can approve too ("Approvals only") | ❌ HR only for now | **In scope (Q2).** Approver and additional approver per person (**D4**); the Approvals tab shows for anyone who approves someone and lists only their people. HR (Leave Administrator) still sees everyone |
 | **M2** | Approvals list with "show approval requests" / "show cancellation requests" filters; count badge | 🟡 Combined list; no filters or badge | Filters; count on the Leave tab header |
 | **M3** | When approving: overlapping requests, filtered **all / my employees / by department** | 🟡 "Also off" for approved leave across everyone | Include pending; filters; department (**D4**) |
 | **M4** | "My employees": pick a person, see their balance (all years) | ❌ | Team view with per-person balance |
@@ -91,11 +117,11 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 |---|---|---|---|
 | **A1** | *Employee Configuration*: approver, additional approver, leave-year start, base entitlement, units, working days, (department) | 🟡 Approver lookup; working pattern exists | Fields on colleague configuration (**D4**); HR screen |
 | **A2** | *Entitlement Balances* per person per year | 🟡 Table exists, no screen | HR entitlement screen; units |
-| **A3** | **Year-end carry forward** (monthly flow, applied in the configured month, capped at the limit) | ❌ | Scheduled flow + Custom API (**D6**) |
-| **A4** | **Generate next year's entitlement** (monthly flow) | ❌ | Scheduled flow + Custom API (**D6**) |
-| **A5** | New-starter entitlement on creating an employee configuration (**switched off in Valto since Sep 2025**) | ❌ | Create the current and next year when a colleague configuration is created, if HR wants it (**Q7**) |
+| **A3** | **Year-end carry forward**, capped at the limit | ❌ | Runs once each January: unused days carried forward, **capped at 5** (Q3). **HR can override per person** (`fwp_carryforwardoverride` on the entitlement row) before or after the run |
+| **A4** | **Generate next year's entitlement** | ❌ | Runs each January for existing staff, from their base entitlement. **Pending F2** |
+| ~~A5~~ | New-starter entitlement created automatically | – | **Out of scope** (Q7). HR creates new starters' entitlement on the A2 screen |
 | **A6** | *Request Type Configuration*: has entitlement, forced units, icon | 🟡 Deducts flag only | **D2** |
-| **A7** | *App Configuration*: carry-forward limit, generate-on date, default hours, TOIL toggle, show purchased leave, admin account | ❌ | Environment variables (**D5**) |
+| **A7** | *App Configuration*: carry-forward limit, generate-on date, default hours, TOIL toggle, show purchased leave, admin account | ❌ | Environment variables (**D5**): carry-forward limit (5) and default hours only. No TOIL or purchased settings |
 | **A8** | *Public Holidays* list | ✅ `fwp_publicholiday` from GOV.UK | Add an HR screen or a Dynamics view to add DHA-only closure days, if needed |
 | **A9** | *Book on behalf of users* list | ❌ | A Dynamics team, "Leave - Book on behalf" (**H3**) |
 
@@ -103,10 +129,10 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 
 | ID | Valto feature | Desktop today | Work |
 |---|---|---|---|
-| **N1** | New request → email the **approver** (notes when booked on behalf) | 🟡 Goes to HR@ | Send to the request's approver(s) once **M1** is decided; mention booked-by |
+| **N1** | New request → email the **approver** (notes when booked on behalf) | 🟡 Goes to HR@ | Send to the request's approver and additional approver (Q2); mention booked-by |
 | **N2** | Outcome emails (approved, rejected, cancellation approved or declined) | ✅ | Wording review with Harriet |
-| **N3** | Weekday 10:00 reminder **per approver** of their outstanding requests | 🟡 One email to HR | Per approver once **M1** is decided |
-| **N4** | **Shared Outlook calendar**: event on approval, deleted on cancellation (`CalendarID`) | ❌ | **Only if still used** (**Q5**). Flow on Approved / Cancelled using the request's `fwp_calendareventid` |
+| **N3** | Weekday 10:00 reminder **per approver** of their outstanding requests | 🟡 One email to HR | One email per approver listing their outstanding requests (Q2) |
+| **N4** | **Shared Outlook calendar**: event on approval, deleted on cancellation (`CalendarID`) | ❌ | **In scope (Q5).** Flow on Approved / Cancelled / date change using `fwp_calendareventid`. Same calendar as Valto (its `new_CalendarID`). Event wording **pending F5** |
 | **N5** | Deep links from emails to the app | ❌ | Link to the Dynamics record (works on phone); optional `dha-time://` desktop link later |
 | **N6** | Item-level SharePoint permissions (employee, approver, owners) | ✅ Different mechanism: user-owned rows + sharing + roles | Extend sharing to additional approvers (**M1**) |
 | **N7** | Mobile/browser access (the canvas app works anywhere) | ❌ Desktop only | Model-driven app "DHA Leave" for approvers and HR (**X1**) |
@@ -120,13 +146,13 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 
 ## 3. Design changes
 
-**D1 – Units (days and hours).**
-- Keep **hours** as the stored truth on each request (`fwp_hours`, already calculated server-side).
-- Add `fwp_days` (calculated by the plug-in: 1 per full working day, 0.5 per half day; hours ÷ that day's expected
-  hours for part days).
-- Each entitlement row gets `fwp_units` (Days/Hours). Balances are computed in that unit.
-- Leave types get "forced units" (Medical = Hours).
-- Pending **Q1**.
+**D1 – Units: days (Q1).**
+- Entitlement, balances and request cost are in **days**.
+- Each request stores `fwp_days`, calculated by the plug-in: 1 per full working day, 0.5 per half day, hours ÷ that
+  day's expected hours for part days such as a Medical appointment.
+- It keeps `fwp_hours` for the timesheet entries.
+- `fwp_leaveentitlement` moves from hours to days: rename the columns and convert, since it's dev-only so far.
+- Types that are booked in hours (Medical) still take times, but count in days against any entitlement.
 
 **D2 – Leave type behaviour flags** on `fwp_leavetype`:
 
@@ -143,33 +169,30 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 The plug-in's time-entry step checks `fwp_isabsence`. The phase A setting `fwp_LeaveExcludedRequestTypes`
 then becomes redundant after cutover.
 
-**D3 – Leave years.**
-- A leave year runs from the person's `fwp_leaveyearstart` (day/month) for 12 months.
-- Each `fwp_leaveentitlement` row covers one leave year.
-- The plug-in rejects requests that span two leave years (**E5**).
-- Balance views select by year (**E9**).
+**D3 – Leave years: calendar years (Q3).**
+- 1 January to 31 December for everyone. One `fwp_leaveentitlement` row per person per year.
+- The plug-in rejects requests that span 31 Dec / 1 Jan (**E5**): book them as two requests, as Valto requires.
 
 **D4 – Colleague configuration additions** (on the existing `fwp_colleagueconfiguration`):
-- **Leave fields:** `fwp_leaveapprover` (done), `fwp_additionalleaveapprover`, `fwp_leaveyearstart`, `fwp_baseentitlement`, `fwp_entitlementunits`, `fwp_department` (or reuse an existing department field; confirm).
+- **Leave fields:** `fwp_leaveapprover` (done), `fwp_additionalleaveapprover`, `fwp_baseentitlement` (days),
+  `fwp_department` (or reuse an existing field; **F6**).
+- **Working days:** the existing per-day expected hours are the working pattern (0 = not a working day; Q1, **F3**).
 - **Rates:** this table also holds charge rates, which every member of staff can already read (see wiki
   *02-security-roles*). The new leave fields add nothing sensitive; rates are out of scope here.
 
 **D5 – Settings** (environment variables in `FWPLeaveManagement`):
-- `fwp_LeaveCarryForwardLimit`
-- `fwp_LeaveCarryForwardMonth`
-- `fwp_LeaveGenerateNextYearMonth`
-- `fwp_LeaveDefaultHours`
-- `fwp_LeaveTOILEnabled`
-- `fwp_LeaveShowPurchased`
-- `fwp_LeaveApproverEmail` (exists)
+- `fwp_LeaveCarryForwardLimit` (days, default **5**)
+- `fwp_LeaveDefaultHours` (for Hours-type requests)
+- `fwp_LeaveCalendarId` (the shared Outlook calendar)
+- `fwp_LeaveApproverEmail` (exists; becomes the HR copy address)
 - `fwp_LeaveEmailOverride` (exists, dev only)
 
-**D6 – Year-end automation.** Custom APIs in `DHA.Leave.Plugins`, called by scheduled flows:
-- `fwp_GenerateLeaveYear`: creates next year's entitlement rows (base + purchased 0).
-- `fwp_CarryForwardLeave`: unused entitlement, capped at the limit → next year's carried forward, and records
-  "carried to next year" on the old row.
+**D6 – Year-end automation (January).** Custom APIs in `DHA.Leave.Plugins`, called by one scheduled flow on 1 Jan:
+- `fwp_GenerateLeaveYear`: next year's rows from base entitlement, for existing staff (**F2**).
+- `fwp_CarryForwardLeave`: unused days, capped at 5 unless the person's `fwp_carryforwardoverride` is set, go into
+  the new year's carried forward. Records "carried to next year" on the old row.
 
-Both are idempotent and unit tested, like `LeaveDayCalculator`.
+Both are idempotent, safe to re-run if HR changes an override, and unit tested.
 
 **D7 – Ownership.**
 - **Requests:** a request is assigned to the **employee** even when HR books it (fixes the known gap in
@@ -184,16 +207,17 @@ Each stage ends with its automated tests passing in dev and a demo to Harriet.
 
 | Stage | Contents | Depends on | Estimate (days) |
 |---|---|---|---|
-| **0. Decisions** | Harriet answers **Q1–Q9**; agree the wording of emails and screens | – | 0.5 meeting |
-| **1. Model** | D1–D5, D7: schema, type flags, units, leave years, ownership fix; seed DHA's real leave types | 0 | 3 |
-| **2. Employee parity** | E1–E7, E9–E12: units-aware form, cost/new balance, leave-year rule, mandatory details + confirmation, WFH requests, multi-year balance, request filters, cancellation comment, company holidays | 1 | 6 |
-| **3. Approver parity** | M1–M6, N1, N3, N6: approvers and additional approvers, filters/badge, team views, per-person balance, cancel on behalf, per-approver emails and reminder | 1, Q2 | 6 |
-| **4. HR administration** | A1, A2, A7, A9, E13: colleague leave settings screen, entitlement editor, settings, book on behalf | 1 | 4 |
-| **5. Year-end** | A3–A5 (D6): generate year, carry forward, new starters | 1, Q3/Q7 | 3 |
-| **6. Optional** | E8 TOIL, N4 Outlook calendar, N5 links, X1 model-driven app | Q4, Q5, Q8 | 2–6 |
-| **7. Migration** | §5 scripts, dry runs against a copy of the lists, reconciliation report | 1 | 4 |
-| **8. Release and cutover** | §6: merge desktop branches, UAT, parallel run, go-live, Valto retirement | all | 4 |
-| | **Total** | | **~32–36 days**, plus optional 2–6 |
+| **0. Decisions** | ✅ Q1–Q8 answered 15 Oct. Follow-ups **F1–F6** outstanding | – | – |
+| **1. Model** | D1–D5, D7: schema, type flags (incl. WFH), days, calendar years, approver fields, ownership fix; seed DHA's real leave types | F3, F6 | 3 |
+| **2. Employee parity** | E1–E7, E9–E12: days-based form and balance (pending counted), year-span rule, mandatory details + confirmation, WFH requests, multi-year balance, request filters, cancellation comment, company holidays | 1 | 5 |
+| **3. Approver parity** | M1–M6, N1, N3, N6: line managers + additional approvers, filters/badge, team views incl. WFH, per-person balance, cancel on behalf, per-approver emails and reminder | 1 | 6 |
+| **4. HR administration** | A1, A2, A7, A9, E13: colleague leave settings, entitlement editor (incl. new starters, carry-forward override), book on behalf | 1 | 4 |
+| **5. Year-end** | A3, A4 (D6): January generate + carry forward with override | 1, F2 | 2 |
+| **6. Outlook calendar** | N4 | F5 | 1.5 |
+| **7. Optional** | N5 links, X1 phone/browser access for approvers | F4 | 1–3 |
+| **8. Migration** | §5 scripts, dry runs against a copy of the lists, reconciliation report | 1 | 4 |
+| **9. Release and cutover** | §6: merge desktop branches, UAT, parallel run, go-live, Valto retirement | all | 4 |
+| | **Total** | | **~30 days**, plus optional 1–3 |
 
 Stages 2–5 can overlap once stage 1 is done.
 
@@ -257,19 +281,9 @@ are exported back by script. Phase A time entries are unaffected.
 
 ---
 
-## 8. Decisions needed (Harriet / DHA)
+## 8. Decisions
 
-| # | Question | Affects |
-|---|---|---|
-| **Q1** | Is entitlement counted in **days** or **hours**, per person or for everyone? How do part-timers' days work? | D1, E2–E4, E9 |
-| **Q2** | Who approves: **line managers** (as Valto allows, with additional approvers) or **HR only** (as the desktop does today)? | M1–M6, N1, N3 |
-| **Q3** | Leave year start (one date for everyone, or per person); **carry-forward limit**; how purchased leave works | D3, A3, A4 |
-| **Q4** | Is **TOIL** used, and should it come across? | E8 |
-| **Q5** | Is the **shared Outlook leave calendar** still used? | N4 |
-| **Q6** | Should pending requests count as "taken" in the balance (Valto does) or be shown separately (desktop does)? | E9 |
-| **Q7** | Should new starters get an entitlement automatically (Valto's flow has been off since Sep 2025)? | A5 |
-| **Q8** | Do approvers need **phone/browser** access? | X1 |
-| **Q9** | Should **Working From Home** requests still need approval and appear in team views? | E7, M3 |
+Q1–Q8 are answered: see **§0** (Harriet, 15 Oct 2026). Open follow-ups **F1–F6** are listed there too.
 
 ## 9. Risks
 
