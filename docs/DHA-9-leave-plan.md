@@ -180,6 +180,10 @@ Deactivated time entries must not count anywhere. The desktop app and the defaul
 
 ## Phase B – leave in the desktop app
 
+> **Full parity plan:** [leave-desktop-parity-plan.md](leave-desktop-parity-plan.md). It has a feature-by-feature
+> matrix against the Valto app, design changes, stages, migration, cutover and the decisions needed from HR.
+> The sections below are the original outline.
+
 ### Data model (Dataverse, new solution `FWPLeaveManagement`)
 
 | Table | Key columns |
