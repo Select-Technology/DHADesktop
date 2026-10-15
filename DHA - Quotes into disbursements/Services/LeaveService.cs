@@ -173,11 +173,15 @@ namespace DHA.DSTC.WPF.Services
             _connector._orgService.Update(e);
         }
 
+        /// <summary>
+        /// Same pattern the server uses (LeaveTimeEntryService): working days from colleague configuration, hours per leave
+        /// day from the fwp_LeaveDayHours setting (8.5h Mon-Thu, 8h Fri), so the preview matches what is stored.
+        /// </summary>
         public WorkingDay[] GetWorkingPattern(Guid employeeId)
         {
-            var pattern = LeaveDayCalculator.DefaultPattern();
+            var leaveDayHours = GetLeaveDayHours();
             if (!_connector.Connect())
-                return pattern;
+                return LeaveDayCalculator.BuildPattern(leaveDayHours, null);
 
             var q = new QueryExpression("fwp_colleagueconfiguration")
             {
@@ -189,21 +193,35 @@ namespace DHA.DSTC.WPF.Services
 
             var cfg = _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities.FirstOrDefault();
             if (cfg == null)
-                return pattern;
+                return LeaveDayCalculator.BuildPattern(leaveDayHours, null);
 
-            for (int i = 0; i < Days.Length; i++)
+            return LeaveDayCalculator.BuildPattern(leaveDayHours,
+                Days.Select(d => cfg.GetAttributeValue<decimal?>($"fwp_{d}expectedhours")).ToArray(),
+                Days.Select(d => cfg.GetAttributeValue<string>($"fwp_{d}start")).ToArray(),
+                Days.Select(d => cfg.GetAttributeValue<string>($"fwp_{d}finish")).ToArray());
+        }
+
+        private decimal[] GetLeaveDayHours()
+        {
+            try
             {
-                var hours = cfg.GetAttributeValue<decimal?>($"fwp_{Days[i]}expectedhours");
-                if (!hours.HasValue)
-                    continue;
-                pattern[i] = new WorkingDay
-                {
-                    ExpectedHours = hours.Value,
-                    Start = LeaveDayCalculator.ParseTime(cfg.GetAttributeValue<string>($"fwp_{Days[i]}start"), false) ?? new TimeSpan(9, 0, 0),
-                    Finish = LeaveDayCalculator.ParseTime(cfg.GetAttributeValue<string>($"fwp_{Days[i]}finish"), true) ?? new TimeSpan(17, 30, 0)
-                };
+                if (!_connector.Connect())
+                    return LeaveDayCalculator.ParseLeaveDayHours(null);
+                var q = new QueryExpression("environmentvariabledefinition") { ColumnSet = new ColumnSet("defaultvalue") };
+                q.Criteria.AddCondition("schemaname", ConditionOperator.Equal, "fwp_LeaveDayHours");
+                var link = q.AddLink("environmentvariablevalue", "environmentvariabledefinitionid", "environmentvariabledefinitionid", JoinOperator.LeftOuter);
+                link.Columns = new ColumnSet("value");
+                link.EntityAlias = "v";
+                var def = _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities.FirstOrDefault();
+                var value = def?.GetAttributeValue<AliasedValue>("v.value")?.Value as string;
+                return LeaveDayCalculator.ParseLeaveDayHours(!string.IsNullOrEmpty(value) ? value : def?.GetAttributeValue<string>("defaultvalue"));
             }
-            return pattern;
+            catch (Exception ex)
+            {
+                // Staff may not be able to read settings - the standard week is the agreed value anyway
+                System.Diagnostics.Debug.WriteLine($"LeaveService.GetLeaveDayHours: {ex.Message}");
+                return LeaveDayCalculator.ParseLeaveDayHours(null);
+            }
         }
 
         public HashSet<DateTime> GetBankHolidays(DateTime from, DateTime to)

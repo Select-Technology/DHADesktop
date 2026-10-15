@@ -1,39 +1,8 @@
-# DHA test run - 2026-10-14 15:08 (dev, 139s)
+# DHA test run - 2026-10-15 14:43 (dev, 82s)
 
 | Card | Pass | Fail | Known gap | Skipped |
 |---|---|---|---|---|
-| DHA-7 Finance can place a project on stop | 11 | 0 | 0 | 1 |
-| DHA-8 Warning when recording time on a stopped project | 7 | 0 | 0 | 0 |
 | DHA-9 Approved absence creates the time entry | 56 | 0 | 1 | 0 |
-| DHA-10 Cancelling an absence deactivates the time entry | 10 | 0 | 1 | 0 |
-| DHA-16 Internal source is mandatory on a quote | 2 | 2 | 0 | 1 |
-| .NET unit tests (leave day calculation, leave events) | 1 | 0 | 0 | 0 |
-
-## DHA-7 Finance can place a project on stop
-
-- ✅ `Dha07ProjectOnStop.test_column_is_a_secured_audited_yes_no_defaulting_to_no` - pass
-- ✅ `Dha07ProjectOnStop.test_everyone_is_in_the_read_profile_via_the_root_business_unit_team` - pass
-- ✅ `Dha07ProjectOnStop.test_finance_profile_can_read_create_and_update` - pass
-- ✅ `Dha07ProjectOnStop.test_finance_profile_has_members` - pass
-- ⏭️ `Dha07ProjectOnStop.test_finance_user_can_place_and_clear_a_stop` - skip
-  > No non-admin finance user in dev has the base roles needed to update a project (Julie Thorne lacks prvReadUser; Dynamics Automation lacks msdyn_actual read). Finance write access is covered by the profile-permission tests above.
-- ✅ `Dha07ProjectOnStop.test_on_stop_is_on_both_project_forms` - pass
-- ✅ `Dha07ProjectOnStop.test_placing_and_clearing_a_stop_is_recorded_and_audited` - pass
-- ✅ `Dha07ProjectOnStop.test_project_auditing_is_on` - pass
-- ✅ `Dha07ProjectOnStop.test_project_manager_can_see_the_stop` - pass
-- ✅ `Dha07ProjectOnStop.test_project_manager_cannot_place_a_project_on_stop` - pass
-- ✅ `Dha07ProjectOnStop.test_project_manager_cannot_take_a_project_off_stop` - pass
-- ✅ `Dha07ProjectOnStop.test_read_profile_is_read_only` - pass
-
-## DHA-8 Warning when recording time on a stopped project
-
-- ✅ `Dha08Data.test_desktop_project_list_query_works_for_a_planner` - pass
-- ✅ `Dha08Data.test_planner_sees_project_taken_off_stop_as_not_on_stop` - pass
-- ✅ `Dha08Data.test_planner_sees_stopped_project_as_on_stop` - pass
-- ✅ `Dha08Data.test_saving_time_against_a_stopped_project_is_not_blocked` - pass
-- ✅ `Dha08FormScript.test_form_script_cases` - pass
-- ✅ `Dha08FormScript.test_script_is_registered_on_the_time_entry_form` - pass
-- ✅ `Dha08FormScript.test_web_resource_is_deployed` - pass
 
 ## DHA-9 Approved absence creates the time entry
 
@@ -74,7 +43,7 @@
 - ✅ `Dha09PhaseA.test_end_before_start_is_rejected` - pass
 - ✅ `Dha09PhaseA.test_end_date_defaults_to_start_date` - pass
 - ✅ `Dha09PhaseA.test_entries_are_generic_non_chargeable_approved_leave_for_the_right_person_and_job` - pass
-- ✅ `Dha09PhaseA.test_full_week_gives_five_working_days_of_7_5_hours` - pass
+- ✅ `Dha09PhaseA.test_full_week_gives_five_working_days_8_5_mon_to_thu_and_8_friday` - pass
 - ✅ `Dha09PhaseA.test_half_day_for_a_part_timer_uses_their_day` - pass
 - ✅ `Dha09PhaseA.test_half_days_at_each_end_of_a_multi_day_booking` - pass
 - ✅ `Dha09PhaseA.test_part_day_11_to_13_is_two_hours` - pass
@@ -96,38 +65,3 @@
 - ✅ `Dha09SharePointFlows.test_request_flow_records_approved_absence_and_withdraws_everything_else` - pass
 - ✅ `Dha09SharePointFlows.test_request_flow_watches_the_leave_request_list` - pass
 - ✅ `Dha09SharePointFlows.test_working_from_home_is_excluded_by_default` - pass
-
-## DHA-10 Cancelling an absence deactivates the time entry
-
-- ✅ `Dha10DesktopRequests.test_approved_cancellation_deactivates_the_entries_and_keeps_the_request` - pass
-- ✅ `Dha10DesktopRequests.test_entries_link_back_to_the_request` - pass
-- ✅ `Dha10DesktopRequests.test_hr_cancelling_approved_leave_deactivates_the_entries` - pass
-- ✅ `Dha10LeaveApp.test_cancelled_day_plus_real_work_counts_only_the_real_work` - pass
-- ✅ `Dha10LeaveApp.test_cancelling_deactivates_and_never_deletes` - pass
-- ✅ `Dha10LeaveApp.test_every_entry_is_traceable_to_its_absence` - pass
-- ✅ `Dha10LeaveApp.test_only_this_absences_entries_are_touched` - pass
-- ✅ `Dha10LeaveApp.test_re_approving_reactivates_the_same_entries_rather_than_duplicating` - pass
-- ✅ `Dha10LeaveApp.test_shortening_leave_deactivates_only_the_dropped_day` - pass
-- ✅ `Dha10Views.test_default_time_entry_views_show_active_only` - pass
-- ⚠️ `Dha10Views.test_reconciliation_view_shows_active_only` - known gap
-  > KNOWN GAP (not changed - outside the leave work): this view has no status filter, so deactivated
-  > leave entries appear in it. The reconciliation process itself still needs checking too.
-
-## DHA-16 Internal source is mandatory on a quote
-
-- ❌ `Dha16InternalSource.test_every_active_quote_main_form_has_internal_source (form='Project quote information - details')` - FAIL
-  > File "C:\Users\thalverson\Code\DHA\DHA.DSTC.WPF\DHA.Dataverse\Tests\test_dha16_internal_source.py", line 26, in test_every_active_quote_main_form_has_internal_source
-  > self.assertTrue('datafieldname="isc_internalsource"' in f["formxml"],
-  > AssertionError: False is not true : Internal Source is not on the 'Project quote information - details' form - a Business Required field that isn't on a form can't be filled in there
-- ✅ `Dha16InternalSource.test_internal_source_is_business_required` - pass
-- ✅ `Dha16InternalSource.test_internal_source_is_editable_on_the_forms` - pass
-- ❌ `Dha16InternalSource.test_quote_without_internal_source_cannot_be_saved_outside_the_form` - FAIL
-  > File "C:\Users\thalverson\Code\DHA\DHA.DSTC.WPF\DHA.Dataverse\Tests\test_dha16_internal_source.py", line 50, in test_quote_without_internal_source_cannot_be_saved_outside_the_form
-  > self.assertGreaterEqual(s, 400, "a quote with no internal source was saved through the API")
-  > AssertionError: 201 not greater than or equal to 400 : a quote with no internal source was saved through the API
-- ⏭️ `Dha16InternalSource.test_report_existing_quotes_without_internal_source` - skip
-  > INFO: 21 of 54 open/active quotes in dev have no internal source (card question: what happens to existing quotes?)
-
-## .NET unit tests (leave day calculation, leave events)
-
-- ✅ `30 unit tests` - pass

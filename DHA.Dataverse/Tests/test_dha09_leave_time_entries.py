@@ -54,12 +54,13 @@ class Dha09PhaseA(DataverseTestCase):
 
     # ---- hours ----
 
-    def test_full_week_gives_five_working_days_of_7_5_hours(self):
+    def test_full_week_gives_five_working_days_8_5_mon_to_thu_and_8_friday(self):
         key, r = self.record("week", start="2027-03-01", end="2027-03-07")       # Mon-Sun
         out = self.assertActionOk(r)
         self.assertEqual(5, out["EntriesCreated"])
-        self.assertEqual(37.5, out["TotalHours"])
-        self.assertEqual({f"2027-03-0{d}": 7.5 for d in range(1, 6)}, day_hours(leave_entries(key)))
+        self.assertEqual(42.0, out["TotalHours"])
+        self.assertEqual({"2027-03-01": 8.5, "2027-03-02": 8.5, "2027-03-03": 8.5, "2027-03-04": 8.5, "2027-03-05": 8.0},
+                         day_hours(leave_entries(key)), "HR decision 15 Oct 2026: 8.5h Mon-Thu, 8h Fri")
 
     def test_part_day_11_to_13_is_two_hours(self):
         key, r = self.record("part", start="2027-03-10", start_time="11:00", end_time="13:00")
@@ -70,24 +71,24 @@ class Dha09PhaseA(DataverseTestCase):
         # Wed from 13:30, Thu all day, Fri until 12:00
         key, r = self.record("multi", start="2027-03-10", end="2027-03-12", start_time="13:30", end_time="12:00")
         self.assertActionOk(r)
-        self.assertEqual({"2027-03-10": 4.0, "2027-03-11": 7.5, "2027-03-12": 3.0}, day_hours(leave_entries(key)))
+        self.assertEqual({"2027-03-10": 4.0, "2027-03-11": 8.5, "2027-03-12": 3.0}, day_hours(leave_entries(key)))
 
     def test_whole_working_day_window_counts_expected_hours_not_elapsed(self):
         key, r = self.record("window", start="2027-03-15", start_time="09:00", end_time="17:30")
         self.assertActionOk(r)
-        self.assertEqual({"2027-03-15": 7.5}, day_hours(leave_entries(key)))
+        self.assertEqual({"2027-03-15": 8.5}, day_hours(leave_entries(key)))
 
     def test_bank_holidays_in_a_booking_are_skipped(self):
         # Thu 25 Mar - Tue 30 Mar 2027: Good Friday 26th and Easter Monday 29th are bank holidays
         key, r = self.record("easter", start="2027-03-25", end="2027-03-30")
         self.assertActionOk(r)
-        self.assertEqual({"2027-03-25": 7.5, "2027-03-30": 7.5}, day_hours(leave_entries(key)))
+        self.assertEqual({"2027-03-25": 8.5, "2027-03-30": 8.5}, day_hours(leave_entries(key)))
 
     def test_part_time_pattern_only_books_working_days(self):
         # Harriet (dev): Mon and Fri off
         key, r = self.record("parttime", user=HARRIET, start="2027-03-01", end="2027-03-05")
         self.assertActionOk(r)
-        self.assertEqual({"2027-03-02": 7.5, "2027-03-03": 7.5, "2027-03-04": 7.5}, day_hours(leave_entries(key)))
+        self.assertEqual({"2027-03-02": 8.5, "2027-03-03": 8.5, "2027-03-04": 8.5}, day_hours(leave_entries(key)))
 
     def test_colleague_with_times_but_no_hours_falls_back_to_a_standard_day(self):
         # Alice (dev): no expected hours, finish recorded as "5.30" -> 17:30
@@ -104,7 +105,7 @@ class Dha09PhaseA(DataverseTestCase):
     def test_end_date_defaults_to_start_date(self):
         key, r = self.record("oneday", start="2027-03-17")
         self.assertActionOk(r)
-        self.assertEqual({"2027-03-17": 7.5}, day_hours(leave_entries(key)))
+        self.assertEqual({"2027-03-17": 8.5}, day_hours(leave_entries(key)))
 
     # ---- Valto half days (StartHalfDay / EndHalfDay) ----
 
@@ -112,26 +113,26 @@ class Dha09PhaseA(DataverseTestCase):
         key = KEY + "pm-half"
         self.keys.add(key)
         self.assertActionOk(action("fwp_RecordLeave", {"UserId": JESSICA, "StartDate": "2027-03-22", "StartHalfDay": True, "SourceKey": key}))
-        self.assertEqual({"2027-03-22": 3.75}, day_hours(leave_entries(key)))
+        self.assertEqual({"2027-03-22": 4.25}, day_hours(leave_entries(key)))
 
     def test_valto_morning_half_day_is_exactly_half_a_day(self):
         key = KEY + "am-half"
         self.keys.add(key)
         self.assertActionOk(action("fwp_RecordLeave", {"UserId": JESSICA, "StartDate": "2027-03-23", "EndHalfDay": True, "SourceKey": key}))
-        self.assertEqual({"2027-03-23": 3.75}, day_hours(leave_entries(key)))
+        self.assertEqual({"2027-03-23": 4.25}, day_hours(leave_entries(key)))
 
     def test_valto_half_days_at_both_ends_of_a_booking(self):
         key = KEY + "both-halves"
         self.keys.add(key)
         self.assertActionOk(action("fwp_RecordLeave", {"UserId": JESSICA, "StartDate": "2027-04-14", "EndDate": "2027-04-16",
                                                        "StartHalfDay": True, "EndHalfDay": True, "SourceKey": key}))
-        self.assertEqual({"2027-04-14": 3.75, "2027-04-15": 7.5, "2027-04-16": 3.75}, day_hours(leave_entries(key)))
+        self.assertEqual({"2027-04-14": 4.25, "2027-04-15": 8.5, "2027-04-16": 4.0}, day_hours(leave_entries(key)))
 
     def test_half_day_for_a_part_timer_uses_their_day(self):
         key = KEY + "harriet-half"
         self.keys.add(key)
         self.assertActionOk(action("fwp_RecordLeave", {"UserId": HARRIET, "StartDate": "2027-04-21", "StartHalfDay": True, "SourceKey": key}))
-        self.assertEqual({"2027-04-21": 3.75}, day_hours(leave_entries(key)))
+        self.assertEqual({"2027-04-21": 4.25}, day_hours(leave_entries(key)))
 
     # ---- what the entry looks like ----
 
@@ -144,7 +145,7 @@ class Dha09PhaseA(DataverseTestCase):
         self.assertEqual(800470000, e["fwp_classification"], "Project classification")
         self.assertEqual(self.leave_job, e["_fwp_project_value"])
         self.assertEqual(JESSICA, e["_fwp_teammember_value"])
-        self.assertEqual((7, 30), (e["fwp_durationhours"], e["fwp_minutes"]), "hours/minutes split as the desktop app writes it")
+        self.assertEqual((8, 30), (e["fwp_durationhours"], e["fwp_minutes"]), "hours/minutes split as the desktop app writes it")
 
     def test_person_can_be_given_by_email(self):
         key, r = self.record("email", start="2027-03-19", by_email=True)
@@ -216,7 +217,7 @@ class Dha09PhaseA(DataverseTestCase):
             self.assertGreater(out["EntriesCreated"], 50, "every active colleague should get one")
 
             jess = leave_entries(f"BH-2027-05-03-{JESSICA.replace('-', '')}")
-            self.assertEqual({"2027-05-03": 7.5}, day_hours(jess))
+            self.assertEqual({"2027-05-03": 8.5}, day_hours(jess))
             self.assertEqual("Bank holiday", jess[0]["fwp_notes"])
             self.assertEqual(self.bh_job, jess[0]["_fwp_project_value"])
             self.assertEqual([], leave_entries(f"BH-2027-05-03-{HARRIET.replace('-', '')}"), "Harriet doesn't work Mondays")

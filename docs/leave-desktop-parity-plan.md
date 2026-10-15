@@ -26,10 +26,18 @@ Owner: Select Technology (Tom Halverson). Business owner: Harriet Baker (HR).
 | Q7 | **No automatic new-starter entitlement.** HR sets each one up as people start | A5 dropped; the A2 HR screen must make set-up quick |
 | Q8 | **Working From Home still needs approval and appears in team views** | E7, M3 |
 
-### Follow-up questions (raised by these answers)
+### Follow-ups
 
-| # | Question | Why |
+| # | Question | Outcome |
 |---|---|---|
+| F1 | Hours a day of leave puts on the timesheet | ✅ **Decided (15 Oct): Harriet's figures, 8.5h Mon–Thu and 8h Fri.** A half day is half of that (4.25 / 4). Held in the setting `fwp_LeaveDayHours`. **Built and tested in dev, and live in phase A.** Colleague configuration still says *which* days someone works; its expected hours (8 / 7.5 in prod) are not changed, because they also drive timesheet reminders and daily progress |
+| F2 | Should next year's entitlement be created automatically each January for **existing** staff, with only new starters done by hand? | **Open** |
+| F3 | Where part-timers' working days are kept | ✅ The desktop app reads and writes Dynamics (colleague configuration); the Valto app is what's being replaced. Today Harriet sets working days in **Valto's Employee Configuration list**, while Dynamics keeps a separate copy for timesheets. After cutover, **Dynamics is the only place**: HR edits it in the desktop HR screen (A1). Migration compares the two and reports differences (8 people have no working days in Dynamics) |
+| F4 | Phone or browser access for approvers | ✅ **No phone app.** A phone app would be a separate development project. X1 is removed; approvals happen in the desktop app |
+| F5 | Wording of shared calendar events | ✅ **"Out of Office"** for every type, so the absence type never appears on the shared calendar |
+| F6 | The "By Department" filter when approving: where is department held? | **Open** |
+
+---|---|---|
 | F1 | "8.5 hours Mon–Thu, 8 hours Friday": is that the office day or the hours worked? Prod colleague configurations hold **08:30–17:30 with a 1h break = 8h worked Mon–Thu**, and **08:30–17:00 = 7.5h on Friday**. What should a day's leave put on the timesheet: 8 / 7.5, or 8.5 / 8? | A leave day records that day's expected hours from colleague configuration. That's live in phase A as soon as it's switched on |
 | F2 | Should **next year's entitlement** be created automatically each January for **existing** staff (Valto's flow does this), with only new starters done by hand? | A4 |
 | F3 | Part-timers' working days are set in the Valto app. Dynamics also holds a working pattern for every colleague (used for timesheet reminders). Once Valto is retired, **HR maintains the Dynamics pattern**. OK? 8 people currently have no working days at all in Dynamics | Single source of truth; migration compares the two |
@@ -132,10 +140,10 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 | **N1** | New request → email the **approver** (notes when booked on behalf) | 🟡 Goes to HR@ | Send to the request's approver and additional approver (Q2); mention booked-by |
 | **N2** | Outcome emails (approved, rejected, cancellation approved or declined) | ✅ | Wording review with Harriet |
 | **N3** | Weekday 10:00 reminder **per approver** of their outstanding requests | 🟡 One email to HR | One email per approver listing their outstanding requests (Q2) |
-| **N4** | **Shared Outlook calendar**: event on approval, deleted on cancellation (`CalendarID`) | ❌ | **In scope (Q5).** Flow on Approved / Cancelled / date change using `fwp_calendareventid`. Same calendar as Valto (its `new_CalendarID`). Event wording **pending F5** |
+| **N4** | **Shared Outlook calendar**: event on approval, deleted on cancellation (`CalendarID`) | ❌ | **In scope (Q5).** Flow on Approved / Cancelled / date change using `fwp_calendareventid`. Same calendar as Valto (its `new_CalendarID`). Events say **"Out of Office"** (F5) |
 | **N5** | Deep links from emails to the app | ❌ | Link to the Dynamics record (works on phone); optional `dha-time://` desktop link later |
 | **N6** | Item-level SharePoint permissions (employee, approver, owners) | ✅ Different mechanism: user-owned rows + sharing + roles | Extend sharing to additional approvers (**M1**) |
-| **N7** | Mobile/browser access (the canvas app works anywhere) | ❌ Desktop only | Model-driven app "DHA Leave" for approvers and HR (**X1**) |
+| ~~N7~~ | Mobile/browser access (the canvas app works anywhere) | – | **Out of scope (F4).** No phone app; a phone app would be its own project |
 
 ### Not carried over (by design)
 
@@ -207,17 +215,17 @@ Each stage ends with its automated tests passing in dev and a demo to Harriet.
 
 | Stage | Contents | Depends on | Estimate (days) |
 |---|---|---|---|
-| **0. Decisions** | ✅ Q1–Q8 answered 15 Oct. Follow-ups **F1–F6** outstanding | – | – |
-| **1. Model** | D1–D5, D7: schema, type flags (incl. WFH), days, calendar years, approver fields, ownership fix; seed DHA's real leave types | F3, F6 | 3 |
+| **0. Decisions** | ✅ Q1–Q8 and F1, F3–F5 answered 15 Oct. **F2, F6 open** | – | – |
+| **1. Model** | D1–D5, D7: schema, type flags (incl. WFH), days, calendar years, approver fields, ownership fix; seed DHA's real leave types | F6 | 3 |
 | **2. Employee parity** | E1–E7, E9–E12: days-based form and balance (pending counted), year-span rule, mandatory details + confirmation, WFH requests, multi-year balance, request filters, cancellation comment, company holidays | 1 | 5 |
 | **3. Approver parity** | M1–M6, N1, N3, N6: line managers + additional approvers, filters/badge, team views incl. WFH, per-person balance, cancel on behalf, per-approver emails and reminder | 1 | 6 |
 | **4. HR administration** | A1, A2, A7, A9, E13: colleague leave settings, entitlement editor (incl. new starters, carry-forward override), book on behalf | 1 | 4 |
 | **5. Year-end** | A3, A4 (D6): January generate + carry forward with override | 1, F2 | 2 |
-| **6. Outlook calendar** | N4 | F5 | 1.5 |
-| **7. Optional** | N5 links, X1 phone/browser access for approvers | F4 | 1–3 |
+| **6. Outlook calendar** | N4 ("Out of Office" events) | – | 1.5 |
+| **7. Optional** | N5 email links into Dynamics records | – | 0.5 |
 | **8. Migration** | §5 scripts, dry runs against a copy of the lists, reconciliation report | 1 | 4 |
 | **9. Release and cutover** | §6: merge desktop branches, UAT, parallel run, go-live, Valto retirement | all | 4 |
-| | **Total** | | **~30 days**, plus optional 1–3 |
+| | **Total** | | **~30 days**, plus optional 0.5 |
 
 Stages 2–5 can overlap once stage 1 is done.
 
@@ -289,7 +297,7 @@ Q1–Q8 are answered: see **§0** (Harriet, 15 Oct 2026). Open follow-ups **F1�
 
 | Risk | Mitigation |
 |---|---|
-| Desktop-only access: nothing on phones | X1 model-driven app for approvers and HR, or keep Valto for WFH only (not recommended) |
+| Desktop-only access: nothing on phones (accepted, F4). Approvers away from a PC can't approve | Daily reminder emails; HR can approve on anyone's behalf; additional approvers cover absences |
 | Balance mismatches after migration | Reconciliation report gate; parallel run |
 | Two systems live at once (double booking) | A short parallel run limited to pilot users; Valto made read-only at cutover |
 | Form drift between dev and prod | Rebuild forms from prod; compare before every import (see the DHA-7/8 notes) |

@@ -151,7 +151,7 @@ namespace DHA.Leave.Plugins
             var days = LeaveDayCalculator.Calculate(start.Value, end.Value,
                 LeaveDayCalculator.ParseTime(getText("fwp_starttime"), false),
                 LeaveDayCalculator.ParseTime(getText("fwp_endtime"), true),
-                leave.LoadWorkingPattern(employee.Id, settings.DefaultDayHours),
+                leave.LoadWorkingPattern(employee.Id, settings.LeaveDayHours),
                 leave.LoadBankHolidays(start.Value, end.Value));
             target["fwp_hours"] = days.Sum(d => d.Hours);
 

@@ -62,7 +62,7 @@ class Dha09NewRequests(LeaveRequestTestCase):
         rid = self.created("2027-06-07", "2027-06-11")      # Mon-Fri
         r = self.request(rid)
         self.assertEqual(PENDING, r["fwp_status"])
-        self.assertEqual(37.5, r["fwp_hours"])
+        self.assertEqual(42.0, r["fwp_hours"])
         self.assertEqual("Requested", r["fwp_lastevent"])
         self.assertEqual(me(), r["_fwp_bookedby_value"])
         self.assertTrue(r["fwp_name"].endswith("07/06/2027 to 11/06/2027"), r["fwp_name"])
@@ -70,7 +70,7 @@ class Dha09NewRequests(LeaveRequestTestCase):
 
     def test_hours_ignore_what_the_client_sends(self):
         rid = self.created("2027-06-14", fwp_hours=999)
-        self.assertEqual(7.5, self.request(rid)["fwp_hours"], "the server must work hours out, not trust the app")
+        self.assertEqual(8.5, self.request(rid)["fwp_hours"], "the server must work hours out, not trust the app")
 
     def test_part_day_request_hours(self):
         rid = self.created("2027-06-15", start_time="11:00", end_time="13:00")
@@ -78,11 +78,11 @@ class Dha09NewRequests(LeaveRequestTestCase):
 
     def test_bank_holidays_are_not_counted(self):
         rid = self.created("2027-05-28", "2027-06-01")       # Fri, (Sat, Sun), Mon 31 May bank holiday, Tue
-        self.assertEqual(15.0, self.request(rid)["fwp_hours"])
+        self.assertEqual(16.5, self.request(rid)["fwp_hours"])      # Fri 8 + Tue 8.5
 
     def test_part_time_colleague_hours(self):
         rid = self.created("2027-06-21", "2027-06-25", employee=HARRIET)   # Harriet: Tue-Thu only
-        self.assertEqual(22.5, self.request(rid)["fwp_hours"])
+        self.assertEqual(25.5, self.request(rid)["fwp_hours"])      # Tue-Thu 3 x 8.5
 
     def test_end_before_start_is_rejected(self):
         s, d = self.create("2027-06-20", "2027-06-18")
@@ -143,7 +143,7 @@ class Dha09Decisions(LeaveRequestTestCase):
         r = self.request(rid)
         self.assertEqual("Approved", r["fwp_lastevent"])
         e = self.entries(rid)
-        self.assertEqual({"2027-08-09": 7.5, "2027-08-10": 7.5, "2027-08-11": 7.5}, day_hours(e))
+        self.assertEqual({"2027-08-09": 8.5, "2027-08-10": 8.5, "2027-08-11": 8.5}, day_hours(e))
         self.assertTrue(all(x["_fwp_leaverequest_value"] == rid for x in e), "every entry traceable to its request")
         self.assertTrue(all(x["fwp_notes"] == "Approved leave" for x in e))
 
@@ -173,8 +173,8 @@ class Dha09Decisions(LeaveRequestTestCase):
         rid = self.created("2027-09-06", "2027-09-08")
         self.set_status(rid, APPROVED)
         call("PATCH", f"{self.LR}({rid})", {"fwp_enddate": "2027-09-07", "fwp_endtime": "12:45"})
-        self.assertEqual(11.25, self.request(rid)["fwp_hours"])
-        self.assertEqual({"2027-09-06": 7.5, "2027-09-07": 3.75}, day_hours(self.entries(rid)))
+        self.assertEqual(12.25, self.request(rid)["fwp_hours"])     # Mon 8.5 + Tue 09:00-12:45
+        self.assertEqual({"2027-09-06": 8.5, "2027-09-07": 3.75}, day_hours(self.entries(rid)))
 
     def test_deleting_pending_leave_is_allowed(self):
         s, d = self.create("2027-09-13")
