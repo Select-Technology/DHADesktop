@@ -43,6 +43,49 @@ namespace DHA.Leave.Plugins
             return pattern;
         }
 
+        /// <summary>
+        /// Hours a day of leave records, Monday first (HR decision 15 Oct 2026: 8.5h Mon-Thu, 8h Fri). Deliberately separate
+        /// from colleague configuration's expected hours, which also drive timesheet reminders and daily progress.
+        /// </summary>
+        public static readonly decimal[] StandardLeaveDayHours = { 8.5m, 8.5m, 8.5m, 8.5m, 8m, 0m, 0m };
+
+        /// <summary>Parses "8.5,8.5,8.5,8.5,8,0,0" (Monday first); anything unusable falls back to the standard.</summary>
+        public static decimal[] ParseLeaveDayHours(string text)
+        {
+            var parts = (text ?? "").Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 7)
+                return (decimal[])StandardLeaveDayHours.Clone();
+            var hours = new decimal[7];
+            for (int i = 0; i < 7; i++)
+                if (!decimal.TryParse(parts[i].Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out hours[i]) || hours[i] < 0)
+                    return (decimal[])StandardLeaveDayHours.Clone();
+            return hours;
+        }
+
+        /// <summary>
+        /// The pattern leave is calculated against. WHICH days someone works comes from their colleague configuration
+        /// (expected hours of 0 = a day off; Harriet: part-timers work specific days). HOW MANY hours a day of leave records
+        /// comes from <paramref name="leaveDayHours"/>. Start/finish are only used to place part-day bookings.
+        /// </summary>
+        /// <param name="expectedHours">Colleague configuration expected hours, Monday first (Mon-Fri only exist); null = no configuration.</param>
+        public static WorkingDay[] BuildPattern(decimal[] leaveDayHours, decimal?[] expectedHours, string[] starts = null, string[] finishes = null)
+        {
+            var pattern = new WorkingDay[7];
+            for (int i = 0; i < 7; i++)
+            {
+                decimal? configured = expectedHours != null && i < expectedHours.Length ? expectedHours[i] : null;
+                // No configuration, or the day not filled in: use the standard working week
+                bool works = configured.HasValue ? configured.Value > 0 : leaveDayHours[i] > 0;
+                pattern[i] = !works ? WorkingDay.NotWorking() : new WorkingDay
+                {
+                    ExpectedHours = leaveDayHours[i] > 0 ? leaveDayHours[i] : configured ?? 0m,
+                    Start = ParseTime(starts != null && i < starts.Length ? starts[i] : null, false) ?? new TimeSpan(8, 30, 0),
+                    Finish = ParseTime(finishes != null && i < finishes.Length ? finishes[i] : null, true) ?? new TimeSpan(17, 30, 0)
+                };
+            }
+            return pattern;
+        }
+
         /// <summary>Index into a Monday-first pattern array.</summary>
         public static int PatternIndex(DayOfWeek day) => ((int)day + 6) % 7;
 

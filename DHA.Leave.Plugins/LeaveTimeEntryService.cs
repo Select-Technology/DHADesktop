@@ -60,7 +60,7 @@ namespace DHA.Leave.Plugins
                 throw new InvalidPluginExecutionException(
                     $"Environment variable {(bankHoliday ? LeaveSettings.BankHolidayProjectVar : LeaveSettings.LeaveProjectVar)} is not set.");
 
-            var pattern = LoadWorkingPattern(userId, settings.DefaultDayHours);
+            var pattern = LoadWorkingPattern(userId, settings.LeaveDayHours);
             // Leave never lands on a bank holiday - the bank holiday has its own entry
             var skip = bankHoliday ? null : LoadBankHolidays(startDate, endDate);
             var days = LeaveDayCalculator.Calculate(startDate, endDate, startTime, endTime, pattern, skip, startHalfDay, endHalfDay);
@@ -203,7 +203,8 @@ namespace DHA.Leave.Plugins
             return users[0].Id;
         }
 
-        public WorkingDay[] LoadWorkingPattern(Guid userId, decimal defaultDayHours)
+        /// <summary>Working days from colleague configuration; hours per leave day from the fwp_LeaveDayHours setting.</summary>
+        public WorkingDay[] LoadWorkingPattern(Guid userId, decimal[] leaveDayHours)
         {
             // Colleague configuration only has Monday-Friday; weekends stay as non-working days
             var names = new[] { "monday", "tuesday", "wednesday", "thursday", "friday" };
@@ -214,26 +215,15 @@ namespace DHA.Leave.Plugins
             q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
             var cfg = _svc.RetrieveMultiple(q).Entities.FirstOrDefault();
 
-            var pattern = LeaveDayCalculator.DefaultPattern(defaultDayHours);
             if (cfg == null)
             {
-                _trace?.Trace($"No colleague configuration for {userId} - using Mon-Fri {defaultDayHours}h.");
-                return pattern;
+                _trace?.Trace($"No colleague configuration for {userId} - using the standard working week.");
+                return LeaveDayCalculator.BuildPattern(leaveDayHours, null);
             }
-
-            for (int i = 0; i < names.Length; i++)
-            {
-                var hours = cfg.GetAttributeValue<decimal?>($"fwp_{names[i]}expectedhours");
-                if (!hours.HasValue)
-                    continue; // not filled in - keep the default for that day
-                pattern[i] = new WorkingDay
-                {
-                    ExpectedHours = hours.Value,
-                    Start = LeaveDayCalculator.ParseTime(cfg.GetAttributeValue<string>($"fwp_{names[i]}start"), false) ?? new TimeSpan(9, 0, 0),
-                    Finish = LeaveDayCalculator.ParseTime(cfg.GetAttributeValue<string>($"fwp_{names[i]}finish"), true) ?? new TimeSpan(17, 30, 0)
-                };
-            }
-            return pattern;
+            return LeaveDayCalculator.BuildPattern(leaveDayHours,
+                names.Select(n => cfg.GetAttributeValue<decimal?>($"fwp_{n}expectedhours")).ToArray(),
+                names.Select(n => cfg.GetAttributeValue<string>($"fwp_{n}start")).ToArray(),
+                names.Select(n => cfg.GetAttributeValue<string>($"fwp_{n}finish")).ToArray());
         }
 
         public HashSet<DateTime> LoadBankHolidays(DateTime from, DateTime to)

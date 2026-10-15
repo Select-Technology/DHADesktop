@@ -14,12 +14,15 @@ namespace DHA.Leave.Plugins
         public const string DefaultDayHoursVar = "fwp_LeaveDefaultDayHours";
         public const string LeaveLabelVar = "fwp_LeaveEntryLabel";
         public const string BankHolidayLabelVar = "fwp_BankHolidayEntryLabel";
+        public const string LeaveDayHoursVar = "fwp_LeaveDayHours";
 
         public Guid LeaveProjectId { get; private set; }
         public Guid BankHolidayProjectId { get; private set; }
         public decimal DefaultDayHours { get; private set; } = LeaveDayCalculator.DefaultDayHours;
         public string LeaveLabel { get; private set; } = "Approved leave";
         public string BankHolidayLabel { get; private set; } = "Bank holiday";
+        /// <summary>Hours a day of leave records, Monday first.</summary>
+        public decimal[] LeaveDayHours { get; private set; } = (decimal[])LeaveDayCalculator.StandardLeaveDayHours.Clone();
 
         public static LeaveSettings Load(IOrganizationService svc)
         {
@@ -32,6 +35,7 @@ namespace DHA.Leave.Plugins
                 decimal.TryParse(v, NumberStyles.Number, CultureInfo.InvariantCulture, out var h) && h > 0) s.DefaultDayHours = h;
             if (values.TryGetValue(LeaveLabelVar, out v) && !string.IsNullOrWhiteSpace(v)) s.LeaveLabel = v;
             if (values.TryGetValue(BankHolidayLabelVar, out v) && !string.IsNullOrWhiteSpace(v)) s.BankHolidayLabel = v;
+            if (values.TryGetValue(LeaveDayHoursVar, out v)) s.LeaveDayHours = LeaveDayCalculator.ParseLeaveDayHours(v);
             return s;
         }
 
@@ -40,7 +44,7 @@ namespace DHA.Leave.Plugins
         {
             var q = new QueryExpression("environmentvariabledefinition") { ColumnSet = new ColumnSet("schemaname", "defaultvalue") };
             q.Criteria.AddCondition("schemaname", ConditionOperator.In,
-                LeaveProjectVar, BankHolidayProjectVar, DefaultDayHoursVar, LeaveLabelVar, BankHolidayLabelVar);
+                LeaveProjectVar, BankHolidayProjectVar, DefaultDayHoursVar, LeaveLabelVar, BankHolidayLabelVar, LeaveDayHoursVar);
             var val = q.AddLink("environmentvariablevalue", "environmentvariabledefinitionid", "environmentvariabledefinitionid", JoinOperator.LeftOuter);
             val.Columns = new ColumnSet("value");
             val.EntityAlias = "v";

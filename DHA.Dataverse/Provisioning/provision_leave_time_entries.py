@@ -90,6 +90,9 @@ env_var("fwp_LeaveProjectId", "Leave - Approved Leave Job Id", "msdyn_projectid 
 env_var("fwp_BankHolidayProjectId", "Leave - Bank Holiday Job Id", "msdyn_projectid of the Job that bank holidays are recorded against (prod: Bank Holiday 36235).", STRING, None)
 env_var("fwp_LeaveDefaultDayHours", "Leave - Default Day Hours", "Hours in a full day of leave when a colleague has no working pattern.", NUMBER, "7.5")
 env_var("fwp_LeaveEntryLabel", "Leave - Time Entry Label", "Comment written on leave time entries. Deliberately generic - never the absence type.", STRING, "Approved leave")
+env_var("fwp_LeaveDayHours", "Leave - Hours per Day of Leave",
+        "Hours a day of leave puts on the timesheet, Monday first (HR, 15 Oct 2026: 8.5 Mon-Thu, 8 Fri). Which days someone "
+        "works still comes from their colleague configuration.", STRING, "8.5,8.5,8.5,8.5,8,0,0")
 env_var("fwp_BankHolidayEntryLabel", "Leave - Bank Holiday Label", "Comment written on bank holiday time entries.", STRING, "Bank holiday")
 
 # 5. Plugin assembly + types
