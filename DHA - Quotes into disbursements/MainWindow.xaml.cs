@@ -6728,7 +6728,7 @@ namespace DHA.DSTC.WPF
                     $"Switch to the {targetName} environment?\n\n" +
                     $"URL: {targetUrl}\n\n" +
                     "This will disconnect from the current environment and reconnect.\n" +
-                    "You may be prompted to log in again.",
+                    "You'll only be asked to sign in if your saved sign-in has expired.",
                     $"Switch to {targetName}",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
@@ -6738,12 +6738,18 @@ namespace DHA.DSTC.WPF
                 UpdateStatus($"Switching to {targetName} environment...");
                 UpdateConnectionStatus(false);
 
-                // Switch the environment URL
-                var authService = Services.DataverseAuthService.Instance;
-                authService.SwitchEnvironment(targetUrl);
+                // The impersonated user's id belongs to the environment we're leaving - users have different ids in dev and prod
+                if (ServiceLocator.IsImpersonating)
+                {
+                    ServiceLocator.StopImpersonation();
+                    UpdateImpersonateButtonAppearance();
+                }
 
-                // Reconnect with forced auth
-                bool connected = await Task.Run(() => ServiceLocator.Connect(forceReconnect: true, showMessages: false));
+                // Switch and connect in one step, using the saved sign-in (normally no prompt)
+                var authService = Services.DataverseAuthService.Instance;
+                bool connected = await authService.SwitchEnvironmentAsync(targetUrl);
+                if (connected)
+                    connected = await Task.Run(() => ServiceLocator.Connect(forceReconnect: false, showMessages: false)); // this environment's user id
 
                 if (connected)
                 {
@@ -6768,8 +6774,8 @@ namespace DHA.DSTC.WPF
 
                     // Try to reconnect to original environment
                     var fallbackUrl = _isDevEnvironment ? DevEnvironmentUrl : ProdEnvironmentUrl;
-                    authService.SwitchEnvironment(fallbackUrl);
-                    await Task.Run(() => ServiceLocator.Connect(forceReconnect: true, showMessages: false));
+                    if (await authService.SwitchEnvironmentAsync(fallbackUrl))
+                        await Task.Run(() => ServiceLocator.Connect(forceReconnect: false, showMessages: false));
                     await LoadInitialData();
                 }
             }
