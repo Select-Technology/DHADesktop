@@ -17,5 +17,16 @@ namespace DHA.Leave.Plugins.Tests
         {
             Assert.Equal(expected, LeaveEvent.For(oldStatus, newStatus));
         }
+
+        [Theory]
+        [InlineData(LeaveStatus.Approved, true)]
+        [InlineData(LeaveStatus.CancellationRequested, true)]
+        [InlineData(LeaveStatus.Pending, false)]
+        [InlineData(LeaveStatus.Rejected, false)]
+        [InlineData(LeaveStatus.Cancelled, false)]
+        public void OnlyApprovedLeaveGoesToTheApproverForCancellation(int oldStatus, bool allowed)
+        {
+            Assert.Equal(allowed, LeaveEvent.CanRequestCancellation(oldStatus));
+        }
     }
 }

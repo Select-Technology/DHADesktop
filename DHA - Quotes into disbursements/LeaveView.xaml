@@ -2,20 +2,25 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              IsVisibleChanged="LeaveView_IsVisibleChanged">
-    <!-- Leave booking (DHA-9 phase B). Styles come from MainWindow.Resources, hence DynamicResource. -->
+    <!-- My leave (DHA-9 phase B, parity plan stage 2). Styles come from MainWindow.Resources, hence DynamicResource. -->
     <Grid Margin="16">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="340" MinWidth="260"/>
+            <ColumnDefinition Width="360" MinWidth="280"/>
             <ColumnDefinition Width="12"/>
-            <ColumnDefinition Width="*" MinWidth="360"/>
+            <ColumnDefinition Width="*" MinWidth="420"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Request form -->
+        <!-- ===== Request form (E1-E7) ===== -->
         <Border Grid.Column="0" Style="{DynamicResource CardStyle}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Text="Request Leave" FontSize="18" FontWeight="SemiBold"
+                    <TextBlock Text="New Request" FontSize="18" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+
+                    <TextBlock Text="Type" Style="{DynamicResource FormLabelStyle}"/>
+                    <ComboBox x:Name="LeaveTypeComboBox" Margin="0,0,0,4" Height="32" SelectionChanged="Type_Changed"/>
+                    <TextBlock x:Name="TypePrivacyText" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"
+                               Text="Only you, your approver and HR can see the type. Your timesheet just says &quot;Approved leave&quot;."/>
 
                     <TextBlock Text="From" Style="{DynamicResource FormLabelStyle}"/>
                     <DatePicker x:Name="StartDatePicker" Margin="0,0,0,12" Height="32" SelectedDateChanged="Date_Changed"/>
@@ -23,67 +28,72 @@
                     <TextBlock Text="To" Style="{DynamicResource FormLabelStyle}"/>
                     <DatePicker x:Name="EndDatePicker" Margin="0,0,0,12" Height="32" SelectedDateChanged="Date_Changed"/>
 
-                    <TextBlock Text="Length" Style="{DynamicResource FormLabelStyle}"/>
-                    <WrapPanel Margin="0,0,0,12">
-                        <RadioButton x:Name="FullDayRadio" Content="Full day(s)" IsChecked="True" Margin="0,0,12,4" Checked="Length_Changed"/>
-                        <RadioButton x:Name="MorningRadio" Content="Morning" Margin="0,0,12,4" Checked="Length_Changed"/>
-                        <RadioButton x:Name="AfternoonRadio" Content="Afternoon" Margin="0,0,12,4" Checked="Length_Changed"/>
-                        <RadioButton x:Name="CustomTimesRadio" Content="Set times" Margin="0,0,12,4" Checked="Length_Changed"/>
-                    </WrapPanel>
+                    <!-- Days types: full or half days -->
+                    <StackPanel x:Name="DayLengthPanel">
+                        <TextBlock Text="Length" Style="{DynamicResource FormLabelStyle}"/>
+                        <WrapPanel Margin="0,0,0,12">
+                            <RadioButton x:Name="FullDayRadio" Content="Full day(s)" IsChecked="True" Margin="0,0,12,4" Checked="Length_Changed"/>
+                            <RadioButton x:Name="MorningRadio" Content="Morning" Margin="0,0,12,4" Checked="Length_Changed"/>
+                            <RadioButton x:Name="AfternoonRadio" Content="Afternoon" Margin="0,0,12,4" Checked="Length_Changed"/>
+                        </WrapPanel>
+                    </StackPanel>
 
-                    <Grid x:Name="CustomTimesPanel" Margin="0,0,0,12" Visibility="Collapsed">
+                    <!-- Hours types (e.g. Medical): start and end time -->
+                    <Grid x:Name="TimesPanel" Margin="0,0,0,12" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="12"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Start time (first day)" Style="{DynamicResource FormLabelStyle}"/>
+                            <TextBlock Text="Start time" Style="{DynamicResource FormLabelStyle}"/>
                             <TextBox x:Name="StartTimeTextBox" Text="09:00" Height="32" VerticalContentAlignment="Center" TextChanged="Time_Changed"/>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="End time (last day)" Style="{DynamicResource FormLabelStyle}"/>
-                            <TextBox x:Name="EndTimeTextBox" Text="17:30" Height="32" VerticalContentAlignment="Center" TextChanged="Time_Changed"/>
+                            <TextBlock Text="End time" Style="{DynamicResource FormLabelStyle}"/>
+                            <TextBox x:Name="EndTimeTextBox" Text="10:00" Height="32" VerticalContentAlignment="Center" TextChanged="Time_Changed"/>
                         </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="Type" Style="{DynamicResource FormLabelStyle}"/>
-                    <ComboBox x:Name="LeaveTypeComboBox" Margin="0,0,0,4" Height="32" SelectionChanged="Type_Changed"/>
-                    <TextBlock Text="Only you, your approver and HR can see the type. Your timesheet just says &quot;Approved leave&quot;."
-                               FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
-
-                    <TextBlock Text="Comments" Style="{DynamicResource FormLabelStyle}"/>
+                    <TextBlock Text="Details *" Style="{DynamicResource FormLabelStyle}"/>
                     <TextBox x:Name="CommentsTextBox" Height="60" TextWrapping="Wrap" AcceptsReturn="True"
-                             VerticalScrollBarVisibility="Auto" Margin="0,0,0,12"/>
+                             VerticalScrollBarVisibility="Auto" Margin="0,0,0,12" TextChanged="Time_Changed"/>
 
-                    <!-- Live preview from the same calculator the server uses -->
+                    <!-- Live preview and balance impact, from the same calculator the server uses -->
                     <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
                         <StackPanel>
                             <TextBlock x:Name="PreviewTotalText" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="PreviewBalanceText" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                             <TextBlock x:Name="PreviewDetailText" FontSize="11" Margin="0,4,0,0"
                                        Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
 
-                    <Button x:Name="SubmitButton" Content="Request leave" Height="36"
+                    <Button x:Name="SubmitButton" Content="Send for approval" Height="36"
                             Style="{DynamicResource PrimaryButtonStyle}" Click="SubmitButton_Click"/>
                 </StackPanel>
             </ScrollViewer>
         </Border>
 
-        <!-- Balance and my requests -->
+        <!-- ===== Balance, requests, company holidays ===== -->
         <Grid Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="12"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
+            <!-- Balance (E9) -->
             <Border Grid.Row="0" Style="{DynamicResource CardStyle}">
                 <StackPanel>
-                    <TextBlock x:Name="BalanceTitleText" Text="My Balance" FontSize="18" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <DockPanel Margin="0,0,0,4">
+                        <ComboBox x:Name="BalanceYearComboBox" DockPanel.Dock="Right" Width="90" Height="28" SelectionChanged="BalanceYear_Changed"/>
+                        <TextBlock Text="My Balance" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock x:Name="ApproverText" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap"/>
                     <UniformGrid Columns="4">
                         <StackPanel>
                             <TextBlock Text="Entitlement" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -102,31 +112,54 @@
                             <TextBlock x:Name="RemainingText" FontSize="20" FontWeight="SemiBold" Text="–" Foreground="#047857"/>
                         </StackPanel>
                     </UniformGrid>
-                    <TextBlock x:Name="PendingText" FontSize="11" Margin="0,8,0,0" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <TextBlock x:Name="BreakdownText" FontSize="11" Margin="0,8,0,0" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="PendingText" FontSize="11" Margin="0,2,0,0" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
+            <!-- My requests (E10, E11) -->
             <Border Grid.Row="2" Style="{DynamicResource CardStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBlock Text="My Requests" FontSize="18" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
-                    <DataGrid x:Name="RequestsGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True"
+                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                    <WrapPanel Grid.Row="1" Margin="0,0,0,8">
+                        <ComboBox x:Name="WhenFilter" Width="120" Height="28" Margin="0,0,8,4" SelectionChanged="Filter_Changed">
+                            <ComboBoxItem Content="Upcoming" IsSelected="True"/>
+                            <ComboBoxItem Content="Past"/>
+                            <ComboBoxItem Content="All dates"/>
+                        </ComboBox>
+                        <ComboBox x:Name="StatusFilter" Width="170" Height="28" Margin="0,0,8,4" SelectionChanged="Filter_Changed">
+                            <ComboBoxItem Content="Any status" IsSelected="True"/>
+                            <ComboBoxItem Content="Pending" Tag="Pending"/>
+                            <ComboBoxItem Content="Approved" Tag="Approved"/>
+                            <ComboBoxItem Content="Rejected" Tag="Rejected"/>
+                            <ComboBoxItem Content="Cancelled" Tag="Cancelled"/>
+                            <ComboBoxItem Content="Cancellation requested" Tag="CancellationRequested"/>
+                        </ComboBox>
+                        <ComboBox x:Name="TypeFilter" Width="160" Height="28" Margin="0,0,8,4" SelectionChanged="Filter_Changed"/>
+                    </WrapPanel>
+                    <DataGrid x:Name="RequestsGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
                               SelectionMode="Single" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                               SelectionChanged="RequestsGrid_SelectionChanged">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Dates" Binding="{Binding DatesText}" Width="*"/>
-                            <DataGridTextColumn Header="Type" Binding="{Binding LeaveTypeName}" Width="110"/>
-                            <DataGridTextColumn Header="Days" Binding="{Binding Days, StringFormat=0.##}" Width="60"/>
-                            <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="150"/>
-                            <DataGridTextColumn Header="Approver" Binding="{Binding ApproverName}" Width="130"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding LeaveTypeName}" Width="130"/>
+                            <DataGridTextColumn Header="Days" Binding="{Binding Days, StringFormat=0.##}" Width="50"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="160"/>
                         </DataGrid.Columns>
                     </DataGrid>
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                    <Border x:Name="RequestDetailPanel" Grid.Row="3" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1"
+                            CornerRadius="4" Padding="10,8" Margin="0,8,0,0" Visibility="Collapsed">
+                        <TextBlock x:Name="RequestDetailText" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    </Border>
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                         <Button x:Name="RefreshButton" Content="Refresh" Width="90" Height="32" Margin="0,0,8,0"
                                 Style="{DynamicResource SecondaryButtonStyle}" Click="RefreshButton_Click"/>
                         <Button x:Name="CancelRequestButton" Content="Cancel request" Width="130" Height="32" IsEnabled="False"
@@ -134,6 +167,21 @@
                     </StackPanel>
                 </Grid>
             </Border>
+
+            <!-- Company holidays (E12) -->
+            <Expander Grid.Row="3" Header="Company holidays" Margin="0,12,0,0">
+                <StackPanel Margin="0,8,0,0">
+                    <CheckBox x:Name="ShowPastHolidaysCheckBox" Content="Show past holidays" Margin="0,0,0,6"
+                              Checked="Holidays_Changed" Unchecked="Holidays_Changed"/>
+                    <ItemsControl x:Name="HolidaysList" MaxHeight="160">
+                        <ItemsControl.Template>
+                            <ControlTemplate>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
+                            </ControlTemplate>
+                        </ItemsControl.Template>
+                    </ItemsControl>
+                </StackPanel>
+            </Expander>
         </Grid>
     </Grid>
 </UserControl>

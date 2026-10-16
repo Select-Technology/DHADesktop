@@ -309,6 +309,35 @@ class Dha09ParityStage1(LeaveRequestTestCase):
             call("DELETE", f"fwp_colleagueconfigurations({cid})/fwp_AdditionalLeaveApprover/$ref")
 
 
+class Dha09ParityStage2(LeaveRequestTestCase):
+    """Parity plan stage 2: what the desktop My leave screen sends when cancelling."""
+
+    def test_withdrawing_with_a_reason_keeps_the_reason(self):
+        rid = self.created("2027-11-01")
+        call("PATCH", f"{self.LR}({rid})", {"fwp_status": CANCELLED, "fwp_cancellationcomments": "ZZTEST plans changed"})
+        r = get(f"{self.LR}({rid})?$select=fwp_status,fwp_lastevent,fwp_cancellationcomments")
+        self.assertEqual((CANCELLED, "Withdrawn", "ZZTEST plans changed"),
+                         (r["fwp_status"], r["fwp_lastevent"], r["fwp_cancellationcomments"]))
+
+    def test_asking_to_cancel_approved_leave_keeps_the_reason_and_the_timesheet(self):
+        rid = self.created("2027-11-02")
+        self.set_status(rid, APPROVED)
+        call("PATCH", f"{self.LR}({rid})", {"fwp_status": CANCEL_REQUESTED, "fwp_cancellationcomments": "ZZTEST not needed"})
+        r = get(f"{self.LR}({rid})?$select=fwp_status,fwp_cancellationcomments,fwp_cancellationrequestedon")
+        self.assertEqual((CANCEL_REQUESTED, "ZZTEST not needed"), (r["fwp_status"], r["fwp_cancellationcomments"]))
+        self.assertIsNotNone(r["fwp_cancellationrequestedon"])
+        self.assertEqual(1, len(active(self.entries(rid))))
+
+    def test_pending_leave_cannot_go_to_the_approver_for_cancellation(self):
+        # Otherwise unapproved leave lands on the timesheet, and declining the cancellation approves it
+        rid = self.created("2027-11-03")
+        s, d = call("PATCH", f"{self.LR}({rid})", {"fwp_status": CANCEL_REQUESTED})
+        self.assertGreaterEqual(s, 400)
+        self.assertIn("pending request", error_text(d))
+        self.assertEqual(PENDING, self.request(rid)["fwp_status"])
+        self.assertEqual([], self.entries(rid))
+
+
 class Dha09ParityStage1Schema(DataverseTestCase):
 
     def test_leave_types_carry_behaviour_flags(self):

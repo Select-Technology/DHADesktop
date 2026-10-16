@@ -20,6 +20,8 @@ namespace DHA.DSTC.WPF.Models
         public bool DeductsFromEntitlement { get; set; }
         /// <summary>False for Working From Home: approved like leave, never on the timesheet.</summary>
         public bool IsAbsence { get; set; } = true;
+        /// <summary>Booked with start/end times (e.g. Medical) rather than full or half days.</summary>
+        public bool BookedInHours { get; set; }
 
         public override string ToString() => Name;
     }
@@ -42,6 +44,9 @@ namespace DHA.DSTC.WPF.Models
         public decimal Days { get; set; }
         public LeaveRequestStatus Status { get; set; }
         public string ApproverName { get; set; }
+        public string AdditionalApproverName { get; set; }
+        public string CancellationComments { get; set; }
+        public DateTime? CancellationRequestedOn { get; set; }
         public string RequesterComments { get; set; }
         public string ApproverComments { get; set; }
 
@@ -69,6 +74,15 @@ namespace DHA.DSTC.WPF.Models
 
         public bool CanCancel => Status == LeaveRequestStatus.Pending || Status == LeaveRequestStatus.Approved;
 
+        /// <summary>
+        /// A pending request is withdrawn straight away (nothing was approved, the approver is told); approved leave needs the
+        /// approver to confirm. Valto also sent pending requests that had already started to the approver - the server now
+        /// refuses that, because declining the cancellation would approve leave nobody approved.
+        /// </summary>
+        public bool CancelsInstantly => Status == LeaveRequestStatus.Pending;
+
+        public bool IsUpcoming => EndDate.Date >= DateTime.Today;
+
         public bool IsCancellationRequest => Status == LeaveRequestStatus.CancellationRequested;
 
         public static LeaveRequest FromEntity(Entity e)
@@ -91,6 +105,9 @@ namespace DHA.DSTC.WPF.Models
                 Days = e.GetAttributeValue<decimal?>("fwp_days") ?? 0m,
                 Status = (LeaveRequestStatus)(e.GetAttributeValue<OptionSetValue>("fwp_status")?.Value ?? (int)LeaveRequestStatus.Pending),
                 ApproverName = e.GetAttributeValue<EntityReference>("fwp_approver")?.Name ?? "",
+                AdditionalApproverName = e.GetAttributeValue<EntityReference>("fwp_additionalapprover")?.Name ?? "",
+                CancellationComments = e.GetAttributeValue<string>("fwp_cancellationcomments"),
+                CancellationRequestedOn = e.GetAttributeValue<DateTime?>("fwp_cancellationrequestedon")?.ToLocalTime(),
                 RequesterComments = e.GetAttributeValue<string>("fwp_requestercomments"),
                 ApproverComments = e.GetAttributeValue<string>("fwp_approvercomments")
             };
@@ -119,7 +136,12 @@ namespace DHA.DSTC.WPF.Models
     public class LeaveBalance
     {
         public DateTime YearStart { get; set; }
+        /// <summary>Base + carried forward + adjustment.</summary>
         public decimal EntitlementDays { get; set; }
+        public decimal BaseDays { get; set; }
+        public decimal CarriedForwardDays { get; set; }
+        public decimal AdjustmentDays { get; set; }
+        public decimal CarriedToNextYearDays { get; set; }
         /// <summary>Approved leave already in the past.</summary>
         public decimal TakenDays { get; set; }
         /// <summary>Approved future leave plus pending requests.</summary>

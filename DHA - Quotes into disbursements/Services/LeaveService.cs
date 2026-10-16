@@ -24,10 +24,13 @@ namespace DHA.DSTC.WPF.Services
         private const string ApproverGroupObjectId = "5760dd7d-5244-4e06-b8fa-6ce9284e9d3c";
         private static readonly string[] ApproverEmails = { "stsadmin@dhaplanning.co.uk" };
 
+        private const int ForcedUnitsHours = 800470001;
+
         private static readonly string[] RequestColumns =
         {
             "fwp_employee", "fwp_leavetype", "fwp_startdate", "fwp_enddate", "fwp_starttime", "fwp_endtime",
-            "fwp_hours", "fwp_days", "fwp_status", "fwp_approver", "fwp_requestercomments", "fwp_approvercomments", "createdon"
+            "fwp_hours", "fwp_days", "fwp_status", "fwp_approver", "fwp_additionalapprover", "fwp_requestercomments", "fwp_approvercomments",
+            "fwp_cancellationcomments", "fwp_cancellationrequestedon", "createdon"
         };
 
         public LeaveService(DataverseConnector connector)
@@ -59,7 +62,7 @@ namespace DHA.DSTC.WPF.Services
 
             var q = new QueryExpression("fwp_leavetype")
             {
-                ColumnSet = new ColumnSet("fwp_name", "fwp_deductsfromentitlement", "fwp_isabsence", "fwp_sortorder"),
+                ColumnSet = new ColumnSet("fwp_name", "fwp_deductsfromentitlement", "fwp_isabsence", "fwp_forcedunits", "fwp_sortorder"),
                 Orders = { new OrderExpression("fwp_sortorder", OrderType.Ascending), new OrderExpression("fwp_name", OrderType.Ascending) }
             };
             q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
@@ -70,7 +73,8 @@ namespace DHA.DSTC.WPF.Services
                     Id = e.Id,
                     Name = e.GetAttributeValue<string>("fwp_name"),
                     DeductsFromEntitlement = e.GetAttributeValue<bool?>("fwp_deductsfromentitlement") ?? true,
-                    IsAbsence = e.GetAttributeValue<bool?>("fwp_isabsence") ?? true
+                    IsAbsence = e.GetAttributeValue<bool?>("fwp_isabsence") ?? true,
+                    BookedInHours = e.GetAttributeValue<OptionSetValue>("fwp_forcedunits")?.Value == ForcedUnitsHours
                 }).ToList();
         }
 
@@ -82,15 +86,50 @@ namespace DHA.DSTC.WPF.Services
             return _connector._orgService.Create(request.ToEntity());
         }
 
-        /// <summary>Pending requests are cancelled outright; approved ones go back to the approver to confirm.</summary>
-        public void CancelRequest(LeaveRequest request)
+        /// <summary>
+        /// A pending request is cancelled outright; approved leave goes to the approver to confirm. The comment is kept on the request.
+        /// </summary>
+        public LeaveRequestStatus CancelRequest(LeaveRequest request, string comment)
         {
             if (!_connector.Connect())
                 throw new InvalidOperationException("Not connected to Dynamics.");
 
-            var status = request.Status == LeaveRequestStatus.Pending ? LeaveRequestStatus.Cancelled : LeaveRequestStatus.CancellationRequested;
+            var status = request.CancelsInstantly ? LeaveRequestStatus.Cancelled : LeaveRequestStatus.CancellationRequested;
             var e = new Entity("fwp_leaverequest", request.Id) { ["fwp_status"] = new OptionSetValue((int)status) };
+            if (!string.IsNullOrWhiteSpace(comment))
+                e["fwp_cancellationcomments"] = comment.Trim();
             _connector._orgService.Update(e);
+            return status;
+        }
+
+        /// <summary>The person's leave approver and additional approver, from colleague configuration.</summary>
+        public (string approver, string additional) GetApprovers(Guid employeeId)
+        {
+            if (!_connector.Connect())
+                return (null, null);
+            var q = new QueryExpression("fwp_colleagueconfiguration") { ColumnSet = new ColumnSet("fwp_leaveapprover", "fwp_additionalleaveapprover"), TopCount = 1 };
+            q.Criteria.AddCondition("fwp_colleague", ConditionOperator.Equal, employeeId);
+            q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+            var cfg = _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities.FirstOrDefault();
+            return (cfg?.GetAttributeValue<EntityReference>("fwp_leaveapprover")?.Name,
+                    cfg?.GetAttributeValue<EntityReference>("fwp_additionalleaveapprover")?.Name);
+        }
+
+        /// <summary>Company (bank) holidays with their names, for the holidays list.</summary>
+        public List<(DateTime date, string name)> GetCompanyHolidays(DateTime from, DateTime to)
+        {
+            if (!_connector.Connect())
+                return new List<(DateTime, string)>();
+            var q = new QueryExpression("fwp_publicholiday")
+            {
+                ColumnSet = new ColumnSet("fwp_date", "fwp_name"),
+                Orders = { new OrderExpression("fwp_date", OrderType.Ascending) }
+            };
+            q.Criteria.AddCondition("fwp_date", ConditionOperator.OnOrAfter, from.Date);
+            q.Criteria.AddCondition("fwp_date", ConditionOperator.OnOrBefore, to.Date);
+            q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+            return _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities
+                .Select(e => (e.GetAttributeValue<DateTime>("fwp_date").Date, e.GetAttributeValue<string>("fwp_name"))).ToList();
         }
 
         // ---------- Approvals ----------
@@ -252,7 +291,7 @@ namespace DHA.DSTC.WPF.Services
             var yearStart = new DateTime(onDate.Year, 1, 1);
             var q = new QueryExpression("fwp_leaveentitlement")
             {
-                ColumnSet = new ColumnSet("fwp_yearstart", "fwp_entitlementdays", "fwp_carriedforwarddays", "fwp_adjustmentdays"),
+                ColumnSet = new ColumnSet("fwp_yearstart", "fwp_entitlementdays", "fwp_carriedforwarddays", "fwp_adjustmentdays", "fwp_carriedtonextyeardays"),
                 TopCount = 1
             };
             q.Criteria.AddCondition("fwp_employee", ConditionOperator.Equal, employeeId);
@@ -264,9 +303,11 @@ namespace DHA.DSTC.WPF.Services
                 return balance;
 
             balance.YearStart = yearStart;
-            balance.EntitlementDays = (ent.GetAttributeValue<decimal?>("fwp_entitlementdays") ?? 0m)
-                + (ent.GetAttributeValue<decimal?>("fwp_carriedforwarddays") ?? 0m)
-                + (ent.GetAttributeValue<decimal?>("fwp_adjustmentdays") ?? 0m);
+            balance.BaseDays = ent.GetAttributeValue<decimal?>("fwp_entitlementdays") ?? 0m;
+            balance.CarriedForwardDays = ent.GetAttributeValue<decimal?>("fwp_carriedforwarddays") ?? 0m;
+            balance.AdjustmentDays = ent.GetAttributeValue<decimal?>("fwp_adjustmentdays") ?? 0m;
+            balance.CarriedToNextYearDays = ent.GetAttributeValue<decimal?>("fwp_carriedtonextyeardays") ?? 0m;
+            balance.EntitlementDays = balance.BaseDays + balance.CarriedForwardDays + balance.AdjustmentDays;
 
             var deducting = new HashSet<Guid>(types.Where(t => t.DeductsFromEntitlement).Select(t => t.Id));
             foreach (var r in requests.Where(r => r.StartDate.Year == onDate.Year

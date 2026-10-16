@@ -50,6 +50,14 @@ namespace DHA.Leave.Plugins
                     return Requested;
             }
         }
+
+        /// <summary>
+        /// Only approved leave can go to the approver for cancellation. A pending request has nothing approved to undo, so it is
+        /// withdrawn instead; letting it through would put unapproved leave on the timesheet, and "declining" the cancellation
+        /// would approve it.
+        /// </summary>
+        public static bool CanRequestCancellation(int? oldStatus) =>
+            oldStatus == LeaveStatus.Approved || oldStatus == LeaveStatus.CancellationRequested;
     }
 
     /// <summary>
@@ -172,6 +180,9 @@ namespace DHA.Leave.Plugins
             {
                 var pre = context.PreEntityImages.Contains("PreImage") ? context.PreEntityImages["PreImage"] : null;
                 int? oldStatus = pre?.GetAttributeValue<OptionSetValue>("fwp_status")?.Value;
+                if (status == LeaveStatus.CancellationRequested && !LeaveEvent.CanRequestCancellation(oldStatus))
+                    throw new InvalidPluginExecutionException(
+                        "Only approved leave needs the approver to confirm a cancellation. Cancel a pending request instead.");
                 if (oldStatus != status)
                     target["fwp_lastevent"] = LeaveEvent.For(oldStatus, status);
                 if (status == LeaveStatus.CancellationRequested && oldStatus != status)

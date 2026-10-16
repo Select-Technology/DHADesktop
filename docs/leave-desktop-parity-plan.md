@@ -94,18 +94,18 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 
 | ID | Valto feature | Desktop today | Work |
 |---|---|---|---|
-| **E1** | Choose a request type from the configured list (icons) | 🟡 Dropdown of `fwp_leavetype` | Add the type flags in **D2**; hide TOIL "add" from the normal form |
-| **E2** | **Days** requests: dates + Full day / ½ AM / ½ PM. Balance and cost shown in **days** | 🟡 Morning/afternoon split the working pattern; everything is in **hours** | Show cost, balance and new balance in **days** (**D1**, Q1). Hours remain for the timesheet only |
-| **E3** | **Hours** requests: number of hours (default from config) + start/end times | 🟡 "Set times" gives the hours | Hours-unit types (e.g. Medical) default to the times entry; default duration from settings |
-| **E4** | Shows current balance, cost of this request, new balance; public holidays in the range | 🟡 Preview hours + bank holiday note; balance on the side | Cost and new balance on the form, in units |
-| **E5** | Validation: end before start; **can't span two leave years** | 🟡 End before start; overlaps (Valto doesn't check overlaps) | Leave-year span rule in the plug-in and the form |
-| **E6** | Mandatory "Details" field; confirmation summary before submitting | ❌ Comment optional, no confirmation | Required details; confirmation dialog |
-| **E7** | **Working From Home** requests (approved, not absence, no entitlement, no time entry) | ❌ | Non-absence types (**D2**). The plug-in must not create time entries for them; they are still approved and shown |
+| **E1** | Choose a request type from the configured list (icons) | ✅ Type chosen first; list in `fwp_sortorder` order (no icons) | Add the type flags in **D2**; hide TOIL "add" from the normal form |
+| **E2** | **Days** requests: dates + Full day / ½ AM / ½ PM. Balance and cost shown in **days** | ✅ Full day / Morning / Afternoon; cost and balance in days, hours shown for the timesheet | Show cost, balance and new balance in **days** (**D1**, Q1). Hours remain for the timesheet only |
+| **E3** | **Hours** requests: number of hours (default from config) + start/end times | ✅ Hours types (Medical) switch the form to start/end times (default 09:00–10:00) | Hours-unit types (e.g. Medical) default to the times entry; default duration from settings |
+| **E4** | Shows current balance, cost of this request, new balance; public holidays in the range | ✅ Days, hours, remaining now and after; company holidays in the range named | Cost and new balance on the form, in units |
+| **E5** | Validation: end before start; **can't span two leave years** | ✅ End before start and the 31 Dec rule checked on the form and in the plug-in; overlaps of absences still rejected | Leave-year span rule in the plug-in and the form |
+| **E6** | Mandatory "Details" field; confirmation summary before submitting | ✅ Details required; confirmation summary before sending | Required details; confirmation dialog |
+| **E7** | **Working From Home** requests (approved, not absence, no entitlement, no time entry) | ✅ WFH has its own wording, no balance impact, no time entries | Non-absence types (**D2**). The plug-in must not create time entries for them; they are still approved and shown |
 | ~~E8~~ | TOIL claims and balance | – | **Out of scope** (Q4: not needed) |
-| **E9** | Leave balance for **previous / current / next** year: base, carried forward, total, taken (**counts pending**), remaining, carried to next year; shows your approver | 🟡 Current year only; pending separate; no approver | Year picker; full breakdown; approver shown; **pending counted as taken** (Q6). No purchased leave or TOIL (Q3, Q4) |
-| **E10** | My requests: filter upcoming/past, status, type; detail with approver comments and when cancellation was requested | 🟡 List only | Filters; detail panel |
-| **E11** | Cancel **with a comment**. Pending future requests cancel instantly; approved ones go to the approver | 🟡 Instant/approval logic done; no comment | Cancellation comment (`fwp_cancellationcomments`); pending *past* requests go to the approver (Valto rule) |
-| **E12** | "Company Holidays" list (past ones optional) | ❌ | Read-only list in the Leave tab |
+| **E9** | Leave balance for **previous / current / next** year: base, carried forward, total, taken (**counts pending**), remaining, carried to next year; shows your approver | ✅ Previous / current / next year; base + carried forward + adjustment, taken, booked (incl. pending), remaining, carried to next year; approvers shown | Year picker; full breakdown; approver shown; **pending counted as taken** (Q6). No purchased leave or TOIL (Q3, Q4) |
+| **E10** | My requests: filter upcoming/past, status, type; detail with approver comments and when cancellation was requested | ✅ Upcoming / past / all, status and type filters; detail panel with comments and cancellation details | Filters; detail panel |
+| **E11** | Cancel **with a comment**. Pending future requests cancel instantly; approved ones go to the approver | ✅ Cancel with a reason (required when it goes to the approver). **Changed from Valto:** see stage 2 notes | Cancellation comment (`fwp_cancellationcomments`); pending *past* requests go to the approver (Valto rule) |
+| **E12** | "Company Holidays" list (past ones optional) | ✅ Company holidays list, past ones optional | Read-only list in the Leave tab |
 | **E13** | Booking on behalf of someone (only people on the "Book on behalf" list), choosing the employee and their approver | ❌ | **H3** |
 
 ### Managers / approvers
@@ -217,7 +217,7 @@ Each stage ends with its automated tests passing in dev and a demo to Harriet.
 |---|---|---|---|
 | **0. Decisions** | ✅ Q1–Q8 and F1, F3–F5 answered 15 Oct. **F2, F6 open** | – | – |
 | **1. Model** ✅ *(dev, 16 Oct)* | D1–D5, D7: schema, type flags (incl. WFH), days, calendar years, approver fields, ownership fix; seed DHA's real leave types. Department (F6) still to add | F6 | 3 |
-| **2. Employee parity** | E1–E7, E9–E12: days-based form and balance (pending counted), year-span rule, mandatory details + confirmation, WFH requests, multi-year balance, request filters, cancellation comment, company holidays | 1 | 5 |
+| **2. Employee parity** ✅ *(dev, 16 Oct)* | E1–E7, E9–E12: days-based form and balance (pending counted), year-span rule, mandatory details + confirmation, WFH requests, multi-year balance, request filters, cancellation comment, company holidays | 1 | 5 |
 | **3. Approver parity** | M1–M6, N1, N3, N6: line managers + additional approvers, filters/badge, team views incl. WFH, per-person balance, cancel on behalf, per-approver emails and reminder | 1 | 6 |
 | **4. HR administration** | A1, A2, A7, A9, E13: colleague leave settings, entitlement editor (incl. new starters, carry-forward override), book on behalf | 1 | 4 |
 | **5. Year-end** | A3, A4 (D6): January generate + carry forward with override | 1, F2 | 2 |
@@ -239,6 +239,15 @@ Stages 2–5 can overlap once stage 1 is done.
   In dev no test user can hold DHA-1 (it isn't available in their business unit), so that one check is skipped in dev.
 - **Updating a plug-in step's pre-image fails** with a generic error. The script deletes and recreates it instead.
 - **Tests (dev):** DHA-9 66 pass, 1 skipped (above); DHA-10 10 pass; 49 unit tests pass.
+
+### Stage 2 notes (16 Oct)
+
+- **Cancelling a pending request that has already started.** Valto sends it to the approver. Here it's withdrawn
+  straight away, like any pending request, and the approver gets the "withdrawn" email. Sending it to the approver
+  would have put unapproved leave on the timesheet, and declining the cancellation would have approved it. The plug-in
+  now refuses Pending → Cancellation requested from any client. **Check with Harriet.**
+- **Hours types** default to 09:00–10:00 on the form. `fwp_LeaveDefaultHours` isn't used for this yet.
+- **Tests (dev):** DHA-9 70 pass, 1 skipped (3 new for cancelling); DHA-10 10 pass; 54 unit tests pass.
 
 ## 5. Migration from SharePoint
 
