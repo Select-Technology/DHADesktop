@@ -30,9 +30,10 @@ namespace DHA.Leave.Plugins
         public const string CancellationRequested = "CancellationRequested";
         public const string CancellationApproved = "CancellationApproved";
         public const string CancellationDeclined = "CancellationDeclined";
-        public const string CancelledByHR = "CancelledByHR";               // approved leave cancelled directly
+        public const string CancelledByHR = "CancelledByHR";               // cancelled directly by an approver or HR (name kept for the flow)
 
-        public static string For(int? oldStatus, int newStatus)
+        /// <param name="byEmployee">The change was made by the person whose leave it is (false when an approver or HR cancels on their behalf).</param>
+        public static string For(int? oldStatus, int newStatus, bool byEmployee = true)
         {
             switch (newStatus)
             {
@@ -44,7 +45,7 @@ namespace DHA.Leave.Plugins
                     return CancellationRequested;
                 case LeaveStatus.Cancelled:
                     return oldStatus == LeaveStatus.CancellationRequested ? CancellationApproved
-                         : oldStatus == LeaveStatus.Approved ? CancelledByHR
+                         : oldStatus == LeaveStatus.Approved || !byEmployee ? CancelledByHR
                          : Withdrawn;
                 default:
                     return Requested;
@@ -133,6 +134,9 @@ namespace DHA.Leave.Plugins
             var end = getDate("fwp_enddate") ?? start;
             if (employee == null || start == null)
                 throw new InvalidPluginExecutionException("A leave request needs an employee and a start date.");
+            // A one-day request may come without an end date; store it, or date-range queries (overlaps, who's off) miss it
+            if (getDate("fwp_enddate") == null)
+                target["fwp_enddate"] = start.Value;
             if (end < start)
                 throw new InvalidPluginExecutionException("The leave end date is before the start date.");
             if (LeaveDayCalculator.SpansLeaveYears(start.Value, end.Value))
@@ -184,7 +188,7 @@ namespace DHA.Leave.Plugins
                     throw new InvalidPluginExecutionException(
                         "Only approved leave needs the approver to confirm a cancellation. Cancel a pending request instead.");
                 if (oldStatus != status)
-                    target["fwp_lastevent"] = LeaveEvent.For(oldStatus, status);
+                    target["fwp_lastevent"] = LeaveEvent.For(oldStatus, status, context.InitiatingUserId == employee.Id);
                 if (status == LeaveStatus.CancellationRequested && oldStatus != status)
                     target["fwp_cancellationrequestedon"] = DateTime.UtcNow;
             }

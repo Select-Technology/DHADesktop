@@ -1,0 +1,106 @@
+<UserControl x:Class="DHA.DSTC.WPF.LeaveTeamView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsVisibleChanged="TeamView_IsVisibleChanged">
+    <!-- My team / Everyone (parity plan M4-M6): a person's balance, their requests, cancel on their behalf.
+         Styles come from MainWindow.Resources, hence DynamicResource. -->
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260" MinWidth="200"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*" MinWidth="460"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- People -->
+        <Border Grid.Column="0" Style="{DynamicResource CardStyle}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="PeopleTitleText" Text="My people" FontSize="18" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                <TextBox x:Name="SearchTextBox" Grid.Row="1" Height="30" Margin="0,0,0,8" VerticalContentAlignment="Center"
+                         TextChanged="Search_Changed" ToolTip="Search by name"/>
+                <ListBox x:Name="PeopleList" Grid.Row="2" SelectionChanged="PeopleList_SelectionChanged" BorderThickness="0"/>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="12"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Balance, previous / current / next year (M4) -->
+            <Border Grid.Row="0" Style="{DynamicResource CardStyle}">
+                <StackPanel>
+                    <TextBlock x:Name="PersonTitleText" Text="Choose someone" FontSize="18" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                    <DataGrid x:Name="BalanceGrid" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal" CanUserSortColumns="False" IsHitTestVisible="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="60"/>
+                            <DataGridTextColumn Header="Entitlement" Binding="{Binding Entitlement}" Width="*"/>
+                            <DataGridTextColumn Header="Taken" Binding="{Binding Taken}" Width="70"/>
+                            <DataGridTextColumn Header="Booked (incl. pending)" Binding="{Binding Booked}" Width="150"/>
+                            <DataGridTextColumn Header="Remaining" Binding="{Binding Remaining}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- Their requests (M5) and cancel on behalf (M6) -->
+            <Border Grid.Row="2" Style="{DynamicResource CardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Requests" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                    <WrapPanel Grid.Row="1" Margin="0,0,0,8">
+                        <ComboBox x:Name="WhenFilter" Width="120" Height="28" Margin="0,0,8,4" SelectionChanged="Filter_Changed">
+                            <ComboBoxItem Content="Upcoming" IsSelected="True"/>
+                            <ComboBoxItem Content="Past"/>
+                            <ComboBoxItem Content="All dates"/>
+                        </ComboBox>
+                        <ComboBox x:Name="StatusFilter" Width="170" Height="28" Margin="0,0,8,4" SelectionChanged="Filter_Changed">
+                            <ComboBoxItem Content="Any status" IsSelected="True"/>
+                            <ComboBoxItem Content="Pending" Tag="Pending"/>
+                            <ComboBoxItem Content="Approved" Tag="Approved"/>
+                            <ComboBoxItem Content="Rejected" Tag="Rejected"/>
+                            <ComboBoxItem Content="Cancelled" Tag="Cancelled"/>
+                            <ComboBoxItem Content="Cancellation requested" Tag="CancellationRequested"/>
+                        </ComboBox>
+                        <ComboBox x:Name="TypeFilter" Width="160" Height="28" Margin="0,0,8,4" SelectionChanged="Filter_Changed"/>
+                    </WrapPanel>
+                    <DataGrid x:Name="RequestsGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectionMode="Single" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                              SelectionChanged="RequestsGrid_SelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Dates" Binding="{Binding DatesText}" Width="*"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding LeaveTypeName}" Width="130"/>
+                            <DataGridTextColumn Header="Days" Binding="{Binding Days, StringFormat=0.##}" Width="50"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="160"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <Border x:Name="RequestDetailPanel" Grid.Row="3" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1"
+                            CornerRadius="4" Padding="10,8" Margin="0,8,0,0" Visibility="Collapsed">
+                        <TextBlock x:Name="RequestDetailText" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    </Border>
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Content="Refresh" Width="90" Height="32" Margin="0,0,8,0"
+                                Style="{DynamicResource SecondaryButtonStyle}" Click="RefreshButton_Click"/>
+                        <Button x:Name="CancelOnBehalfButton" Content="Cancel on their behalf" Width="170" Height="32" IsEnabled="False"
+                                Style="{DynamicResource SecondaryButtonStyle}" Click="CancelOnBehalfButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

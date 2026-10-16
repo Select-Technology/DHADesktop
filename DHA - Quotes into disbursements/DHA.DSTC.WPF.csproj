@@ -224,6 +224,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="LeaveTeamView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="LeaveView.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -249,6 +253,9 @@
     </Compile>
     <Compile Include="LeaveTabView.xaml.cs">
       <DependentUpon>LeaveTabView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="LeaveTeamView.xaml.cs">
+      <DependentUpon>LeaveTeamView.xaml</DependentUpon>
     </Compile>
     <Compile Include="LeaveView.xaml.cs">
       <DependentUpon>LeaveView.xaml</DependentUpon>

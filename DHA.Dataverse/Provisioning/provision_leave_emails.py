@@ -2,11 +2,13 @@
 
 Creates in FWPLeaveManagement:
   - connection references fwp_LeaveDataverse / fwp_LeaveOutlook, bound to EXISTING connections (below)
-  - "Leave - Notifications": fires when LeaveRequestPlugin sets fwp_lastevent and emails HR or the employee
-  - "Leave - Approval reminder": weekdays 10:00 UK, emails HR the requests waiting for a decision
+  - "Leave - Notifications": fires when LeaveRequestPlugin sets fwp_lastevent and emails the approvers or the employee
+  - "Leave - Approval reminder": weekdays 10:00 UK, emails each approver the requests waiting for them
 
-Recipients: HR = env var fwp_LeaveApproverEmail (default HR@dhaplanning.co.uk). If fwp_LeaveEmailOverride is
-set, EVERY email goes there instead and the subject shows who it was meant for - set it in dev/test.
+Recipients (parity plan N1, N3): requests go to the request's approver, with the additional approver copied in. When a
+request has no approver they go to HR = env var fwp_LeaveApproverEmail (default HR@dhaplanning.co.uk). If
+fwp_LeaveEmailOverride is set, EVERY email goes there instead (no copies) and the subject shows who it was meant for
+- set it in dev/test.
 
 Connections can't be created from a script. Pass the connection ids for the target environment:
     python -I provision_leave_emails.py <dataverse-connection-id> <outlook-connection-id>
@@ -75,9 +77,9 @@ def dataverse(op, params):
                                                     "parameters": params, "authentication": "@parameters('$authentication')"}}
 
 
-def email(to_expr, subject, body, run_after=None):
-    """Send via Outlook; honours the testing override and tags the subject with the intended recipient."""
-    return {"type": "OpenApiConnection", "runAfter": run_after or {},
+def email(to_expr, subject, body, run_after=None, cc_expr=None):
+    """Send via Outlook; honours the testing override (no copies) and tags the subject with the intended recipient."""
+    action = {"type": "OpenApiConnection", "runAfter": run_after or {},
             "inputs": {"host": {"connectionName": "shared_office365", "operationId": "SendEmailV2", "apiId": OL_API},
                        "parameters": {
                            "emailMessage/To": f"@{{if(empty(parameters('{OVERRIDE_PARAM}')), {to_expr}, parameters('{OVERRIDE_PARAM}'))}}",
@@ -85,6 +87,9 @@ def email(to_expr, subject, body, run_after=None):
                            "emailMessage/Body": STYLE + body + FOOTER,
                            "emailMessage/Importance": "Normal"},
                        "authentication": "@parameters('$authentication')"}}
+    if cc_expr:
+        action["inputs"]["parameters"]["emailMessage/Cc"] = f"@{{if(empty(parameters('{OVERRIDE_PARAM}')), {cc_expr}, '')}}"
+    return action
 
 
 STYLE = "<div style=\"font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#1e293b;max-width:600px\">"
@@ -94,7 +99,11 @@ FOOTER = "<p style=\"color:#64748b;font-size:12px;margin-top:24px\">This is an a
 R = "outputs('Get_the_request')?['body"
 EMPLOYEE = f"{R}/fwp_employee/fullname']"
 EMPLOYEE_EMAIL = f"{R}/fwp_employee/internalemailaddress']"
-APPROVER_EMAIL = f"parameters('{APPROVER_PARAM}')"
+HR_EMAIL = f"parameters('{APPROVER_PARAM}')"
+# The request's approver (HR when there isn't one), additional approver copied in
+APPROVER_EMAIL = f"coalesce({R}/fwp_approver/internalemailaddress'], {HR_EMAIL})"
+ADDITIONAL_EMAIL = f"coalesce({R}/fwp_additionalapprover/internalemailaddress'], '')"
+APPROVER_NAME = f"coalesce({R}/fwp_approver/fullname'], 'HR')"
 DATES = (f"@{{formatDateTime({R}/fwp_startdate'], 'ddd dd MMM yyyy')}}@{{if(empty({R}/fwp_starttime']), '', concat(' ', {R}/fwp_starttime']))}}"
          f" to @{{formatDateTime(coalesce({R}/fwp_enddate'], {R}/fwp_startdate']), 'ddd dd MMM yyyy')}}"
          f"@{{if(empty({R}/fwp_endtime']), '', concat(' ', {R}/fwp_endtime']))}}")
@@ -105,18 +114,25 @@ DETAILS = ("<table style=\"border-collapse:collapse;margin:12px 0\">"
            f"<tr><td style=\"padding:4px 12px 4px 0;color:#64748b\">Hours</td><td>@{{{R}/fwp_hours']}}</td></tr>"
            "</table>")
 REQUESTER_COMMENT = f"<p><b>Their comments:</b> @{{coalesce({R}/fwp_requestercomments'], '(none)')}}</p>"
-APPROVER_COMMENT = f"@{{if(empty({R}/fwp_approvercomments']), '', concat('<p><b>Comment from HR:</b> ', {R}/fwp_approvercomments'], '</p>'))}}"
+CANCEL_COMMENT = f"@{{if(empty({R}/fwp_cancellationcomments']), '', concat('<p><b>Reason:</b> ', {R}/fwp_cancellationcomments'], '</p>'))}}"
+BOOKED_BY = (f"@{{if(or(empty({R}/_fwp_bookedby_value']), equals({R}/_fwp_bookedby_value'], {R}/_fwp_employee_value'])), '', "
+             f"concat('<p>Booked by ', {R}/fwp_bookedby/fullname'], ' on their behalf.</p>'))}}")
+APPROVER_COMMENT = (f"@{{if(empty({R}/fwp_approvercomments']), '', concat('<p><b>Comment from ', {APPROVER_NAME}, ':</b> ', "
+                    f"{R}/fwp_approvercomments'], '</p>'))}}")
 TO_APPROVALS = "<p>Review it in the DHA Time Management app: <b>Leave &rarr; Approvals</b>.</p>"
 # Short dates for subjects
 SUBJECT_DATES = f"@{{formatDateTime({R}/fwp_startdate'], 'dd/MM/yyyy')}}"
 
 CASES = {
     "Requested": email(APPROVER_EMAIL, f"Leave request: @{{{EMPLOYEE}}} from {SUBJECT_DATES}",
-                       "<p>A new leave request is waiting for a decision.</p>" + DETAILS + REQUESTER_COMMENT + TO_APPROVALS),
+                       "<p>A new leave request is waiting for a decision.</p>" + DETAILS + REQUESTER_COMMENT + BOOKED_BY + TO_APPROVALS,
+                       cc_expr=ADDITIONAL_EMAIL),
     "CancellationRequested": email(APPROVER_EMAIL, f"Leave cancellation request: @{{{EMPLOYEE}}} from {SUBJECT_DATES}",
-                                   "<p>This person wants to cancel leave that has already been approved.</p>" + DETAILS + TO_APPROVALS),
+                                   "<p>This person wants to cancel leave that has already been approved.</p>" + DETAILS + CANCEL_COMMENT
+                                   + TO_APPROVALS, cc_expr=ADDITIONAL_EMAIL),
     "Withdrawn": email(APPROVER_EMAIL, f"Leave request withdrawn: @{{{EMPLOYEE}}} from {SUBJECT_DATES}",
-                       "<p>This pending leave request has been withdrawn by the employee. No action is needed.</p>" + DETAILS),
+                       "<p>This pending leave request has been withdrawn by the employee. No action is needed.</p>" + DETAILS + CANCEL_COMMENT,
+                       cc_expr=ADDITIONAL_EMAIL),
     "Approved": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} has been approved",
                       "<p>Your leave has been approved and added to your timesheet as &quot;Approved leave&quot;.</p>" + DETAILS + APPROVER_COMMENT),
     "Rejected": email(EMPLOYEE_EMAIL, f"Your leave request from {SUBJECT_DATES} was not approved",
@@ -125,8 +141,10 @@ CASES = {
                                   "<p>Your cancellation has been approved. The leave has been taken off your timesheet.</p>" + DETAILS + APPROVER_COMMENT),
     "CancellationDeclined": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} is still booked",
                                   "<p>Your request to cancel this leave was not approved, so it remains booked.</p>" + DETAILS + APPROVER_COMMENT),
-    "CancelledByHR": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} has been cancelled by HR",
-                           "<p>HR has cancelled this approved leave, and it has been taken off your timesheet.</p>" + DETAILS + APPROVER_COMMENT),
+    # An approver or HR cancelled it on the employee's behalf (Decide records them as the approver)
+    "CancelledByHR": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} has been cancelled",
+                           f"<p>@{{{APPROVER_NAME}}} has cancelled this leave. Anything already on your timesheet for it has been taken off.</p>"
+                           + DETAILS + APPROVER_COMMENT),
 }
 
 notifications = {
@@ -144,8 +162,11 @@ notifications = {
     "actions": {
         "Get_the_request": dataverse("GetItem", {
             "entityName": LEAVE_SET, "recordId": "@triggerOutputs()?['body/fwp_leaverequestid']",
-            "$select": "fwp_startdate,fwp_enddate,fwp_starttime,fwp_endtime,fwp_hours,fwp_requestercomments,fwp_approvercomments,fwp_lastevent",
-            "$expand": "fwp_Employee($select=fullname,internalemailaddress),fwp_LeaveType($select=fwp_name)"}),
+            "$select": "fwp_startdate,fwp_enddate,fwp_starttime,fwp_endtime,fwp_hours,fwp_requestercomments,fwp_approvercomments,"
+                       "fwp_cancellationcomments,fwp_lastevent,_fwp_employee_value,_fwp_bookedby_value",
+            "$expand": "fwp_Employee($select=fullname,internalemailaddress),fwp_LeaveType($select=fwp_name),"
+                       "fwp_Approver($select=fullname,internalemailaddress),fwp_AdditionalApprover($select=internalemailaddress),"
+                       "fwp_BookedBy($select=fullname)"}),
         "Which_event": {
             "type": "Switch", "runAfter": {"Get_the_request": ["Succeeded"]},
             # The event as it was when THIS run was triggered - the row may already have moved on (e.g. approved
@@ -161,6 +182,9 @@ notifications = {
 ROW = ("@{concat('<tr><td style=\"padding:4px 12px 4px 0\">', item()?['fwp_employee/fullname'], '</td><td style=\"padding:4px 12px 4px 0\">', "
        "formatDateTime(item()?['fwp_startdate'], 'ddd dd MMM'), ' to ', formatDateTime(coalesce(item()?['fwp_enddate'], item()?['fwp_startdate']), 'ddd dd MMM'), "
        "'</td><td style=\"padding:4px 12px 4px 0\">', if(equals(item()?['fwp_status'], 800470003), 'Cancellation', 'New request'), '</td></tr>')}")
+# Each waiting request goes to its approver (HR if none) and its additional approver
+MAIN = f"coalesce(item()?['fwp_approver/internalemailaddress'], {HR_EMAIL})"
+EXTRA = "item()?['fwp_additionalapprover/internalemailaddress']"
 reminder = {
     "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
     "contentVersion": "1.0.0.0",
@@ -175,20 +199,32 @@ reminder = {
         "Waiting_requests": dataverse("ListRecords", {
             "entityName": LEAVE_SET, "$select": "fwp_startdate,fwp_enddate,fwp_status",
             "$filter": "fwp_status eq 800470000 or fwp_status eq 800470003",
-            "$expand": "fwp_Employee($select=fullname)", "$orderby": "fwp_startdate asc"}),
-        "Anything_waiting": {
-            "type": "If", "runAfter": {"Waiting_requests": ["Succeeded"]},
-            "expression": {"greater": ["@length(outputs('Waiting_requests')?['body/value'])", 0]},
+            "$expand": "fwp_Employee($select=fullname),fwp_Approver($select=internalemailaddress),"
+                       "fwp_AdditionalApprover($select=internalemailaddress)",
+            "$orderby": "fwp_startdate asc"}),
+        "Main_approvers": {"type": "Select", "runAfter": {"Waiting_requests": ["Succeeded"]},
+                           "inputs": {"from": "@outputs('Waiting_requests')?['body/value']", "select": f"@{MAIN}"}},
+        "With_additional_approver": {"type": "Query", "runAfter": {"Main_approvers": ["Succeeded"]},
+                                     "inputs": {"from": "@outputs('Waiting_requests')?['body/value']", "where": f"@not(empty({EXTRA}))"}},
+        "Additional_approvers": {"type": "Select", "runAfter": {"With_additional_approver": ["Succeeded"]},
+                                 "inputs": {"from": "@body('With_additional_approver')", "select": f"@{EXTRA}"}},
+        "Each_approver": {
+            "type": "Foreach", "runAfter": {"Additional_approvers": ["Succeeded"]},
+            # union() also removes duplicates
+            "foreach": "@union(body('Main_approvers'), body('Additional_approvers'))",
             "actions": {
-                "Rows": {"type": "Select", "inputs": {"from": "@outputs('Waiting_requests')?['body/value']", "select": ROW}},
-                "Email_HR": email(APPROVER_EMAIL,
-                                  "Leave waiting for a decision: @{length(outputs('Waiting_requests')?['body/value'])}",
-                                  "<p>These leave requests are waiting for a decision:</p><table style=\"border-collapse:collapse\">"
-                                  "<tr><th align=\"left\">Employee</th><th align=\"left\">Dates</th><th align=\"left\">Waiting for</th></tr>"
-                                  "@{join(body('Rows'), '')}</table>" + TO_APPROVALS,
-                                  run_after={"Rows": ["Succeeded"]}),
-            },
-            "else": {"actions": {}}
+                "Their_requests": {"type": "Query", "inputs": {
+                    "from": "@outputs('Waiting_requests')?['body/value']",
+                    "where": f"@or(equals({MAIN}, items('Each_approver')), equals({EXTRA}, items('Each_approver')))"}},
+                "Rows": {"type": "Select", "runAfter": {"Their_requests": ["Succeeded"]},
+                         "inputs": {"from": "@body('Their_requests')", "select": ROW}},
+                "Email_approver": email("items('Each_approver')",
+                                        "Leave waiting for your decision: @{length(body('Their_requests'))}",
+                                        "<p>These leave requests are waiting for your decision:</p><table style=\"border-collapse:collapse\">"
+                                        "<tr><th align=\"left\">Employee</th><th align=\"left\">Dates</th><th align=\"left\">Waiting for</th></tr>"
+                                        "@{join(body('Rows'), '')}</table>" + TO_APPROVALS,
+                                        run_after={"Rows": ["Succeeded"]}),
+            }
         }
     },
     "outputs": {}
@@ -214,5 +250,5 @@ def flow(name, desc, definition):
     ok(s, d, "  turn on " + name)
 
 
-flow("Leave - Notifications", "DHA-9: emails HR or the employee when a leave request is made, decided or cancelled.", notifications)
-flow("Leave - Approval reminder", "DHA-9: weekdays 10:00, emails HR the leave requests waiting for a decision.", reminder)
+flow("Leave - Notifications", "DHA-9: emails the approvers or the employee when a leave request is made, decided or cancelled.", notifications)
+flow("Leave - Approval reminder", "DHA-9: weekdays 10:00, emails each approver the leave requests waiting for them.", reminder)

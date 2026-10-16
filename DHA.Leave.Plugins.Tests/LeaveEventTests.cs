@@ -18,6 +18,14 @@ namespace DHA.Leave.Plugins.Tests
             Assert.Equal(expected, LeaveEvent.For(oldStatus, newStatus));
         }
 
+        [Fact]
+        public void PendingCancelledByTheEmployeeIsWithdrawn_ByAnApproverIsCancelled()
+        {
+            Assert.Equal(LeaveEvent.Withdrawn, LeaveEvent.For(LeaveStatus.Pending, LeaveStatus.Cancelled, byEmployee: true));
+            Assert.Equal(LeaveEvent.CancelledByHR, LeaveEvent.For(LeaveStatus.Pending, LeaveStatus.Cancelled, byEmployee: false));
+            Assert.Equal(LeaveEvent.CancelledByHR, LeaveEvent.For(LeaveStatus.Approved, LeaveStatus.Cancelled, byEmployee: false));
+        }
+
         [Theory]
         [InlineData(LeaveStatus.Approved, true)]
         [InlineData(LeaveStatus.CancellationRequested, true)]

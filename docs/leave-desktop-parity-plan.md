@@ -112,12 +112,12 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 
 | ID | Valto feature | Desktop today | Work |
 |---|---|---|---|
-| **M1** | **Line managers** approve their own people; an **Additional Approver** can approve too ("Approvals only") | ❌ HR only for now | **In scope (Q2).** Approver and additional approver per person (**D4**); the Approvals tab shows for anyone who approves someone and lists only their people. HR (Leave Administrator) still sees everyone |
-| **M2** | Approvals list with "show approval requests" / "show cancellation requests" filters; count badge | 🟡 Combined list; no filters or badge | Filters; count on the Leave tab header |
-| **M3** | When approving: overlapping requests, filtered **all / my employees / by department** | 🟡 "Also off" for approved leave across everyone | Include pending; filters; department (**D4**) |
-| **M4** | "My employees": pick a person, see their balance (all years) | ❌ | Team view with per-person balance |
-| **M5** | All employee requests: browse with filters (upcoming/past, status, type) | ❌ | Team requests view |
-| **M6** | **Cancel on behalf**: instant, emails the employee | ❌ (HR can set Cancelled in Dynamics) | Button in the team requests view; "CancelledByHR" email already exists |
+| **M1** | **Line managers** approve their own people; an **Additional Approver** can approve too ("Approvals only") | ✅ Approvals and My team show for anyone named as approver or additional approver, listing only their people; HR (Leave Administrator) see everyone | **In scope (Q2).** Approver and additional approver per person (**D4**); the Approvals tab shows for anyone who approves someone and lists only their people. HR (Leave Administrator) still sees everyone |
+| **M2** | Approvals list with "show approval requests" / "show cancellation requests" filters; count badge | ✅ New / cancellation filters; count on the Approvals tab | Filters; count on the Leave tab header |
+| **M3** | When approving: overlapping requests, filtered **all / my employees / by department** | ✅ Who's off includes pending, Everyone / My people filter (`fwp_GetTeamLeave`). Type hidden except for your own people, WFH, or HR. Department waits for F6 | Include pending; filters; department (**D4**) |
+| **M4** | "My employees": pick a person, see their balance (all years) | ✅ My team: pick a person, balance for last / this / next year (`fwp_GetLeaveBalance`) | Team view with per-person balance |
+| **M5** | All employee requests: browse with filters (upcoming/past, status, type) | ✅ Their requests with when / status / type filters and detail | Team requests view |
+| **M6** | **Cancel on behalf**: instant, emails the employee | ✅ Cancel on their behalf, reason required; they get the "cancelled" email naming who cancelled | Button in the team requests view; "CancelledByHR" email already exists |
 
 ### HR / administration
 
@@ -137,12 +137,12 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 
 | ID | Valto feature | Desktop today | Work |
 |---|---|---|---|
-| **N1** | New request → email the **approver** (notes when booked on behalf) | 🟡 Goes to HR@ | Send to the request's approver and additional approver (Q2); mention booked-by |
+| **N1** | New request → email the **approver** (notes when booked on behalf) | ✅ To the request's approver, additional approver copied, HR if none; says when booked on someone's behalf | Send to the request's approver and additional approver (Q2); mention booked-by |
 | **N2** | Outcome emails (approved, rejected, cancellation approved or declined) | ✅ | Wording review with Harriet |
-| **N3** | Weekday 10:00 reminder **per approver** of their outstanding requests | 🟡 One email to HR | One email per approver listing their outstanding requests (Q2) |
+| **N3** | Weekday 10:00 reminder **per approver** of their outstanding requests | ✅ One reminder per approver (and additional approver) listing their waiting requests | One email per approver listing their outstanding requests (Q2) |
 | **N4** | **Shared Outlook calendar**: event on approval, deleted on cancellation (`CalendarID`) | ❌ | **In scope (Q5).** Flow on Approved / Cancelled / date change using `fwp_calendareventid`. Same calendar as Valto (its `new_CalendarID`). Events say **"Out of Office"** (F5) |
 | **N5** | Deep links from emails to the app | ❌ | Link to the Dynamics record (works on phone); optional `dha-time://` desktop link later |
-| **N6** | Item-level SharePoint permissions (employee, approver, owners) | ✅ Different mechanism: user-owned rows + sharing + roles | Extend sharing to additional approvers (**M1**) |
+| **N6** | Item-level SharePoint permissions (employee, approver, owners) | ✅ Shared with approver and additional approver; changing someone's approver shares their leave from last year onwards and moves waiting requests | Extend sharing to additional approvers (**M1**) |
 | ~~N7~~ | Mobile/browser access (the canvas app works anywhere) | – | **Out of scope (F4).** No phone app; a phone app would be its own project |
 
 ### Not carried over (by design)
@@ -218,7 +218,7 @@ Each stage ends with its automated tests passing in dev and a demo to Harriet.
 | **0. Decisions** | ✅ Q1–Q8 and F1, F3–F5 answered 15 Oct. **F2, F6 open** | – | – |
 | **1. Model** ✅ *(dev, 16 Oct)* | D1–D5, D7: schema, type flags (incl. WFH), days, calendar years, approver fields, ownership fix; seed DHA's real leave types. Department (F6) still to add | F6 | 3 |
 | **2. Employee parity** ✅ *(dev, 16 Oct)* | E1–E7, E9–E12: days-based form and balance (pending counted), year-span rule, mandatory details + confirmation, WFH requests, multi-year balance, request filters, cancellation comment, company holidays | 1 | 5 |
-| **3. Approver parity** | M1–M6, N1, N3, N6: line managers + additional approvers, filters/badge, team views incl. WFH, per-person balance, cancel on behalf, per-approver emails and reminder | 1 | 6 |
+| **3. Approver parity** ✅ *(dev, 16 Oct)* | M1–M6, N1, N3, N6: line managers + additional approvers, filters/badge, team views incl. WFH, per-person balance, cancel on behalf, per-approver emails and reminder | 1 | 6 |
 | **4. HR administration** | A1, A2, A7, A9, E13: colleague leave settings, entitlement editor (incl. new starters, carry-forward override), book on behalf | 1 | 4 |
 | **5. Year-end** | A3, A4 (D6): January generate + carry forward with override | 1, F2 | 2 |
 | **6. Outlook calendar** | N4 ("Out of Office" events) | – | 1.5 |
@@ -248,6 +248,22 @@ Stages 2–5 can overlap once stage 1 is done.
   now refuses Pending → Cancellation requested from any client. **Check with Harriet.**
 - **Hours types** default to 09:00–10:00 on the form. `fwp_LeaveDefaultHours` isn't used for this yet.
 - **Tests (dev):** DHA-9 70 pass, 1 skipped (3 new for cancelling); DHA-10 10 pass; 54 unit tests pass.
+
+### Stage 3 notes (16 Oct)
+
+- **What line managers can see.** They only hold DHA-1. Their people's requests are shared with them. Balances and
+  "who's off" come from two read-only Custom APIs (`fwp_GetLeaveBalance`, `fwp_GetTeamLeave`) that check the caller
+  and then read as the system. No new role, and no access to colleague configuration or entitlement tables.
+- **Leave type privacy.** In "who's off", only HR, the person's own approvers, and non-absence types (Working From
+  Home) show the type. Everyone else sees name, dates and status, like the "Out of Office" calendar.
+- **Changing an approver** in colleague configuration (`LeaveApproverChangePlugin`) shares that person's leave from
+  1 January last year with the new approvers, and moves requests still waiting for a decision to them. The new
+  approver isn't emailed about requests that move. They appear in the next morning's reminder.
+- **Cancelled on someone's behalf** (by an approver or HR, pending or approved) now sends the employee the
+  "cancelled" email naming who did it, not the approver a "withdrawn" email.
+- **Fixed:** a one-day request saved without an end date wasn't caught by the overlap check. The plug-in now stores
+  the end date.
+- **Tests (dev):** DHA-9 78 pass, 1 skipped; DHA-10 10 pass; 60 unit tests pass.
 
 ## 5. Migration from SharePoint
 

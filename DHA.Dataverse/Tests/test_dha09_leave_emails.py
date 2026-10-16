@@ -16,12 +16,20 @@ import dv  # noqa: E402 - path set up by dvtest
 DEV_ENVIRONMENT = "964277cb-bd95-ee45-8c9b-b5dbe4520aa8"
 
 
-def flow_api(path):
+def flow_api(path, method="GET"):
     tok = dv.az_token("https://service.flow.microsoft.com/")
     url = f"https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments/{DEV_ENVIRONMENT}/{path}"
     sep = "&" if "?" in url else "?"
-    return json.loads(urllib.request.urlopen(urllib.request.Request(url + sep + "api-version=2016-11-01",
-                                                                     headers={"Authorization": "Bearer " + tok})).read())
+    req = urllib.request.Request(url + sep + "api-version=2016-11-01", method=method, data=b"{}" if method == "POST" else None,
+                                 headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+    txt = urllib.request.urlopen(req, timeout=60).read()
+    return json.loads(txt) if txt else None
+
+
+def intended_approver(request_id):
+    """Who a request email is meant for: the request's approver, or HR when it has none."""
+    r = get(f"{entity_set('fwp_leaverequest')}({request_id})?$select=_fwp_approver_value&$expand=fwp_Approver($select=internalemailaddress)")
+    return (r.get("fwp_Approver") or {}).get("internalemailaddress") or env_value("fwp_LeaveApproverEmail")
 
 
 def env_value(schema):
@@ -91,12 +99,40 @@ class Dha09Emails(DataverseTestCase):
             for event, to, subject in sent:
                 with self.subTest(event=event):
                     self.assertEqual(self.override, to, "redirect not applied")
-                    intended = env_value("fwp_LeaveApproverEmail") if event == "Requested" else jessica_email
+                    intended = intended_approver(rid) if event == "Requested" else jessica_email
                     self.assertTrue(subject.startswith(f"[TEST - for {intended}]"), subject)
         finally:
             call("PATCH", f"{self.LR}({rid})", {"fwp_status": CANCELLED})
             call("DELETE", f"{self.LR}({rid})")
             delete_time_entries("LV-" + rid.replace("-", ""))
+
+    def test_reminder_goes_to_each_approver_once(self):
+        s, d, _ = dv.call("POST", self.LR, {"fwp_Employee@odata.bind": f"/systemusers({JESSICA})", "fwp_startdate": "2027-10-05",
+                                            "fwp_requestercomments": "ZZTEST reminder"}, extra={"Prefer": "return=representation"})
+        self.assertLess(s, 300)
+        rid = d["fwp_leaverequestid"]
+        try:
+            wid = self.flows["Leave - Approval reminder"]["workflowid"]
+            started = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - 2))
+            flow_api(f"flows/{wid}/triggers/Weekdays_at_10/run", method="POST")
+            deadline, run = time.time() + 180, None
+            while time.time() < deadline and run is None:
+                time.sleep(10)
+                run = next((r for r in flow_api(f"flows/{wid}/runs")["value"] if r["properties"]["startTime"] >= started
+                            and r["properties"]["status"] in ("Succeeded", "Failed")), None)
+            self.assertIsNotNone(run, "reminder didn't run within 3 minutes")
+            self.assertEqual("Succeeded", run["properties"]["status"])
+            subjects = []
+            for r in flow_api(f"flows/{wid}/runs/{run['name']}/actions/Email_approver/repetitions")["value"]:
+                msg = json.loads(urllib.request.urlopen(r["properties"]["inputsLink"]["uri"], timeout=60).read())["parameters"]
+                self.assertEqual(self.override, msg["emailMessage/To"], "redirect not applied")
+                subjects.append(msg["emailMessage/Subject"])
+            intended = [x.split("]")[0] for x in subjects]
+            self.assertEqual(len(intended), len(set(intended)), "an approver got more than one reminder")
+            self.assertIn(f"[TEST - for {intended_approver(rid)}", intended)
+        finally:
+            call("PATCH", f"{self.LR}({rid})", {"fwp_status": CANCELLED})
+            call("DELETE", f"{self.LR}({rid})")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
-# DHA test run - 2026-10-16 10:04 (dev, 144s)
+# DHA test run - 2026-10-16 10:40 (dev, 254s)
 
 | Card | Pass | Fail | Known gap | Skipped |
 |---|---|---|---|---|
 | DHA-7 Finance can place a project on stop | 11 | 0 | 0 | 1 |
 | DHA-8 Warning when recording time on a stopped project | 7 | 0 | 0 | 0 |
-| DHA-9 Approved absence creates the time entry | 70 | 0 | 0 | 1 |
+| DHA-9 Approved absence creates the time entry | 78 | 0 | 0 | 1 |
 | DHA-10 Cancelling an absence deactivates the time entry | 10 | 0 | 1 | 0 |
 | DHA-16 Internal source is mandatory on a quote | 2 | 2 | 0 | 1 |
 | .NET unit tests (leave day calculation, leave events) | 1 | 0 | 0 | 0 |
@@ -39,9 +39,11 @@
 
 - ✅ `Dha09Emails.test_both_flows_exist_and_are_on` - pass
 - ✅ `Dha09Emails.test_dev_redirects_every_email` - pass
+- ✅ `Dha09Emails.test_reminder_goes_to_each_approver_once` - pass
 - ✅ `Dha09Emails.test_request_and_approval_each_send_the_right_email_to_the_redirect` - pass
 - ✅ `Dha09Decisions.test_approving_puts_generic_leave_on_the_timesheet_linked_to_the_request` - pass
 - ✅ `Dha09Decisions.test_cancellation_request_keeps_leave_until_decided_and_declining_keeps_it` - pass
+- ✅ `Dha09Decisions.test_cancelling_someone_elses_pending_request_tells_them` - pass
 - ✅ `Dha09Decisions.test_changing_dates_on_approved_leave_moves_the_timesheet_entries` - pass
 - ✅ `Dha09Decisions.test_deleting_approved_or_cancellation_requested_leave_is_blocked` - pass
 - ✅ `Dha09Decisions.test_deleting_pending_leave_is_allowed` - pass
@@ -73,6 +75,12 @@
 - ✅ `Dha09ParityStage2.test_asking_to_cancel_approved_leave_keeps_the_reason_and_the_timesheet` - pass
 - ✅ `Dha09ParityStage2.test_pending_leave_cannot_go_to_the_approver_for_cancellation` - pass
 - ✅ `Dha09ParityStage2.test_withdrawing_with_a_reason_keeps_the_reason` - pass
+- ✅ `Dha09ParityStage3.test_approver_cancelling_on_behalf_tells_the_employee` - pass
+- ✅ `Dha09ParityStage3.test_balance_is_refused_to_someone_who_doesnt_approve_them` - pass
+- ✅ `Dha09ParityStage3.test_new_approver_gets_the_waiting_request_their_balance_and_team_leave` - pass
+- ✅ `Dha09ParityStage3.test_one_day_request_stores_its_end_date_and_still_clashes` - pass
+- ✅ `Dha09ParityStage3.test_own_balance_counts_pending_leave` - pass
+- ✅ `Dha09ParityStage3.test_team_leave_is_only_for_approvers` - pass
 - ✅ `Dha09Security.test_entitlements_are_user_owned` - pass
 - ✅ `Dha09Security.test_hr_team_is_linked_to_the_hr_group_and_holds_leave_administrator` - pass
 - ✅ `Dha09Security.test_leave_administrator_sees_everyones_leave_but_cannot_delete` - pass
@@ -143,4 +151,4 @@
 
 ## .NET unit tests (leave day calculation, leave events)
 
-- ✅ `54 unit tests` - pass
+- ✅ `60 unit tests` - pass

@@ -1,7 +1,6 @@
 using DHA.DSTC.WPF.Models;
 using DHA.DSTC.WPF.Services;
 using DHA.DSTC.WPF.Utilities;
-using DHA.Leave.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,54 +14,71 @@ using Microsoft.Xrm.Sdk;
 namespace DHA.DSTC.WPF
 {
     /// <summary>
-    /// "Approvals" sub-tab of Leave: HR approve or reject requests and cancellations (DHA-9 phase B).
-    /// Only shown to approvers - see LeaveService.CanApprove.
+    /// "Approvals" sub-tab of Leave: approve or reject requests and cancellations (DHA-9 phase B, parity plan M1-M3).
+    /// HR see everyone's; line managers and additional approvers see their people's. Shown when <see cref="Scope"/> allows.
     /// </summary>
     public partial class LeaveApprovalsView : UserControl
     {
         private LeaveService _leaveService;
+        private ApproverScope _scope;
         private List<LeaveType> _types = new List<LeaveType>();
-        private List<LeaveRequest> _upcoming = new List<LeaveRequest>();
+        private List<LeaveRequest> _waiting = new List<LeaveRequest>();
+        private List<LeaveRequest> _whosOff = new List<LeaveRequest>();
         private bool _loading;
+
+        /// <summary>Raised after each load with the number of requests waiting (for the tab header).</summary>
+        public event Action<int> PendingCountChanged;
 
         public LeaveApprovalsView()
         {
             InitializeComponent();
         }
 
+        /// <summary>Set by LeaveTabView each time the Leave tab is shown.</summary>
+        public ApproverScope Scope
+        {
+            get => _scope;
+            set
+            {
+                _scope = value;
+                // "My people" only means something to someone who approves people directly
+                WhoFilter.Visibility = value?.MyPeople.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (value?.MyPeople.Count == 0) WhoFilter.SelectedIndex = 0;
+                if (IsVisible) _ = LoadAsync();
+            }
+        }
+
         private async void ApprovalsView_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
-            if (!IsVisible || _loading || ServiceLocator.DataverseConnector == null)
+            if (!IsVisible)
                 return;
-            _leaveService = _leaveService ?? new LeaveService(ServiceLocator.DataverseConnector);
             await LoadAsync();
         }
 
         private async Task LoadAsync()
         {
+            if (_loading || _scope == null || !_scope.CanApprove || ServiceLocator.DataverseConnector == null)
+                return;
+            _leaveService = _leaveService ?? new LeaveService(ServiceLocator.DataverseConnector);
             _loading = true;
             var selectedId = (PendingGrid.SelectedItem as LeaveRequest)?.Id;
             try
             {
                 var today = DateTime.Today;
+                var scope = _scope;
                 var result = await Task.Run(() => new
                 {
-                    Pending = _leaveService.GetRequestsAwaitingDecision(),
-                    Upcoming = _leaveService.GetApprovedLeave(today, today.AddDays(30)),
+                    Waiting = _leaveService.GetRequestsAwaitingDecision(scope),
+                    WhosOff = _leaveService.GetTeamLeave(today, today.AddDays(30)),
                     Types = _leaveService.GetLeaveTypes()
                 });
 
                 _types = result.Types;
-                _upcoming = result.Upcoming;
-                PendingGrid.ItemsSource = result.Pending;
-                UpcomingGrid.ItemsSource = result.Upcoming;
-                PendingTitleText.Text = result.Pending.Count == 0
-                    ? "Waiting for a decision - nothing to do"
-                    : $"Waiting for a decision ({result.Pending.Count})";
-
-                PendingGrid.SelectedItem = result.Pending.FirstOrDefault(r => r.Id == selectedId);
-                if (PendingGrid.SelectedItem == null)
-                    ShowDetail(null);
+                _waiting = result.Waiting;
+                _whosOff = result.WhosOff;
+                ShowWaiting(selectedId);
+                ShowWhosOff();
+                PendingCountChanged?.Invoke(_waiting.Count);
             }
             catch (Exception ex)
             {
@@ -74,12 +90,44 @@ namespace DHA.DSTC.WPF
             }
         }
 
+        // ---------- Lists (M2, M3) ----------
+
+        private void PendingFilter_Changed(object sender, RoutedEventArgs e) => ShowWaiting((PendingGrid?.SelectedItem as LeaveRequest)?.Id);
+        private void WhoFilter_Changed(object sender, SelectionChangedEventArgs e) => ShowWhosOff();
+
+        private bool MyPeopleOnly => WhoFilter?.SelectedIndex == 1 && _scope != null;
+
+        private void ShowWaiting(Guid? selectedId)
+        {
+            if (PendingGrid == null || ShowCancellationsCheckBox == null)
+                return;
+            var rows = _waiting.Where(r => r.IsCancellationRequest ? ShowCancellationsCheckBox.IsChecked == true : ShowNewCheckBox.IsChecked == true).ToList();
+            PendingGrid.ItemsSource = rows;
+            int requests = _waiting.Count(r => !r.IsCancellationRequest), cancellations = _waiting.Count - requests;
+            PendingTitleText.Text = _waiting.Count == 0
+                ? "Waiting for a decision - nothing to do"
+                : $"Waiting for a decision ({requests} new, {cancellations} to cancel)";
+
+            PendingGrid.SelectedItem = rows.FirstOrDefault(r => r.Id == selectedId);
+            if (PendingGrid.SelectedItem == null)
+                ShowDetail(null);
+        }
+
+        private void ShowWhosOff()
+        {
+            if (UpcomingGrid == null)
+                return;
+            UpcomingGrid.ItemsSource = _whosOff.Where(r => !MyPeopleOnly || _scope.IsMine(r.EmployeeId)).ToList();
+        }
+
+        // ---------- Decision panel ----------
+
         private async void PendingGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var request = PendingGrid.SelectedItem as LeaveRequest;
             ShowDetail(request);
             if (request != null)
-                await ShowBalanceAsync(request);
+                await ShowBalanceAndOverlapAsync(request);
         }
 
         private void ShowDetail(LeaveRequest request)
@@ -92,7 +140,8 @@ namespace DHA.DSTC.WPF
             DetailTitleText.Text = request.EmployeeName;
             if (request.IsCancellationRequest)
             {
-                DetailKindText.Text = "Wants to cancel approved leave";
+                DetailKindText.Text = "Wants to cancel approved leave"
+                    + (string.IsNullOrWhiteSpace(request.CancellationComments) ? "" : $": \"{request.CancellationComments}\"");
                 DetailKindText.Foreground = new SolidColorBrush(Color.FromRgb(0xB4, 0x53, 0x09));
                 ApproveButton.Content = "Approve cancellation";
                 RejectButton.Content = "Keep leave booked";
@@ -104,42 +153,39 @@ namespace DHA.DSTC.WPF
                 ApproveButton.Content = "Approve";
                 RejectButton.Content = "Reject";
             }
+            DetailKindText.TextWrapping = TextWrapping.Wrap;
 
             DetailDatesText.Text = request.DatesText;
             DetailTypeText.Text = string.IsNullOrEmpty(request.LeaveTypeName) ? "(not given)" : request.LeaveTypeName;
             DetailHoursText.Text = $"{request.Days:0.##} day{(request.Days == 1 ? "" : "s")} ({request.Hours:0.##} hours)";
-            DetailRequestedText.Text = request.RequestedOn?.ToString("ddd dd/MM/yyyy HH:mm") ?? "";
+            DetailRequestedText.Text = (request.RequestedOn?.ToString("ddd dd/MM/yyyy HH:mm") ?? "")
+                + (string.IsNullOrEmpty(request.ApproverName) ? "" : $" · approver {request.ApproverName}")
+                + (string.IsNullOrEmpty(request.AdditionalApproverName) ? "" : $" or {request.AdditionalApproverName}");
             DetailCommentsText.Text = string.IsNullOrWhiteSpace(request.RequesterComments) ? "(none)" : request.RequesterComments;
             DetailBalanceText.Text = "Loading…";
+            DetailOverlapText.Visibility = Visibility.Collapsed;
             ApproverCommentTextBox.Text = "";
-
-            // Anyone else off at the same time
-            var others = _upcoming.Where(o => o.EmployeeId != request.EmployeeId
-                                              && o.StartDate <= request.EndDate && o.EndDate >= request.StartDate)
-                                  .Select(o => o.EmployeeName).Distinct().ToList();
-            DetailOverlapText.Text = others.Count > 0 ? "Also off during these dates: " + string.Join(", ", others) : "";
-            DetailOverlapText.Visibility = others.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private async Task ShowBalanceAsync(LeaveRequest request)
+        private async Task ShowBalanceAndOverlapAsync(LeaveRequest request)
         {
             try
             {
-                var today = DateTime.Today;
-                var balanceInfo = await Task.Run(() =>
+                var info = await Task.Run(() => new
                 {
-                    var requests = _leaveService.GetMyRequests(request.EmployeeId, today.AddYears(-1));
-                    var pattern = _leaveService.GetWorkingPattern(request.EmployeeId);
-                    return new { Balance = _leaveService.GetBalance(request.EmployeeId, request.StartDate, requests, _types), Pattern = pattern };
+                    Balance = _leaveService.GetBalance(request.EmployeeId, request.StartDate.Year),
+                    Overlap = _leaveService.GetTeamLeave(request.StartDate, request.EndDate)
                 });
-
                 if (!ReferenceEquals(PendingGrid.SelectedItem, request))
                     return; // moved on
 
-                var b = balanceInfo.Balance;
+                ShowOverlap(request, info.Overlap);
+
+                var b = info.Balance;
                 if (!b.HasEntitlement)
                 {
-                    DetailBalanceText.Text = "No entitlement set up for this leave year.";
+                    DetailBalanceText.Text = $"No entitlement set up for {request.StartDate.Year}.";
+                    DetailBalanceText.Foreground = (Brush)FindResource("TextPrimaryBrush");
                     return;
                 }
 
@@ -151,7 +197,7 @@ namespace DHA.DSTC.WPF
                 decimal withoutThis = remaining + (deducts && !request.IsCancellationRequest ? request.Days : 0m);
 
                 DetailBalanceText.Text = deducts
-                    ? $"{Days(remaining)} remaining of {Days(b.EntitlementDays)} if approved ({Days(withoutThis)} before this request)"
+                    ? $"{Days(remaining)} remaining of {Days(b.EntitlementDays)} in {request.StartDate.Year} if approved ({Days(withoutThis)} before this request)"
                     : $"{Days(remaining)} remaining of {Days(b.EntitlementDays)} - {type.Name} doesn't use entitlement";
                 DetailBalanceText.Foreground = remaining < 0
                     ? new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26))
@@ -161,6 +207,17 @@ namespace DHA.DSTC.WPF
             {
                 DetailBalanceText.Text = "Couldn't load balance: " + ex.Message;
             }
+        }
+
+        /// <summary>Anyone else off (or asking to be) during the request, honouring the Everyone / My people filter.</summary>
+        private void ShowOverlap(LeaveRequest request, List<LeaveRequest> overlap)
+        {
+            var others = overlap.Where(o => o.EmployeeId != request.EmployeeId && (!MyPeopleOnly || _scope.IsMine(o.EmployeeId)))
+                .GroupBy(o => o.EmployeeName)
+                .Select(g => g.Key + (g.All(o => o.Status == LeaveRequestStatus.Pending) ? " (pending)" : ""))
+                .ToList();
+            DetailOverlapText.Text = others.Count > 0 ? "Also off during these dates: " + string.Join(", ", others) : "Nobody else is off during these dates.";
+            DetailOverlapText.Visibility = Visibility.Visible;
         }
 
         private async void ApproveButton_Click(object sender, RoutedEventArgs e)

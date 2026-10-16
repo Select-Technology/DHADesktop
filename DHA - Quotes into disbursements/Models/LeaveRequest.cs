@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xrm.Sdk;
 
 namespace DHA.DSTC.WPF.Models
@@ -127,6 +129,27 @@ namespace DHA.DSTC.WPF.Models
             // fwp_hours, fwp_status, fwp_approver are set server-side by LeaveRequestPlugin
             return e;
         }
+    }
+
+    /// <summary>Someone whose leave you can see in the team views.</summary>
+    public class LeavePerson
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; }
+        public override string ToString() => Name;
+    }
+
+    /// <summary>
+    /// What the signed-in user approves (parity plan M1). Leave administrators (HR) see everyone; line managers and
+    /// additional approvers see the people whose colleague configuration names them.
+    /// </summary>
+    public class ApproverScope
+    {
+        public bool IsLeaveAdmin { get; set; }
+        /// <summary>The people this user approves directly (as approver or additional approver).</summary>
+        public List<LeavePerson> MyPeople { get; set; } = new List<LeavePerson>();
+        public bool CanApprove => IsLeaveAdmin || MyPeople.Count > 0;
+        public bool IsMine(Guid employeeId) => MyPeople.Any(p => p.Id == employeeId);
     }
 
     /// <summary>

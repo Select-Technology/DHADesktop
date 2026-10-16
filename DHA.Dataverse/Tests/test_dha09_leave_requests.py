@@ -5,7 +5,7 @@ request comes from the desktop app, Dynamics, or the API.
 """
 import unittest
 
-from dvtest import (DataverseTestCase, JESSICA, HARRIET, FMT, PENDING, APPROVED, REJECTED, CANCEL_REQUESTED, CANCELLED,
+from dvtest import (DataverseTestCase, JESSICA, HARRIET, ALICE, FMT, PENDING, APPROVED, REJECTED, CANCEL_REQUESTED, CANCELLED,
                     me, call, get, rows, error_text, entity_set, leave_entries, active, day_hours, delete_time_entries)
 
 
@@ -157,9 +157,15 @@ class Dha09Decisions(LeaveRequestTestCase):
         self.assertEqual([], self.entries(rid))
 
     def test_withdrawing_a_pending_request(self):
-        rid = self.created("2027-08-17")
+        # the employee themselves (stsadmin: the only dev user who can act on their own leave)
+        rid = self.created("2027-08-17", employee=me())
         self.set_status(rid, CANCELLED)
         self.assertEqual("Withdrawn", self.request(rid)["fwp_lastevent"])
+
+    def test_cancelling_someone_elses_pending_request_tells_them(self):
+        rid = self.created("2027-08-18")                     # Jessica's, cancelled by stsadmin
+        self.set_status(rid, CANCELLED)
+        self.assertEqual("CancelledByHR", self.request(rid)["fwp_lastevent"])
         self.assertEqual([], self.entries(rid))
 
     def test_cancellation_request_keeps_leave_until_decided_and_declining_keeps_it(self):
@@ -313,7 +319,7 @@ class Dha09ParityStage2(LeaveRequestTestCase):
     """Parity plan stage 2: what the desktop My leave screen sends when cancelling."""
 
     def test_withdrawing_with_a_reason_keeps_the_reason(self):
-        rid = self.created("2027-11-01")
+        rid = self.created("2027-11-01", employee=me())
         call("PATCH", f"{self.LR}({rid})", {"fwp_status": CANCELLED, "fwp_cancellationcomments": "ZZTEST plans changed"})
         r = get(f"{self.LR}({rid})?$select=fwp_status,fwp_lastevent,fwp_cancellationcomments")
         self.assertEqual((CANCELLED, "Withdrawn", "ZZTEST plans changed"),
@@ -354,6 +360,89 @@ class Dha09ParityStage1Schema(DataverseTestCase):
     def test_carry_forward_limit_is_five_days(self):
         d = rows("environmentvariabledefinitions?$select=defaultvalue&$filter=schemaname eq 'fwp_LeaveCarryForwardLimit'")
         self.assertEqual("5", d[0]["defaultvalue"])
+
+
+class Dha09ParityStage3(LeaveRequestTestCase):
+    """Parity plan stage 3 (approvers): balances and team leave through Custom APIs, approver changes in colleague configuration."""
+
+    # Jessica (Project Manager, not HR) is made Alice's approver; Harriet is HR (System Administrator in dev)
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cfg = rows(f"fwp_colleagueconfigurations?$select=fwp_colleagueconfigurationid,_fwp_leaveapprover_value"
+                   f"&$filter=_fwp_colleague_value eq {ALICE} and statecode eq 0")[0]
+        cls.cfg_id, cls.original_approver = cfg["fwp_colleagueconfigurationid"], cfg["_fwp_leaveapprover_value"]
+
+    def set_alices_approver(self, user_id):
+        if user_id:
+            s, d = call("PATCH", f"fwp_colleagueconfigurations({self.cfg_id})", {"fwp_LeaveApprover@odata.bind": f"/systemusers({user_id})"})
+        else:
+            s, d = call("DELETE", f"fwp_colleagueconfigurations({self.cfg_id})/fwp_LeaveApprover/$ref")
+        self.assertLess(s, 300, d)
+
+    @staticmethod
+    def balance(employee, year, user=None):
+        return call("POST", "fwp_GetLeaveBalance", {"EmployeeId": employee, "Year": year}, user=user)
+
+    def test_own_balance_counts_pending_leave(self):
+        before = self.balance(me(), 2027)[1]
+        self.assertTrue(before["HasEntitlement"], "dev seed gives stsadmin a 2027 entitlement")
+        self.created("2027-11-08", "2027-11-09", employee=me(),
+                     **{"fwp_LeaveType@odata.bind": f"/fwp_leavetypes({leave_type('Holiday Request')})"})
+        after = self.balance(me(), 2027)[1]
+        self.assertEqual((before["BookedDays"] + 2, before["PendingDays"] + 2), (after["BookedDays"], after["PendingDays"]))
+
+    def test_balance_is_refused_to_someone_who_doesnt_approve_them(self):
+        s, d = self.balance(ALICE, 2027, user=JESSICA)
+        self.assertGreaterEqual(s, 400)
+        self.assertIn("people whose leave you approve", error_text(d))
+
+    def test_team_leave_is_only_for_approvers(self):
+        s, d = call("POST", "fwp_GetTeamLeave", {"FromDate": "2027-01-01T00:00:00Z", "ToDate": "2027-12-31T00:00:00Z"}, user=JESSICA)
+        self.assertGreaterEqual(s, 400)
+        self.assertIn("Only leave approvers", error_text(d))
+
+    def test_new_approver_gets_the_waiting_request_their_balance_and_team_leave(self):
+        hol = {"fwp_LeaveType@odata.bind": f"/fwp_leavetypes({leave_type('Holiday Request')})"}
+        alices = self.created("2027-11-15", employee=ALICE, **hol)
+        someone_elses = self.created("2027-11-15", employee=me(), **hol)
+        try:
+            self.set_alices_approver(JESSICA)
+            # the waiting request moved to Jessica, who can now open and decide it
+            self.assertEqual(JESSICA, get(f"{self.LR}({alices})?$select=_fwp_approver_value")["_fwp_approver_value"])
+            access = get(f"systemusers({JESSICA})/Microsoft.Dynamics.CRM.RetrievePrincipalAccess(Target=@t)"
+                         f"?@t={{'@odata.id':'{self.LR}({alices})'}}")["AccessRights"]
+            self.assertIn("WriteAccess", access)
+            # Alice's balance
+            s, d = self.balance(ALICE, 2027, user=JESSICA)
+            self.assertLess(s, 300, d)
+            # who's off: her own person's type is shown, someone else's withheld; HR sees both
+            window = {"FromDate": "2027-11-15T00:00:00Z", "ToDate": "2027-11-15T00:00:00Z"}
+            s, d = call("POST", "fwp_GetTeamLeave", window, user=JESSICA)
+            self.assertLess(s, 300, d)
+            by_id = {r["fwp_leaverequestid"]: r for r in d["value"]}
+            self.assertEqual(leave_type("Holiday Request"), by_id[alices].get("_fwp_leavetype_value"))
+            self.assertIn(someone_elses, by_id, "someone else's leave missing from who's off")
+            self.assertIsNone(by_id[someone_elses].get("_fwp_leavetype_value"), "type of someone else's absence was shown")
+            hr = {r["fwp_leaverequestid"]: r for r in call("POST", "fwp_GetTeamLeave", window, user=HARRIET)[1]["value"]}
+            self.assertIsNotNone(hr[someone_elses].get("_fwp_leavetype_value"), "HR should see every type")
+        finally:
+            self.set_alices_approver(self.original_approver)
+
+    def test_one_day_request_stores_its_end_date_and_still_clashes(self):
+        # Booked with a start date only: the end date used to stay empty, so overlap checks and "who's off" missed it
+        rid = self.created("2027-11-22")
+        self.assertEqual("2027-11-22", get(f"{self.LR}({rid})?$select=fwp_enddate")["fwp_enddate"][:10])
+        s, d = self.create("2027-11-22")
+        self.assertGreaterEqual(s, 400, "a second absence on the same day was accepted")
+
+    def test_approver_cancelling_on_behalf_tells_the_employee(self):
+        rid = self.created("2027-11-16")
+        self.set_status(rid, APPROVED)
+        call("PATCH", f"{self.LR}({rid})", {"fwp_status": CANCELLED, "fwp_approvercomments": "ZZTEST office closed",
+                                            "fwp_Approver@odata.bind": f"/systemusers({me()})"})
+        self.assertEqual("CancelledByHR", self.request(rid)["fwp_lastevent"])
+        self.assertEqual([], active(self.entries(rid)))
 
 
 if __name__ == "__main__":

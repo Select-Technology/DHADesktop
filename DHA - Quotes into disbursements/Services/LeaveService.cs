@@ -156,8 +156,47 @@ namespace DHA.DSTC.WPF.Services
             }
         }
 
-        /// <summary>Everyone's requests waiting for a decision: new requests and requests to cancel approved leave.</summary>
-        public List<LeaveRequest> GetRequestsAwaitingDecision()
+        /// <summary>HR (leave administrator) and the people this user approves, from colleague configuration.</summary>
+        public ApproverScope GetApproverScope(Guid userId, string email)
+        {
+            var scope = new ApproverScope { IsLeaveAdmin = CanApprove(userId, email) };
+            if (userId == Guid.Empty || !_connector.Connect())
+                return scope;
+
+            var q = new QueryExpression("fwp_colleagueconfiguration") { ColumnSet = new ColumnSet("fwp_colleague") };
+            q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+            var either = new FilterExpression(LogicalOperator.Or);
+            either.AddCondition("fwp_leaveapprover", ConditionOperator.Equal, userId);
+            either.AddCondition("fwp_additionalleaveapprover", ConditionOperator.Equal, userId);
+            q.Criteria.AddFilter(either);
+            scope.MyPeople = People(_connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)));
+            return scope;
+        }
+
+        /// <summary>Everyone with a colleague configuration - who HR can see in the team view.</summary>
+        public List<LeavePerson> GetEveryone()
+        {
+            if (!_connector.Connect())
+                return new List<LeavePerson>();
+            var q = new QueryExpression("fwp_colleagueconfiguration") { ColumnSet = new ColumnSet("fwp_colleague") };
+            q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+            q.Criteria.AddCondition("fwp_colleague", ConditionOperator.NotNull);
+            return People(_connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)));
+        }
+
+        private static List<LeavePerson> People(EntityCollection configs) =>
+            configs.Entities.Select(e => e.GetAttributeValue<EntityReference>("fwp_colleague"))
+                .Where(r => r != null)
+                .GroupBy(r => r.Id)
+                .Select(g => new LeavePerson { Id = g.Key, Name = g.First().Name })
+                .OrderBy(p => p.Name)
+                .ToList();
+
+        /// <summary>
+        /// Requests waiting for a decision (new requests and requests to cancel approved leave). HR see everyone's;
+        /// approvers see their people's (shared with them by the plug-in).
+        /// </summary>
+        public List<LeaveRequest> GetRequestsAwaitingDecision(ApproverScope scope)
         {
             if (!_connector.Connect())
                 return new List<LeaveRequest>();
@@ -169,29 +208,29 @@ namespace DHA.DSTC.WPF.Services
             };
             q.Criteria.AddCondition("fwp_status", ConditionOperator.In,
                 (int)LeaveRequestStatus.Pending, (int)LeaveRequestStatus.CancellationRequested);
+            if (!scope.IsLeaveAdmin)
+            {
+                if (scope.MyPeople.Count == 0)
+                    return new List<LeaveRequest>();
+                q.Criteria.AddCondition("fwp_employee", ConditionOperator.In, scope.MyPeople.Select(p => (object)p.Id).ToArray());
+            }
 
             return _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q))
                 .Entities.Select(LeaveRequest.FromEntity).ToList();
         }
 
-        /// <summary>Approved leave overlapping the given window - who's off.</summary>
-        public List<LeaveRequest> GetApprovedLeave(DateTime from, DateTime to)
+        /// <summary>
+        /// Everyone's pending and booked leave overlapping the window ("who's off", M3), from the fwp_GetTeamLeave Custom API -
+        /// line managers can't read other teams' requests directly. The type is only given for your own people (or to HR)
+        /// and for non-absence types such as Working From Home.
+        /// </summary>
+        public List<LeaveRequest> GetTeamLeave(DateTime from, DateTime to)
         {
             if (!_connector.Connect())
                 return new List<LeaveRequest>();
-
-            var q = new QueryExpression("fwp_leaverequest")
-            {
-                ColumnSet = new ColumnSet(RequestColumns),
-                Orders = { new OrderExpression("fwp_startdate", OrderType.Ascending) }
-            };
-            q.Criteria.AddCondition("fwp_status", ConditionOperator.In,
-                (int)LeaveRequestStatus.Approved, (int)LeaveRequestStatus.CancellationRequested);
-            q.Criteria.AddCondition("fwp_startdate", ConditionOperator.OnOrBefore, to.Date);
-            q.Criteria.AddCondition("fwp_enddate", ConditionOperator.OnOrAfter, from.Date);
-
-            return _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q))
-                .Entities.Select(LeaveRequest.FromEntity).ToList();
+            var request = new OrganizationRequest("fwp_GetTeamLeave") { ["FromDate"] = from.Date, ["ToDate"] = to.Date };
+            var response = _connector.ExecuteWithRetry(() => _connector._orgService.Execute(request));
+            return ((EntityCollection)response["Leave"]).Entities.Select(LeaveRequest.FromEntity).ToList();
         }
 
         /// <summary>
@@ -279,51 +318,30 @@ namespace DHA.DSTC.WPF.Services
         }
 
         /// <summary>
-        /// Balance in DAYS for the leave year (calendar year) containing <paramref name="onDate"/>. Pending requests count as
-        /// taken (HR decision); only types that deduct from entitlement count.
+        /// Balance in DAYS for one leave (calendar) year, from the fwp_GetLeaveBalance Custom API - the same rules for
+        /// your own balance and for an approver looking at one of their people (who can't read the entitlement directly).
+        /// Pending requests count against the balance (HR decision); only types that deduct from entitlement count.
         /// </summary>
-        public LeaveBalance GetBalance(Guid employeeId, DateTime onDate, IEnumerable<LeaveRequest> requests, IList<LeaveType> types)
+        public LeaveBalance GetBalance(Guid employeeId, int year)
         {
             var balance = new LeaveBalance();
             if (!_connector.Connect())
                 return balance;
 
-            var yearStart = new DateTime(onDate.Year, 1, 1);
-            var q = new QueryExpression("fwp_leaveentitlement")
-            {
-                ColumnSet = new ColumnSet("fwp_yearstart", "fwp_entitlementdays", "fwp_carriedforwarddays", "fwp_adjustmentdays", "fwp_carriedtonextyeardays"),
-                TopCount = 1
-            };
-            q.Criteria.AddCondition("fwp_employee", ConditionOperator.Equal, employeeId);
-            q.Criteria.AddCondition("fwp_yearstart", ConditionOperator.On, yearStart);
-            q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-
-            var ent = _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities.FirstOrDefault();
-            if (ent == null)
+            var request = new OrganizationRequest("fwp_GetLeaveBalance") { ["EmployeeId"] = employeeId, ["Year"] = year };
+            var r = _connector.ExecuteWithRetry(() => _connector._orgService.Execute(request));
+            if (!(r["HasEntitlement"] is bool has) || !has)
                 return balance;
 
-            balance.YearStart = yearStart;
-            balance.BaseDays = ent.GetAttributeValue<decimal?>("fwp_entitlementdays") ?? 0m;
-            balance.CarriedForwardDays = ent.GetAttributeValue<decimal?>("fwp_carriedforwarddays") ?? 0m;
-            balance.AdjustmentDays = ent.GetAttributeValue<decimal?>("fwp_adjustmentdays") ?? 0m;
-            balance.CarriedToNextYearDays = ent.GetAttributeValue<decimal?>("fwp_carriedtonextyeardays") ?? 0m;
+            balance.YearStart = new DateTime(year, 1, 1);
+            balance.BaseDays = (decimal)r["BaseDays"];
+            balance.CarriedForwardDays = (decimal)r["CarriedForwardDays"];
+            balance.AdjustmentDays = (decimal)r["AdjustmentDays"];
+            balance.CarriedToNextYearDays = (decimal)r["CarriedToNextYearDays"];
             balance.EntitlementDays = balance.BaseDays + balance.CarriedForwardDays + balance.AdjustmentDays;
-
-            var deducting = new HashSet<Guid>(types.Where(t => t.DeductsFromEntitlement).Select(t => t.Id));
-            foreach (var r in requests.Where(r => r.StartDate.Year == onDate.Year
-                                                  && (!r.LeaveTypeId.HasValue || deducting.Contains(r.LeaveTypeId.Value))))
-            {
-                if (r.Status == LeaveRequestStatus.Approved || r.Status == LeaveRequestStatus.CancellationRequested)
-                {
-                    if (r.EndDate.Date < DateTime.Today) balance.TakenDays += r.Days;
-                    else balance.BookedDays += r.Days;
-                }
-                else if (r.Status == LeaveRequestStatus.Pending)
-                {
-                    balance.BookedDays += r.Days;
-                    balance.PendingDays += r.Days;
-                }
-            }
+            balance.TakenDays = (decimal)r["TakenDays"];
+            balance.BookedDays = (decimal)r["BookedDays"];
+            balance.PendingDays = (decimal)r["PendingDays"];
             return balance;
         }
     }

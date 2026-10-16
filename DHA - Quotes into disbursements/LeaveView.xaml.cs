@@ -76,7 +76,7 @@ namespace DHA.DSTC.WPF
                         Pattern = _leaveService.GetWorkingPattern(employeeId),
                         Holidays = _leaveService.GetCompanyHolidays(new DateTime(today.Year - 1, 1, 1), new DateTime(today.Year + 2, 12, 31)),
                         Approvers = _leaveService.GetApprovers(employeeId),
-                        Balances = years.ToDictionary(y => y, y => _leaveService.GetBalance(employeeId, new DateTime(y, 1, 1), requests, types))
+                        Balances = years.ToDictionary(y => y, y => _leaveService.GetBalance(employeeId, y))
                     };
                 });
 
