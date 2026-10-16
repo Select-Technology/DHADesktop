@@ -13,6 +13,41 @@ namespace DHA.Leave.Plugins
     /// </summary>
     public static class LeaveAccess
     {
+        /// <summary>Owner team whose members may book leave for other people (A9). Members are managed in Dynamics.</summary>
+        public const string BookOnBehalfTeam = "Leave - Book on behalf";
+
+        /// <summary>HR, or a member of the "Leave - Book on behalf" team.</summary>
+        public static bool CanBookOnBehalf(IOrganizationService svc, Guid userId)
+        {
+            var q = new QueryExpression("team") { ColumnSet = new ColumnSet(false), TopCount = 1 };
+            q.Criteria.AddCondition("name", ConditionOperator.Equal, BookOnBehalfTeam);
+            var member = q.AddLink("teammembership", "teamid", "teamid");
+            member.LinkCriteria.AddCondition("systemuserid", ConditionOperator.Equal, userId);
+            return svc.RetrieveMultiple(q).Entities.Count > 0 || IsLeaveAdmin(svc, userId);
+        }
+
+        /// <summary>True if the user holds the privilege (any depth) through one of their roles or one of their teams' roles.</summary>
+        public static bool HasPrivilege(IOrganizationService svc, Guid userId, string privilegeName)
+        {
+            string viaUser = $@"<fetch top='1'><entity name='privilege'><attribute name='privilegeid'/>
+                <filter><condition attribute='name' operator='eq' value='{privilegeName}'/></filter>
+                <link-entity name='roleprivileges' from='privilegeid' to='privilegeid' intersect='true'>
+                  <link-entity name='role' from='roleid' to='roleid'>
+                    <link-entity name='systemuserroles' from='roleid' to='roleid' intersect='true'>
+                      <filter><condition attribute='systemuserid' operator='eq' value='{userId}'/></filter>
+                    </link-entity></link-entity></link-entity></entity></fetch>";
+            string viaTeam = $@"<fetch top='1'><entity name='privilege'><attribute name='privilegeid'/>
+                <filter><condition attribute='name' operator='eq' value='{privilegeName}'/></filter>
+                <link-entity name='roleprivileges' from='privilegeid' to='privilegeid' intersect='true'>
+                  <link-entity name='role' from='roleid' to='roleid'>
+                    <link-entity name='teamroles' from='roleid' to='roleid' intersect='true'>
+                      <link-entity name='teammembership' from='teamid' to='teamid' intersect='true'>
+                        <filter><condition attribute='systemuserid' operator='eq' value='{userId}'/></filter>
+                      </link-entity></link-entity></link-entity></link-entity></entity></fetch>";
+            return svc.RetrieveMultiple(new FetchExpression(viaUser)).Entities.Count > 0
+                || svc.RetrieveMultiple(new FetchExpression(viaTeam)).Entities.Count > 0;
+        }
+
         /// <summary>Organisation-wide read of leave requests: the "DHA - Leave Administrator" role (HR), or System Administrator.</summary>
         public static bool IsLeaveAdmin(IOrganizationService svc, Guid userId)
         {
@@ -85,7 +120,8 @@ namespace DHA.Leave.Plugins
     /// Custom API fwp_GetLeaveBalance - one person's balance for one leave year, in days.
     /// In: EmployeeId? (default: the caller), Year? (default: this year).
     /// Out: HasEntitlement, BaseDays, CarriedForwardDays, AdjustmentDays, CarriedToNextYearDays, TakenDays, BookedDays, PendingDays.
-    /// Allowed for the employee, their approver or additional approver, and leave administrators.
+    /// Allowed for the employee, their approver or additional approver, leave administrators, and the book-on-behalf team
+    /// (who see the balance of the person they're booking for).
     /// </summary>
     public class GetLeaveBalancePlugin : LeaveReadApiPluginBase
     {
@@ -95,7 +131,7 @@ namespace DHA.Leave.Plugins
             int year = Input<int?>(context, "Year") is int y && y > 1900 ? y : DateTime.UtcNow.Year;
 
             if (employeeId != callerId && !LeaveAccess.PeopleApprovedBy(system, callerId).Contains(employeeId)
-                && !LeaveAccess.IsLeaveAdmin(system, callerId))
+                && !LeaveAccess.CanBookOnBehalf(system, callerId))
                 throw new InvalidPluginExecutionException("You can only see the leave balance of people whose leave you approve.");
 
             var yearStart = new DateTime(year, 1, 1);

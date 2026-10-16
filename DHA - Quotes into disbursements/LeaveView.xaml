@@ -17,6 +17,16 @@
                     <TextBlock Text="New Request" FontSize="18" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,16"/>
 
+                    <!-- Booking on someone's behalf (E13): HR and the "Leave - Book on behalf" team -->
+                    <StackPanel x:Name="OnBehalfPanel" Visibility="Collapsed" Margin="0,0,0,4">
+                        <TextBlock Text="Booking for" Style="{DynamicResource FormLabelStyle}"/>
+                        <ComboBox x:Name="BookingForComboBox" Height="32" Margin="0,0,0,8" SelectionChanged="BookingFor_Changed"/>
+                        <StackPanel x:Name="OnBehalfApproverPanel" Visibility="Collapsed">
+                            <TextBlock Text="Approver" Style="{DynamicResource FormLabelStyle}"/>
+                            <ComboBox x:Name="OnBehalfApproverComboBox" Height="32" Margin="0,0,0,8"/>
+                        </StackPanel>
+                    </StackPanel>
+
                     <TextBlock Text="Type" Style="{DynamicResource FormLabelStyle}"/>
                     <ComboBox x:Name="LeaveTypeComboBox" Margin="0,0,0,4" Height="32" SelectionChanged="Type_Changed"/>
                     <TextBlock x:Name="TypePrivacyText" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"
@@ -91,7 +101,7 @@
                 <StackPanel>
                     <DockPanel Margin="0,0,0,4">
                         <ComboBox x:Name="BalanceYearComboBox" DockPanel.Dock="Right" Width="90" Height="28" SelectionChanged="BalanceYear_Changed"/>
-                        <TextBlock Text="My Balance" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="BalanceTitleText" Text="My Balance" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                     </DockPanel>
                     <TextBlock x:Name="ApproverText" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap"/>
                     <UniformGrid Columns="4">

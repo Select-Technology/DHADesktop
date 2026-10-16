@@ -106,7 +106,7 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 | **E10** | My requests: filter upcoming/past, status, type; detail with approver comments and when cancellation was requested | ✅ Upcoming / past / all, status and type filters; detail panel with comments and cancellation details | Filters; detail panel |
 | **E11** | Cancel **with a comment**. Pending future requests cancel instantly; approved ones go to the approver | ✅ Cancel with a reason (required when it goes to the approver). **Changed from Valto:** see stage 2 notes | Cancellation comment (`fwp_cancellationcomments`); pending *past* requests go to the approver (Valto rule) |
 | **E12** | "Company Holidays" list (past ones optional) | ✅ Company holidays list, past ones optional | Read-only list in the Leave tab |
-| **E13** | Booking on behalf of someone (only people on the "Book on behalf" list), choosing the employee and their approver | ❌ | **H3** |
+| **E13** | Booking on behalf of someone (only people on the "Book on behalf" list), choosing the employee and their approver | ✅ "Booking for" on My leave for HR and the book-on-behalf team, with an optional approver; their balance and working days are used. The plug-in refuses anyone else | **H3** |
 
 ### Managers / approvers
 
@@ -123,15 +123,15 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 
 | ID | Valto feature (list or flow) | Desktop today | Work |
 |---|---|---|---|
-| **A1** | *Employee Configuration*: approver, additional approver, leave-year start, base entitlement, units, working days, (department) | 🟡 Approver lookup; working pattern exists | Fields on colleague configuration (**D4**); HR screen |
-| **A2** | *Entitlement Balances* per person per year | 🟡 Table exists, no screen | HR entitlement screen; units |
+| **A1** | *Employee Configuration*: approver, additional approver, leave-year start, base entitlement, units, working days, (department) | ✅ HR tab: approver, additional approver, base entitlement, working week (start / finish / break), through `fwp_SetLeaveSettings`. Department waits for F6 | Fields on colleague configuration (**D4**); HR screen |
+| **A2** | *Entitlement Balances* per person per year | ✅ HR tab: entitlement per year incl. new starters and the carry-forward limit override; one row per person per year, owned by the employee | HR entitlement screen; units |
 | **A3** | **Year-end carry forward**, capped at the limit | ❌ | Runs once each January: unused days carried forward, **capped at 5** (Q3). **HR can override per person** (`fwp_carryforwardoverride` on the entitlement row) before or after the run |
 | **A4** | **Generate next year's entitlement** | ❌ | Runs each January for existing staff, from their base entitlement. **Pending F2** |
 | ~~A5~~ | New-starter entitlement created automatically | – | **Out of scope** (Q7). HR creates new starters' entitlement on the A2 screen |
 | **A6** | *Request Type Configuration*: has entitlement, forced units, icon | 🟡 Deducts flag only | **D2** |
-| **A7** | *App Configuration*: carry-forward limit, generate-on date, default hours, TOIL toggle, show purchased leave, admin account | ❌ | Environment variables (**D5**): carry-forward limit (5) and default hours only. No TOIL or purchased settings |
+| **A7** | *App Configuration*: carry-forward limit, generate-on date, default hours, TOIL toggle, show purchased leave, admin account | ✅ Environment variables: carry-forward limit (5), leave-day hours. No TOIL or purchased settings | Environment variables (**D5**): carry-forward limit (5) and default hours only. No TOIL or purchased settings |
 | **A8** | *Public Holidays* list | ✅ `fwp_publicholiday` from GOV.UK | Add an HR screen or a Dynamics view to add DHA-only closure days, if needed |
-| **A9** | *Book on behalf of users* list | ❌ | A Dynamics team, "Leave - Book on behalf" (**H3**) |
+| **A9** | *Book on behalf of users* list | ✅ Owner team "Leave - Book on behalf"; HR add members in Dynamics | A Dynamics team, "Leave - Book on behalf" (**H3**) |
 
 ### Notifications and integrations
 
@@ -219,7 +219,7 @@ Each stage ends with its automated tests passing in dev and a demo to Harriet.
 | **1. Model** ✅ *(dev, 16 Oct)* | D1–D5, D7: schema, type flags (incl. WFH), days, calendar years, approver fields, ownership fix; seed DHA's real leave types. Department (F6) still to add | F6 | 3 |
 | **2. Employee parity** ✅ *(dev, 16 Oct)* | E1–E7, E9–E12: days-based form and balance (pending counted), year-span rule, mandatory details + confirmation, WFH requests, multi-year balance, request filters, cancellation comment, company holidays | 1 | 5 |
 | **3. Approver parity** ✅ *(dev, 16 Oct)* | M1–M6, N1, N3, N6: line managers + additional approvers, filters/badge, team views incl. WFH, per-person balance, cancel on behalf, per-approver emails and reminder | 1 | 6 |
-| **4. HR administration** | A1, A2, A7, A9, E13: colleague leave settings, entitlement editor (incl. new starters, carry-forward override), book on behalf | 1 | 4 |
+| **4. HR administration** ✅ *(dev, 16 Oct)* | A1, A2, A7, A9, E13: colleague leave settings, entitlement editor (incl. new starters, carry-forward override), book on behalf | 1 | 4 |
 | **5. Year-end** | A3, A4 (D6): January generate + carry forward with override | 1, F2 | 2 |
 | **6. Outlook calendar** | N4 ("Out of Office" events) | – | 1.5 |
 | **7. Optional** | N5 email links into Dynamics records | – | 0.5 |
@@ -264,6 +264,26 @@ Stages 2–5 can overlap once stage 1 is done.
 - **Fixed:** a one-day request saved without an end date wasn't caught by the overlap check. The plug-in now stores
   the end date.
 - **Tests (dev):** DHA-9 78 pass, 1 skipped; DHA-10 10 pass; 60 unit tests pass.
+
+### Stage 4 notes (16 Oct)
+
+- **HR still can't write colleague configuration** (it holds rates). The HR tab saves through `fwp_SetLeaveSettings`,
+  which checks the caller is HR and writes only approver, additional approver, base entitlement and working times.
+- **Working days are times, not hours.** Expected hours per day are a formula column (finish − start − break) that reads
+  the times by character position, so a time without a leading zero gives no hours at all. The API stores times as
+  HH:mm, and the HR tab flags times Dynamics can't read.
+- **Prod data (read-only check, 16 Oct):** 86 active colleague configurations. 8 have no times at all, including Harriet.
+  **Ellie Parton's Friday break is "1:00"**, so her Friday counts as no hours. Leave booked on a Friday would put
+  nothing on her timesheet, and that day wouldn't count against her balance. Four people mark days off with "0",
+  which works. **HR to fix Ellie's Friday and fill in the 8** (the migration report lists them too).
+- **Booking for someone else** is now enforced by the plug-in: HR or the "Leave - Book on behalf" team only. Before
+  this, anyone with DHA-1 could do it through the API.
+- **Entitlements:** one per person per year, starting 1 January, named "<person> <year>", and given to the employee
+  (if they hold DHA-1). "Carried to next year" is left to the year-end process (stage 5).
+- **Testing incident (dev only):** an early version of the settings API treated parameters that weren't sent as
+  "clear", and wiped a test user's (Alice's) Tuesday–Thursday times. Restored from an earlier session's query (the
+  breaks inferred as "1:00", matching her other days). Fixed, with a test that unsent settings are left alone.
+- **Tests (dev):** DHA-9 86 pass, 1 skipped; DHA-10 10 pass; 60 unit tests pass.
 
 ## 5. Migration from SharePoint
 

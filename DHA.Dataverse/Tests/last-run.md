@@ -1,10 +1,10 @@
-# DHA test run - 2026-10-16 10:40 (dev, 254s)
+# DHA test run - 2026-10-16 12:04 (dev, 205s)
 
 | Card | Pass | Fail | Known gap | Skipped |
 |---|---|---|---|---|
 | DHA-7 Finance can place a project on stop | 11 | 0 | 0 | 1 |
 | DHA-8 Warning when recording time on a stopped project | 7 | 0 | 0 | 0 |
-| DHA-9 Approved absence creates the time entry | 78 | 0 | 0 | 1 |
+| DHA-9 Approved absence creates the time entry | 86 | 0 | 0 | 1 |
 | DHA-10 Cancelling an absence deactivates the time entry | 10 | 0 | 1 | 0 |
 | DHA-16 Internal source is mandatory on a quote | 2 | 2 | 0 | 1 |
 | .NET unit tests (leave day calculation, leave events) | 1 | 0 | 0 | 0 |
@@ -81,6 +81,14 @@
 - ✅ `Dha09ParityStage3.test_one_day_request_stores_its_end_date_and_still_clashes` - pass
 - ✅ `Dha09ParityStage3.test_own_balance_counts_pending_leave` - pass
 - ✅ `Dha09ParityStage3.test_team_leave_is_only_for_approvers` - pass
+- ✅ `Dha09ParityStage4.test_a_day_needs_start_and_finish_together` - pass
+- ✅ `Dha09ParityStage4.test_bad_times_are_refused` - pass
+- ✅ `Dha09ParityStage4.test_booking_for_someone_else_needs_hr_or_the_team` - pass
+- ✅ `Dha09ParityStage4.test_entitlement_is_one_per_person_per_year_from_1_january` - pass
+- ✅ `Dha09ParityStage4.test_hr_set_leave_settings_and_nothing_else_changes` - pass
+- ✅ `Dha09ParityStage4.test_nobody_approves_their_own_leave` - pass
+- ✅ `Dha09ParityStage4.test_omitted_settings_are_left_alone` - pass
+- ✅ `Dha09ParityStage4.test_only_hr_can_change_leave_settings` - pass
 - ✅ `Dha09Security.test_entitlements_are_user_owned` - pass
 - ✅ `Dha09Security.test_hr_team_is_linked_to_the_hr_group_and_holds_leave_administrator` - pass
 - ✅ `Dha09Security.test_leave_administrator_sees_everyones_leave_but_cannot_delete` - pass

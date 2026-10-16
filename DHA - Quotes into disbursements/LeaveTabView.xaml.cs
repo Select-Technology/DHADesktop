@@ -36,11 +36,13 @@ namespace DHA.DSTC.WPF
 
                 ApprovalsView.Scope = scope;
                 TeamView.Scope = scope;
+                HrView.Scope = scope;
+                HrTabItem.Visibility = scope.IsLeaveAdmin ? Visibility.Visible : Visibility.Collapsed;
                 var visibility = scope.CanApprove ? Visibility.Visible : Visibility.Collapsed;
                 ApprovalsTabItem.Visibility = TeamTabItem.Visibility = visibility;
                 TeamTabItem.Header = scope.IsLeaveAdmin ? "Everyone" : "My team";
                 ShowPendingCount(result.Waiting);
-                if (!scope.CanApprove && LeaveSubTabs.SelectedIndex > 0)
+                if ((LeaveSubTabs.SelectedItem as TabItem)?.Visibility != Visibility.Visible)
                     LeaveSubTabs.SelectedIndex = 0;
             }
             catch (Exception ex)

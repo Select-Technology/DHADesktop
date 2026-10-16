@@ -33,6 +33,9 @@ namespace DHA.DSTC.WPF
         private List<LeaveRequest> _requests = new List<LeaveRequest>();
         private Dictionary<int, LeaveBalance> _balances = new Dictionary<int, LeaveBalance>();
         private bool _loading;
+        // Who the form books for: the user, or someone else when booking on their behalf (E13)
+        private Guid _bookingFor;
+        private static readonly LeavePerson UsualApprover = new LeavePerson { Id = Guid.Empty, Name = "(their usual approver)" };
 
         public LeaveView()
         {
@@ -45,6 +48,7 @@ namespace DHA.DSTC.WPF
         }
 
         private Guid EmployeeId => ServiceLocator.EffectiveUserId;
+        private bool BookingForSomeoneElse => _bookingFor != Guid.Empty && _bookingFor != EmployeeId;
         private LeaveType SelectedType => LeaveTypeComboBox.SelectedItem as LeaveType;
 
         // Reload each time the tab is shown: the user may have switched environment (DEV button) or user
@@ -62,30 +66,30 @@ namespace DHA.DSTC.WPF
             try
             {
                 var employeeId = EmployeeId;
+                var userId = ServiceLocator.CurrentUserId;
+                var email = ServiceLocator.CurrentUserEmail;
                 var today = DateTime.Today;
-                var years = new[] { today.Year - 1, today.Year, today.Year + 1 };
                 var result = await Task.Run(() =>
                 {
                     var types = _leaveService.GetLeaveTypes();
                     // From 1 Jan last year, so last year's balance is complete
                     var requests = _leaveService.GetMyRequests(employeeId, new DateTime(today.Year - 1, 1, 1));
+                    bool canBook = _leaveService.CanBookOnBehalf(userId, _leaveService.GetApproverScope(userId, email));
                     return new
                     {
                         Types = types,
                         Requests = requests,
-                        Pattern = _leaveService.GetWorkingPattern(employeeId),
                         Holidays = _leaveService.GetCompanyHolidays(new DateTime(today.Year - 1, 1, 1), new DateTime(today.Year + 2, 12, 31)),
-                        Approvers = _leaveService.GetApprovers(employeeId),
-                        Balances = years.ToDictionary(y => y, y => _leaveService.GetBalance(employeeId, y))
+                        People = canBook ? _leaveService.GetEveryone() : null
                     };
                 });
 
                 _types = result.Types;
                 _requests = result.Requests;
-                _pattern = result.Pattern;
                 _companyHolidays = result.Holidays;
                 _bankHolidays = new HashSet<DateTime>(result.Holidays.Select(h => h.date));
-                _balances = result.Balances;
+                ShowBookingFor(result.People, employeeId);
+                await LoadPersonAsync();
 
                 var selectedType = SelectedType?.Id;
                 LeaveTypeComboBox.ItemsSource = _types;
@@ -95,12 +99,6 @@ namespace DHA.DSTC.WPF
                 TypeFilter.ItemsSource = new[] { AnyType }.Concat(_types.Select(t => t.Name)).ToList();
                 TypeFilter.SelectedItem = typeFilter != null && _types.Any(t => t.Name == typeFilter) ? typeFilter : AnyType;
 
-                var (approver, additional) = result.Approvers;
-                ApproverText.Text = string.IsNullOrEmpty(approver)
-                    ? "No leave approver is set up for you - speak to HR."
-                    : $"Approved by {approver}" + (string.IsNullOrEmpty(additional) ? "" : $" or {additional}");
-
-                ShowBalance();
                 ApplyFilters();
                 ShowHolidays();
                 OnInputsChanged(null);
@@ -112,6 +110,75 @@ namespace DHA.DSTC.WPF
             finally
             {
                 _loading = false;
+            }
+        }
+
+        // ---------- Booking on behalf (E13) ----------
+
+        private void ShowBookingFor(List<LeavePerson> people, Guid me)
+        {
+            OnBehalfPanel.Visibility = people == null ? Visibility.Collapsed : Visibility.Visible;
+            if (people == null)
+            {
+                _bookingFor = me;
+                return;
+            }
+            var self = new LeavePerson { Id = me, Name = "Me" };
+            var choices = new[] { self }.Concat(people.Where(p => p.Id != me)).ToList();
+            var keep = choices.FirstOrDefault(p => p.Id == _bookingFor) ?? self;
+            _bookingFor = keep.Id;
+            BookingForComboBox.SelectionChanged -= BookingFor_Changed;
+            BookingForComboBox.ItemsSource = choices;
+            BookingForComboBox.SelectedItem = keep;
+            BookingForComboBox.SelectionChanged += BookingFor_Changed;
+            OnBehalfApproverComboBox.ItemsSource = new[] { UsualApprover }.Concat(people).ToList();
+            OnBehalfApproverComboBox.SelectedItem = UsualApprover;
+        }
+
+        private async void BookingFor_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (!(BookingForComboBox.SelectedItem is LeavePerson person) || _leaveService == null)
+                return;
+            _bookingFor = person.Id;
+            OnBehalfApproverComboBox.SelectedItem = UsualApprover;
+            await LoadPersonAsync();
+        }
+
+        /// <summary>Working pattern, approvers and balances of whoever the form books for.</summary>
+        private async Task LoadPersonAsync()
+        {
+            var personId = _bookingFor == Guid.Empty ? EmployeeId : _bookingFor;
+            var today = DateTime.Today;
+            var years = new[] { today.Year - 1, today.Year, today.Year + 1 };
+            try
+            {
+                var result = await Task.Run(() => new
+                {
+                    Pattern = _leaveService.GetWorkingPattern(personId),
+                    Approvers = _leaveService.GetApprovers(personId),
+                    Balances = years.ToDictionary(y => y, y => _leaveService.GetBalance(personId, y))
+                });
+                if ((_bookingFor == Guid.Empty ? EmployeeId : _bookingFor) != personId)
+                    return; // moved on
+
+                _pattern = result.Pattern;
+                _balances = result.Balances;
+                bool other = BookingForSomeoneElse;
+                var name = (BookingForComboBox.SelectedItem as LeavePerson)?.Name;
+                OnBehalfApproverPanel.Visibility = other ? Visibility.Visible : Visibility.Collapsed;
+                BalanceTitleText.Text = other ? $"{name}'s Balance" : "My Balance";
+                SubmitButton.Content = other ? $"Book for {name}" : "Send for approval";
+
+                var (approver, additional) = result.Approvers;
+                ApproverText.Text = string.IsNullOrEmpty(approver)
+                    ? (other ? "No leave approver is set up for them - choose one, or speak to HR." : "No leave approver is set up for you - speak to HR.")
+                    : $"Approved by {approver}" + (string.IsNullOrEmpty(additional) ? "" : $" or {additional}");
+                ShowBalance();
+                OnInputsChanged(null);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not load the leave details: {ex.Message}", "Leave", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -307,7 +374,10 @@ namespace DHA.DSTC.WPF
             decimal dayCount = LeaveDayCalculator.DaysFor(days, _pattern);
             string when = from == to ? $"{from:ddd dd MMM yyyy}" : $"{from:ddd dd MMM} to {to:ddd dd MMM yyyy}";
             string times = start.HasValue || end.HasValue ? $" ({start?.ToString(@"hh\:mm") ?? "start"}–{end?.ToString(@"hh\:mm") ?? "end"})" : "";
-            string confirm = $"{type.Name}: {when}{times}\n{dayCount:0.##} day{(dayCount == 1 ? "" : "s")}"
+            var forName = BookingForSomeoneElse ? (BookingForComboBox.SelectedItem as LeavePerson)?.Name : null;
+            var approverOverride = BookingForSomeoneElse && OnBehalfApproverComboBox.SelectedItem is LeavePerson ap && ap.Id != Guid.Empty ? ap : null;
+            string confirm = (forName == null ? "" : $"For {forName}" + (approverOverride == null ? "" : $", approver {approverOverride.Name}") + "\n")
+                + $"{type.Name}: {when}{times}\n{dayCount:0.##} day{(dayCount == 1 ? "" : "s")}"
                 + (PreviewBalanceText.Text.Length > 0 ? $"\n{PreviewBalanceText.Text}" : "")
                 + "\n\nSend this request for approval?";
             if (MessageBox.Show(confirm, "Confirm request", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
@@ -315,7 +385,8 @@ namespace DHA.DSTC.WPF
 
             var request = new LeaveRequest
             {
-                EmployeeId = EmployeeId,
+                EmployeeId = BookingForSomeoneElse ? _bookingFor : EmployeeId,
+                ApproverOverrideId = approverOverride?.Id,
                 LeaveTypeId = type.Id,
                 StartDate = from,
                 EndDate = to,
@@ -329,7 +400,8 @@ namespace DHA.DSTC.WPF
             {
                 await Task.Run(() => _leaveService.SubmitRequest(request));
                 CommentsTextBox.Clear();
-                MessageBox.Show("Your request has been sent for approval.", "Request sent", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(forName == null ? "Your request has been sent for approval." : $"Booked for {forName} and sent for approval.",
+                    "Request sent", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadAsync();
             }
             catch (FaultException<OrganizationServiceFault> fault)

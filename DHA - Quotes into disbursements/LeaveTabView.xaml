@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:DHA.DSTC.WPF"
              IsVisibleChanged="LeaveTabView_IsVisibleChanged">
-    <!-- Leave tab (DHA-9 phase B): My leave for everyone; Approvals and My team for approvers and HR (parity plan M1) -->
+    <!-- Leave tab (DHA-9 phase B): My leave for everyone; Approvals and My team for approvers and HR (M1); HR settings (A1, A2) -->
     <TabControl x:Name="LeaveSubTabs" Margin="8,8,8,0">
         <TabItem Header="My leave">
             <local:LeaveView/>
@@ -13,6 +13,9 @@
         </TabItem>
         <TabItem x:Name="TeamTabItem" Header="My team" Visibility="Collapsed">
             <local:LeaveTeamView x:Name="TeamView"/>
+        </TabItem>
+        <TabItem x:Name="HrTabItem" Header="HR" Visibility="Collapsed">
+            <local:LeaveHrView x:Name="HrView"/>
         </TabItem>
     </TabControl>
 </UserControl>

@@ -51,6 +51,8 @@ namespace DHA.DSTC.WPF.Models
         public DateTime? CancellationRequestedOn { get; set; }
         public string RequesterComments { get; set; }
         public string ApproverComments { get; set; }
+        /// <summary>Booking on someone's behalf (E13): send to this approver instead of the one in their colleague configuration.</summary>
+        public Guid? ApproverOverrideId { get; set; }
 
         public string DatesText
         {
@@ -126,9 +128,47 @@ namespace DHA.DSTC.WPF.Models
             e["fwp_starttime"] = StartTime;
             e["fwp_endtime"] = EndTime;
             e["fwp_requestercomments"] = RequesterComments;
-            // fwp_hours, fwp_status, fwp_approver are set server-side by LeaveRequestPlugin
+            // fwp_hours and fwp_status are set server-side by LeaveRequestPlugin, and fwp_approver unless chosen here
+            if (ApproverOverrideId.HasValue) e["fwp_approver"] = new EntityReference("systemuser", ApproverOverrideId.Value);
             return e;
         }
+    }
+
+    /// <summary>One weekday's working times on colleague configuration ("HH:mm"; no start and finish = day off).</summary>
+    public class WorkingTimes
+    {
+        public string Day { get; set; }
+        public string Start { get; set; }
+        public string Finish { get; set; }
+        public string Break { get; set; }
+        /// <summary>Dynamics' formula column (finish - start - break). Null when it can't read the times.</summary>
+        public decimal? ExpectedHours { get; set; }
+    }
+
+    /// <summary>A person's leave settings (parity plan A1), saved through the fwp_SetLeaveSettings Custom API.</summary>
+    public class LeaveSettings
+    {
+        public Guid EmployeeId { get; set; }
+        public bool HasConfiguration { get; set; }
+        public Guid? ApproverId { get; set; }
+        public Guid? AdditionalApproverId { get; set; }
+        public decimal? BaseEntitlement { get; set; }
+        public List<WorkingTimes> Week { get; set; } = new List<WorkingTimes>();
+    }
+
+    /// <summary>One person's entitlement for one leave year, in days (A2).</summary>
+    public class LeaveEntitlement
+    {
+        public Guid Id { get; set; }
+        public int Year { get; set; }
+        public decimal BaseDays { get; set; }
+        public decimal CarriedForwardDays { get; set; }
+        public decimal AdjustmentDays { get; set; }
+        /// <summary>HR's override of the carry-forward limit for this year (null = the standard limit).</summary>
+        public decimal? CarryForwardOverride { get; set; }
+        /// <summary>Set by the year-end process.</summary>
+        public decimal CarriedToNextYearDays { get; set; }
+        public decimal TotalDays => BaseDays + CarriedForwardDays + AdjustmentDays;
     }
 
     /// <summary>Someone whose leave you can see in the team views.</summary>

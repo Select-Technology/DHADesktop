@@ -134,6 +134,12 @@ namespace DHA.Leave.Plugins
             var end = getDate("fwp_enddate") ?? start;
             if (employee == null || start == null)
                 throw new InvalidPluginExecutionException("A leave request needs an employee and a start date.");
+            // Booking for someone else is for HR and the "Leave - Book on behalf" team (Valto's "Book on behalf of users" list, A9)
+            if (context.MessageName == "Create" && employee.Id != context.InitiatingUserId
+                && !LeaveAccess.CanBookOnBehalf(svc, context.InitiatingUserId))
+                throw new InvalidPluginExecutionException(
+                    "You can only book leave for someone else if you're in HR or the \"" + LeaveAccess.BookOnBehalfTeam + "\" team.");
+
             // A one-day request may come without an end date; store it, or date-range queries (overlaps, who's off) miss it
             if (getDate("fwp_enddate") == null)
                 target["fwp_enddate"] = start.Value;
@@ -206,7 +212,7 @@ namespace DHA.Leave.Plugins
             var employee = getRef("fwp_employee");
             if (context.MessageName == "Create" && employee != null && context.InitiatingUserId != employee.Id)
             {
-                if (HasPrivilege(svc, employee.Id, "prvReadfwp_LeaveRequest"))
+                if (LeaveAccess.HasPrivilege(svc, employee.Id, "prvReadfwp_LeaveRequest"))
                     svc.Update(new Entity("fwp_leaverequest", requestId) { ["ownerid"] = employee });
                 else
                     trace.Trace($"{employee.Id} can't read leave requests (no DHA-1?) - request {requestId} left with the person who booked it.");
@@ -282,28 +288,6 @@ namespace DHA.Leave.Plugins
             var approver = cfg?.GetAttributeValue<EntityReference>("fwp_leaveapprover")
                            ?? svc.Retrieve("systemuser", employeeId, new ColumnSet("parentsystemuserid")).GetAttributeValue<EntityReference>("parentsystemuserid");
             return (approver, cfg?.GetAttributeValue<EntityReference>("fwp_additionalleaveapprover"));
-        }
-
-        /// <summary>True if the user holds the privilege through one of their roles or one of their teams' roles.</summary>
-        private static bool HasPrivilege(IOrganizationService svc, Guid userId, string privilegeName)
-        {
-            string viaUser = $@"<fetch top='1'><entity name='privilege'><attribute name='privilegeid'/>
-                <filter><condition attribute='name' operator='eq' value='{privilegeName}'/></filter>
-                <link-entity name='roleprivileges' from='privilegeid' to='privilegeid' intersect='true'>
-                  <link-entity name='role' from='roleid' to='roleid'>
-                    <link-entity name='systemuserroles' from='roleid' to='roleid' intersect='true'>
-                      <filter><condition attribute='systemuserid' operator='eq' value='{userId}'/></filter>
-                    </link-entity></link-entity></link-entity></entity></fetch>";
-            string viaTeam = $@"<fetch top='1'><entity name='privilege'><attribute name='privilegeid'/>
-                <filter><condition attribute='name' operator='eq' value='{privilegeName}'/></filter>
-                <link-entity name='roleprivileges' from='privilegeid' to='privilegeid' intersect='true'>
-                  <link-entity name='role' from='roleid' to='roleid'>
-                    <link-entity name='teamroles' from='roleid' to='roleid' intersect='true'>
-                      <link-entity name='teammembership' from='teamid' to='teamid' intersect='true'>
-                        <filter><condition attribute='systemuserid' operator='eq' value='{userId}'/></filter>
-                      </link-entity></link-entity></link-entity></link-entity></entity></fetch>";
-            return svc.RetrieveMultiple(new FetchExpression(viaUser)).Entities.Count > 0
-                || svc.RetrieveMultiple(new FetchExpression(viaTeam)).Entities.Count > 0;
         }
 
         /// <summary>Requests with no type are treated as absence. Working From Home has fwp_isabsence = No.</summary>

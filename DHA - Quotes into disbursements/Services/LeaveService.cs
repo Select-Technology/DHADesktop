@@ -23,6 +23,8 @@ namespace DHA.DSTC.WPF.Services
         // Dataverse group team by provision_leave_approvers.py) and, for now, stsadmin
         private const string ApproverGroupObjectId = "5760dd7d-5244-4e06-b8fa-6ce9284e9d3c";
         private static readonly string[] ApproverEmails = { "stsadmin@dhaplanning.co.uk" };
+        // Members may book leave for other people (A9) - same name as LeaveAccess.BookOnBehalfTeam in the plug-in
+        private const string BookOnBehalfTeam = "Leave - Book on behalf";
 
         private const int ForcedUnitsHours = 800470001;
 
@@ -171,6 +173,137 @@ namespace DHA.DSTC.WPF.Services
             q.Criteria.AddFilter(either);
             scope.MyPeople = People(_connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)));
             return scope;
+        }
+
+        /// <summary>HR, or a member of the "Leave - Book on behalf" team (A9). The server checks this again when the request is saved.</summary>
+        public bool CanBookOnBehalf(Guid userId, ApproverScope scope)
+        {
+            if (scope?.IsLeaveAdmin == true)
+                return true;
+            if (userId == Guid.Empty || !_connector.Connect())
+                return false;
+            try
+            {
+                var q = new QueryExpression("team") { ColumnSet = new ColumnSet(false), TopCount = 1 };
+                q.Criteria.AddCondition("name", ConditionOperator.Equal, BookOnBehalfTeam);
+                var member = q.AddLink("teammembership", "teamid", "teamid");
+                member.LinkCriteria.AddCondition("systemuserid", ConditionOperator.Equal, userId);
+                return _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities.Count > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LeaveService.CanBookOnBehalf: {ex.Message}");
+                return false;
+            }
+        }
+
+        // ---------- HR administration (A1, A2) ----------
+
+        private static readonly string[] WeekDays = { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday" };
+
+        /// <summary>Leave settings from colleague configuration (HR can read it; they write through fwp_SetLeaveSettings).</summary>
+        public LeaveSettings GetLeaveSettings(Guid employeeId)
+        {
+            var settings = new LeaveSettings { EmployeeId = employeeId };
+            if (!_connector.Connect())
+                return settings;
+            var cols = new List<string> { "fwp_leaveapprover", "fwp_additionalleaveapprover", "fwp_baseentitlement" };
+            cols.AddRange(Days.SelectMany(d => new[] { $"fwp_{d}start", $"fwp_{d}finish", $"fwp_{d}break", $"fwp_{d}expectedhours" }));
+            var q = new QueryExpression("fwp_colleagueconfiguration") { ColumnSet = new ColumnSet(cols.ToArray()), TopCount = 1 };
+            q.Criteria.AddCondition("fwp_colleague", ConditionOperator.Equal, employeeId);
+            q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+            var cfg = _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities.FirstOrDefault();
+            if (cfg == null)
+                return settings;
+
+            settings.HasConfiguration = true;
+            settings.ApproverId = cfg.GetAttributeValue<EntityReference>("fwp_leaveapprover")?.Id;
+            settings.AdditionalApproverId = cfg.GetAttributeValue<EntityReference>("fwp_additionalleaveapprover")?.Id;
+            settings.BaseEntitlement = cfg.GetAttributeValue<decimal?>("fwp_baseentitlement");
+            for (int i = 0; i < Days.Length; i++)
+                settings.Week.Add(new WorkingTimes
+                {
+                    Day = WeekDays[i],
+                    Start = cfg.GetAttributeValue<string>($"fwp_{Days[i]}start"),
+                    Finish = cfg.GetAttributeValue<string>($"fwp_{Days[i]}finish"),
+                    Break = cfg.GetAttributeValue<string>($"fwp_{Days[i]}break"),
+                    ExpectedHours = cfg.GetAttributeValue<decimal?>($"fwp_{Days[i]}expectedhours")
+                });
+            return settings;
+        }
+
+        /// <summary>Saves everything on the HR screen through fwp_SetLeaveSettings (which checks the caller is HR).</summary>
+        public void SaveLeaveSettings(LeaveSettings settings)
+        {
+            if (!_connector.Connect())
+                throw new InvalidOperationException("Not connected to Dynamics.");
+            var request = new OrganizationRequest("fwp_SetLeaveSettings")
+            {
+                ["EmployeeId"] = settings.EmployeeId,
+                ["ApproverId"] = settings.ApproverId ?? Guid.Empty,
+                ["AdditionalApproverId"] = settings.AdditionalApproverId ?? Guid.Empty
+            };
+            if (settings.BaseEntitlement.HasValue)
+                request["BaseEntitlement"] = settings.BaseEntitlement.Value;
+            foreach (var day in settings.Week)
+            {
+                request[day.Day + "Start"] = day.Start ?? "";
+                request[day.Day + "Finish"] = day.Finish ?? "";
+                request[day.Day + "Break"] = day.Break ?? "";
+            }
+            _connector._orgService.Execute(request);
+        }
+
+        public List<LeaveEntitlement> GetEntitlements(Guid employeeId)
+        {
+            if (!_connector.Connect())
+                return new List<LeaveEntitlement>();
+            var q = new QueryExpression("fwp_leaveentitlement")
+            {
+                ColumnSet = new ColumnSet("fwp_yearstart", "fwp_entitlementdays", "fwp_carriedforwarddays", "fwp_adjustmentdays",
+                                          "fwp_carryforwardoverride", "fwp_carriedtonextyeardays"),
+                Orders = { new OrderExpression("fwp_yearstart", OrderType.Descending) }
+            };
+            q.Criteria.AddCondition("fwp_employee", ConditionOperator.Equal, employeeId);
+            q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+            return _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities.Select(e => new LeaveEntitlement
+            {
+                Id = e.Id,
+                Year = e.GetAttributeValue<DateTime>("fwp_yearstart").Year,
+                BaseDays = e.GetAttributeValue<decimal?>("fwp_entitlementdays") ?? 0m,
+                CarriedForwardDays = e.GetAttributeValue<decimal?>("fwp_carriedforwarddays") ?? 0m,
+                AdjustmentDays = e.GetAttributeValue<decimal?>("fwp_adjustmentdays") ?? 0m,
+                CarryForwardOverride = e.GetAttributeValue<decimal?>("fwp_carryforwardoverride"),
+                CarriedToNextYearDays = e.GetAttributeValue<decimal?>("fwp_carriedtonextyeardays") ?? 0m
+            }).ToList();
+        }
+
+        /// <summary>
+        /// Creates or updates one year's entitlement. The plug-in names it, gives it to the employee and refuses a second row for
+        /// the same year. "Carried to next year" belongs to the year-end process and isn't written here.
+        /// </summary>
+        public void SaveEntitlement(Guid employeeId, LeaveEntitlement ent)
+        {
+            if (!_connector.Connect())
+                throw new InvalidOperationException("Not connected to Dynamics.");
+            var e = new Entity("fwp_leaveentitlement")
+            {
+                ["fwp_entitlementdays"] = ent.BaseDays,
+                ["fwp_carriedforwarddays"] = ent.CarriedForwardDays,
+                ["fwp_adjustmentdays"] = ent.AdjustmentDays,
+                ["fwp_carryforwardoverride"] = ent.CarryForwardOverride
+            };
+            if (ent.Id == Guid.Empty)
+            {
+                e["fwp_employee"] = new EntityReference("systemuser", employeeId);
+                e["fwp_yearstart"] = DateTime.SpecifyKind(new DateTime(ent.Year, 1, 1), DateTimeKind.Unspecified);
+                ent.Id = _connector._orgService.Create(e);
+            }
+            else
+            {
+                e.Id = ent.Id;
+                _connector._orgService.Update(e);
+            }
         }
 
         /// <summary>Everyone with a colleague configuration - who HR can see in the team view.</summary>

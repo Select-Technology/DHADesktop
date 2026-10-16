@@ -22,7 +22,7 @@ class LeaveRequestTestCase(DataverseTestCase):
             call("DELETE", f"{cls.LR}({rid})")
             delete_time_entries("LV-" + rid.replace("-", ""))
 
-    def create(self, start, end=None, employee=JESSICA, start_time=None, end_time=None, **extra):
+    def create(self, start, end=None, employee=JESSICA, start_time=None, end_time=None, user=None, **extra):
         body = {"fwp_Employee@odata.bind": f"/systemusers({employee})", "fwp_startdate": start, "fwp_requestercomments": "ZZTEST"}
         if end:
             body["fwp_enddate"] = end
@@ -31,7 +31,8 @@ class LeaveRequestTestCase(DataverseTestCase):
         if end_time:
             body["fwp_endtime"] = end_time
         body.update(extra)
-        s, d, _ = __import__("dv").call("POST", self.LR, body, extra={"Prefer": "return=representation"})
+        headers = {"Prefer": "return=representation", **({"MSCRMCallerID": user} if user else {})}
+        s, d, _ = __import__("dv").call("POST", self.LR, body, extra=headers)
         if s < 300:
             self.made.append(d["fwp_leaverequestid"])
             return s, d
@@ -443,6 +444,121 @@ class Dha09ParityStage3(LeaveRequestTestCase):
                                             "fwp_Approver@odata.bind": f"/systemusers({me()})"})
         self.assertEqual("CancelledByHR", self.request(rid)["fwp_lastevent"])
         self.assertEqual([], active(self.entries(rid)))
+
+
+class Dha09ParityStage4(LeaveRequestTestCase):
+    """Parity plan stage 4 (HR): leave settings through fwp_SetLeaveSettings, entitlement rules, booking on behalf."""
+
+    TIMES = [f"fwp_{d}{k}" for d in ("monday", "friday") for k in ("start", "finish", "break")]
+    COLS = "fwp_baseentitlement,_fwp_leaveapprover_value," + ",".join(TIMES)
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.LE = entity_set("fwp_leaveentitlement")
+        cfg = rows(f"fwp_colleagueconfigurations?$select=fwp_colleagueconfigurationid,{cls.COLS}"
+                   f"&$filter=_fwp_colleague_value eq {ALICE} and statecode eq 0")[0]
+        cls.cfg_id, cls.original = cfg["fwp_colleagueconfigurationid"], cfg
+
+    def settings(self, user=None, **values):
+        return call("POST", "fwp_SetLeaveSettings", dict(EmployeeId=ALICE, **values), user=user)
+
+    def restore(self):
+        # straight back to the original values (they may be malformed - that's dev data, not ours to fix here)
+        o = self.original
+        body = {k: o[k] for k in self.TIMES}
+        body["fwp_baseentitlement"] = o["fwp_baseentitlement"]
+        self.assertLess(call("PATCH", f"fwp_colleagueconfigurations({self.cfg_id})", body)[0], 300)
+        if o["_fwp_leaveapprover_value"]:
+            call("PATCH", f"fwp_colleagueconfigurations({self.cfg_id})", {"fwp_LeaveApprover@odata.bind": f"/systemusers({o['_fwp_leaveapprover_value']})"})
+        else:
+            call("DELETE", f"fwp_colleagueconfigurations({self.cfg_id})/fwp_LeaveApprover/$ref")
+
+    def test_hr_set_leave_settings_and_nothing_else_changes(self):
+        before = get(f"fwp_colleagueconfigurations({self.cfg_id})")
+        try:
+            s, d = self.settings(BaseEntitlement=27, ApproverId=JESSICA, MondayStart="", MondayFinish="", MondayBreak="",
+                                 FridayStart="8:30", FridayFinish="14:00", FridayBreak="0:30")
+            self.assertLess(s, 300, d)
+            after = get(f"fwp_colleagueconfigurations({self.cfg_id})")
+            self.assertEqual((27, JESSICA), (after["fwp_baseentitlement"], after["_fwp_leaveapprover_value"]))
+            # normalised to HH:mm so the expected-hours formula can read them: Monday off, Friday 5 hours
+            self.assertEqual(("08:30", "14:00", "00:30"), (after["fwp_fridaystart"], after["fwp_fridayfinish"], after["fwp_fridaybreak"]))
+            self.assertEqual((0, 5), (after["fwp_mondayexpectedhours"] or 0, after["fwp_fridayexpectedhours"]))
+            changed = {k for k in before if "@" not in k and not k.startswith(("modified", "versionnumber", "_modified"))
+                       and before[k] != after.get(k)}
+            # expected, contracted and weekly hours are formula columns worked out from the times
+            allowed = {"fwp_baseentitlement", "_fwp_leaveapprover_value", "fwp_mondayexpectedhours", "fwp_fridayexpectedhours",
+                       "fwp_totalweeklyhours", "fwp_contractedhours"} | set(self.TIMES)
+            self.assertLessEqual(changed, allowed, "fwp_SetLeaveSettings changed something other than leave settings")
+        finally:
+            self.restore()
+
+    def test_omitted_settings_are_left_alone(self):
+        before = get(f"fwp_colleagueconfigurations({self.cfg_id})?$select={self.COLS},fwp_tuesdaystart,fwp_tuesdayfinish,fwp_tuesdaybreak")
+        try:
+            s, d = self.settings(FridayStart="08:30", FridayFinish="17:00", FridayBreak="01:00")
+            self.assertLess(s, 300, d)
+            after = get(f"fwp_colleagueconfigurations({self.cfg_id})?$select={self.COLS},fwp_tuesdaystart,fwp_tuesdayfinish,fwp_tuesdaybreak")
+            for k in ("fwp_baseentitlement", "_fwp_leaveapprover_value", "fwp_mondaystart", "fwp_mondayfinish", "fwp_mondaybreak",
+                      "fwp_tuesdaystart", "fwp_tuesdayfinish", "fwp_tuesdaybreak"):
+                with self.subTest(field=k):
+                    self.assertEqual(before[k], after[k], f"{k} changed although it wasn't sent")
+        finally:
+            self.restore()
+
+    def test_a_day_needs_start_and_finish_together(self):
+        s, d = self.settings(FridayStart="09:00")
+        self.assertGreaterEqual(s, 400)
+        self.assertIn("start and finish together", error_text(d))
+
+    def test_bad_times_are_refused(self):
+        for values, message in [({"FridayStart": "17:00", "FridayFinish": "09:00"}, "finish after start"),
+                                ({"FridayStart": "9", "FridayFinish": "17:00"}, "isn't a time"),
+                                ({"FridayStart": "09:00", "FridayFinish": "10:00", "FridayBreak": "02:00"}, "break is longer")]:
+            with self.subTest(values=values):
+                s, d = self.settings(**values)
+                self.assertGreaterEqual(s, 400)
+                self.assertIn(message, error_text(d))
+
+    def test_only_hr_can_change_leave_settings(self):
+        s, d = self.settings(user=JESSICA, BaseEntitlement=40)
+        self.assertGreaterEqual(s, 400)
+        self.assertIn("Only HR", error_text(d))
+
+    def test_nobody_approves_their_own_leave(self):
+        s, d = self.settings(ApproverId=ALICE)
+        self.assertGreaterEqual(s, 400)
+        self.assertIn("own leave", error_text(d))
+
+    def test_entitlement_is_one_per_person_per_year_from_1_january(self):
+        made = []
+        try:
+            s, d, _ = __import__("dv").call("POST", self.LE, {"fwp_Employee@odata.bind": f"/systemusers({ALICE})", "fwp_yearstart": "2031-01-01",
+                                                              "fwp_entitlementdays": 25}, extra={"Prefer": "return=representation"})
+            self.assertLess(s, 300, d)
+            made.append(d["fwp_leaveentitlementid"])
+            alice = get(f"systemusers({ALICE})?$select=fullname")["fullname"]
+            self.assertEqual(f"{alice} 2031", d["fwp_name"])
+            s, d = call("POST", self.LE, {"fwp_Employee@odata.bind": f"/systemusers({ALICE})", "fwp_yearstart": "2031-01-01",
+                                          "fwp_entitlementdays": 20})
+            self.assertGreaterEqual(s, 400)
+            self.assertIn("already has an entitlement for 2031", error_text(d))
+            s, d = call("POST", self.LE, {"fwp_Employee@odata.bind": f"/systemusers({ALICE})", "fwp_yearstart": "2032-04-01",
+                                          "fwp_entitlementdays": 20})
+            self.assertGreaterEqual(s, 400)
+            self.assertIn("1 January", error_text(d))
+        finally:
+            for eid in made:
+                call("DELETE", f"{self.LE}({eid})")
+
+    def test_booking_for_someone_else_needs_hr_or_the_team(self):
+        team = rows("teams?$select=teamid&$filter=name eq 'Leave - Book on behalf'")
+        self.assertTrue(team, "book-on-behalf team missing")
+        s, d = self.create("2027-12-13", employee=ALICE, user=JESSICA)
+        self.assertGreaterEqual(s, 400, "Jessica booked leave for Alice without being in HR or the team")
+        # HR (stsadmin) can
+        self.created("2027-12-13", employee=ALICE)
 
 
 if __name__ == "__main__":
