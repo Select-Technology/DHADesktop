@@ -94,7 +94,7 @@
                             <TextBlock x:Name="TakenText" FontSize="20" FontWeight="SemiBold" Text="–"/>
                         </StackPanel>
                         <StackPanel>
-                            <TextBlock Text="Booked" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBlock Text="Booked (incl. pending)" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
                             <TextBlock x:Name="BookedText" FontSize="20" FontWeight="SemiBold" Text="–"/>
                         </StackPanel>
                         <StackPanel>
@@ -121,7 +121,7 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Dates" Binding="{Binding DatesText}" Width="*"/>
                             <DataGridTextColumn Header="Type" Binding="{Binding LeaveTypeName}" Width="110"/>
-                            <DataGridTextColumn Header="Hours" Binding="{Binding Hours, StringFormat=0.##}" Width="60"/>
+                            <DataGridTextColumn Header="Days" Binding="{Binding Days, StringFormat=0.##}" Width="60"/>
                             <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="150"/>
                             <DataGridTextColumn Header="Approver" Binding="{Binding ApproverName}" Width="130"/>
                         </DataGrid.Columns>

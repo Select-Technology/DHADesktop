@@ -18,9 +18,7 @@ job_number = sys.argv[1].strip()
 
 
 def flow_api(env, path, method="GET", body=None):
-    az = shutil.which("az") or shutil.which("az.cmd")
-    tok = subprocess.check_output([az, "account", "get-access-token", "--resource", "https://service.flow.microsoft.com/",
-                                   "--query", "accessToken", "-o", "tsv"], text=True).strip()
+    tok = dv.az_token("https://service.flow.microsoft.com/")
     url = f"https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments/{env}/{path}"
     url += ("&" if "?" in url else "?") + "api-version=2016-11-01"
     req = urllib.request.Request(url, data=json.dumps(body).encode() if body is not None else None, method=method,

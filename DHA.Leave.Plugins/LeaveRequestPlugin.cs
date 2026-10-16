@@ -57,9 +57,11 @@ namespace DHA.Leave.Plugins
     ///
     /// REGISTER on fwp_leaverequest, synchronous:
     ///   Create, Pre-operation   - work out hours, default the approver, reject overlaps
-    ///   Update, Pre-operation   - same, filtering attributes fwp_startdate, fwp_enddate, fwp_starttime, fwp_endtime, fwp_status
-    ///                             Pre Image "PreImage": fwp_employee, fwp_approver, fwp_startdate, fwp_enddate, fwp_starttime, fwp_endtime, fwp_status, fwp_legacyid
-    ///   Create, Post-operation  - share with the approver
+    ///   Update, Pre-operation   - same, filtering attributes fwp_startdate, fwp_enddate, fwp_starttime, fwp_endtime, fwp_status,
+    ///                             fwp_approver, fwp_additionalapprover, fwp_leavetype
+    ///                             Pre Image "PreImage": fwp_employee, fwp_approver, fwp_additionalapprover, fwp_leavetype, fwp_startdate,
+    ///                             fwp_enddate, fwp_starttime, fwp_endtime, fwp_status, fwp_legacyid
+    ///   Create, Post-operation  - assign to the employee (when booked on their behalf), share with the approvers
     ///   Update, Post-operation  - status/date changes drive time entries; same filtering attributes and Pre Image
     ///   Delete, Pre-validation  - approved leave can't be deleted (DHA-10: records are never deleted - cancel it instead)
     ///
@@ -125,16 +127,20 @@ namespace DHA.Leave.Plugins
                 throw new InvalidPluginExecutionException("A leave request needs an employee and a start date.");
             if (end < start)
                 throw new InvalidPluginExecutionException("The leave end date is before the start date.");
+            if (LeaveDayCalculator.SpansLeaveYears(start.Value, end.Value))
+                throw new InvalidPluginExecutionException(
+                    "Leave can't run across 31 December into the new leave year. Please book it as two requests, one each side of 1 January.");
 
             if (context.MessageName == "Create")
             {
                 if (!target.Contains("fwp_status"))
                     target["fwp_status"] = new OptionSetValue(LeaveStatus.Pending);
                 target["fwp_lastevent"] = LeaveEvent.Requested;
-                if (getRef("fwp_approver") == null)
+                if (getRef("fwp_approver") == null || getRef("fwp_additionalapprover") == null)
                 {
-                    var approver = DefaultApprover(svc, employee.Id);
-                    if (approver != null) target["fwp_approver"] = approver;
+                    var (approver, additional) = DefaultApprovers(svc, employee.Id);
+                    if (getRef("fwp_approver") == null && approver != null) target["fwp_approver"] = approver;
+                    if (getRef("fwp_additionalapprover") == null && additional != null) target["fwp_additionalapprover"] = additional;
                 }
                 if (!target.Contains("fwp_bookedby"))
                     target["fwp_bookedby"] = new EntityReference("systemuser", context.InitiatingUserId);
@@ -145,18 +151,20 @@ namespace DHA.Leave.Plugins
                 }
             }
 
-            // Hours are always worked out here, so the desktop app's preview can't drift from what's stored
+            // Hours and days are always worked out here, so the desktop app's preview can't drift from what's stored
             var leave = new LeaveTimeEntryService(svc, trace);
             var settings = LeaveSettings.Load(svc);
+            var pattern = leave.LoadWorkingPattern(employee.Id, settings.LeaveDayHours);
             var days = LeaveDayCalculator.Calculate(start.Value, end.Value,
                 LeaveDayCalculator.ParseTime(getText("fwp_starttime"), false),
                 LeaveDayCalculator.ParseTime(getText("fwp_endtime"), true),
-                leave.LoadWorkingPattern(employee.Id, settings.LeaveDayHours),
-                leave.LoadBankHolidays(start.Value, end.Value));
+                pattern, leave.LoadBankHolidays(start.Value, end.Value));
             target["fwp_hours"] = days.Sum(d => d.Hours);
+            target["fwp_days"] = LeaveDayCalculator.DaysFor(days, pattern);
 
             int status = getOption("fwp_status")?.Value ?? LeaveStatus.Pending;
-            if (status != LeaveStatus.Rejected && status != LeaveStatus.Cancelled)
+            // Only absences clash with each other: working from home alongside an appointment is fine (as in Valto)
+            if (status != LeaveStatus.Rejected && status != LeaveStatus.Cancelled && IsAbsence(svc, getRef("fwp_leavetype")))
                 RejectOverlaps(svc, target.Id, employee.Id, start.Value, end.Value);
 
             // Record what happened for the notifications flow (only when the status actually changes)
@@ -166,6 +174,8 @@ namespace DHA.Leave.Plugins
                 int? oldStatus = pre?.GetAttributeValue<OptionSetValue>("fwp_status")?.Value;
                 if (oldStatus != status)
                     target["fwp_lastevent"] = LeaveEvent.For(oldStatus, status);
+                if (status == LeaveStatus.CancellationRequested && oldStatus != status)
+                    target["fwp_cancellationrequestedon"] = DateTime.UtcNow;
             }
         }
 
@@ -175,19 +185,28 @@ namespace DHA.Leave.Plugins
             // On Create the new id is only guaranteed in the output parameters
             var requestId = target.Id != Guid.Empty ? target.Id : (Guid)context.OutputParameters["id"];
 
-            var approver = getRef("fwp_approver");
-            if (approver != null && (context.MessageName == "Create" || target.Contains("fwp_approver")))
+            // Booked on someone's behalf: the request belongs to the employee, so they see it under "own" (DHA-1)
+            var employee = getRef("fwp_employee");
+            if (context.MessageName == "Create" && employee != null && context.InitiatingUserId != employee.Id)
+                svc.Update(new Entity("fwp_leaverequest", requestId) { ["ownerid"] = employee });
+
+            foreach (var field in new[] { "fwp_approver", "fwp_additionalapprover" })
             {
-                svc.Execute(new GrantAccessRequest
+                var approver = getRef(field);
+                if (approver != null && (context.MessageName == "Create" || target.Contains(field)))
                 {
-                    Target = new EntityReference("fwp_leaverequest", requestId),
-                    PrincipalAccess = new PrincipalAccess { Principal = approver, AccessMask = AccessRights.ReadAccess | AccessRights.WriteAccess }
-                });
+                    svc.Execute(new GrantAccessRequest
+                    {
+                        Target = new EntityReference("fwp_leaverequest", requestId),
+                        PrincipalAccess = new PrincipalAccess { Principal = approver, AccessMask = AccessRights.ReadAccess | AccessRights.WriteAccess }
+                    });
+                }
             }
 
             int status = getOption("fwp_status")?.Value ?? LeaveStatus.Pending;
             int? oldStatus = pre?.GetAttributeValue<OptionSetValue>("fwp_status")?.Value;
-            bool datesChanged = target.Contains("fwp_startdate") || target.Contains("fwp_enddate") || target.Contains("fwp_starttime") || target.Contains("fwp_endtime");
+            bool datesChanged = target.Contains("fwp_startdate") || target.Contains("fwp_enddate") || target.Contains("fwp_starttime")
+                                || target.Contains("fwp_endtime") || target.Contains("fwp_leavetype");
             if (status == oldStatus && !datesChanged)
                 return;
 
@@ -195,8 +214,11 @@ namespace DHA.Leave.Plugins
             var sourceKey = !string.IsNullOrEmpty(legacy) ? legacy : "LV-" + requestId.ToString("N");
             var leave = new LeaveTimeEntryService(svc, trace);
 
-            // Approved leave stays as time entries until it is fully cancelled; a pending cancellation keeps them
-            if (status == LeaveStatus.Approved || status == LeaveStatus.CancellationRequested)
+            // Approved ABSENCE stays as time entries until it is fully cancelled; a pending cancellation keeps them.
+            // Working from home is approved the same way but never goes on the timesheet.
+            bool onTimesheet = (status == LeaveStatus.Approved || status == LeaveStatus.CancellationRequested)
+                               && IsAbsence(svc, getRef("fwp_leavetype"));
+            if (onTimesheet)
             {
                 var end = getDate("fwp_enddate") ?? getDate("fwp_startdate").Value;
                 var endTime = LeaveDayCalculator.ParseTime(getText("fwp_endtime"), true);
@@ -224,21 +246,40 @@ namespace DHA.Leave.Plugins
                     "its time entries will be deactivated and the request kept for the record.");
         }
 
-        private static EntityReference DefaultApprover(IOrganizationService svc, Guid employeeId)
+        /// <summary>Approver and additional approver from colleague configuration; approver falls back to the user's manager.</summary>
+        private static (EntityReference approver, EntityReference additional) DefaultApprovers(IOrganizationService svc, Guid employeeId)
         {
-            var q = new QueryExpression("fwp_colleagueconfiguration") { ColumnSet = new ColumnSet("fwp_leaveapprover"), TopCount = 1 };
+            var q = new QueryExpression("fwp_colleagueconfiguration")
+            {
+                ColumnSet = new ColumnSet("fwp_leaveapprover", "fwp_additionalleaveapprover"),
+                TopCount = 1
+            };
             q.Criteria.AddCondition("fwp_colleague", ConditionOperator.Equal, employeeId);
             q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            var approver = svc.RetrieveMultiple(q).Entities.FirstOrDefault()?.GetAttributeValue<EntityReference>("fwp_leaveapprover");
-            if (approver != null) return approver;
+            var cfg = svc.RetrieveMultiple(q).Entities.FirstOrDefault();
+            var approver = cfg?.GetAttributeValue<EntityReference>("fwp_leaveapprover")
+                           ?? svc.Retrieve("systemuser", employeeId, new ColumnSet("parentsystemuserid")).GetAttributeValue<EntityReference>("parentsystemuserid");
+            return (approver, cfg?.GetAttributeValue<EntityReference>("fwp_additionalleaveapprover"));
+        }
 
-            // Fall back to the manager on the user record
-            return svc.Retrieve("systemuser", employeeId, new ColumnSet("parentsystemuserid")).GetAttributeValue<EntityReference>("parentsystemuserid");
+        /// <summary>Requests with no type are treated as absence. Working From Home has fwp_isabsence = No.</summary>
+        private static bool IsAbsence(IOrganizationService svc, EntityReference leaveType)
+        {
+            if (leaveType == null)
+                return true;
+            return svc.Retrieve("fwp_leavetype", leaveType.Id, new ColumnSet("fwp_isabsence")).GetAttributeValue<bool?>("fwp_isabsence") ?? true;
         }
 
         private static void RejectOverlaps(IOrganizationService svc, Guid requestId, Guid employeeId, DateTime start, DateTime end)
         {
             var q = new QueryExpression("fwp_leaverequest") { ColumnSet = new ColumnSet("fwp_startdate", "fwp_enddate"), TopCount = 1 };
+            // only other absences count (or requests with no type)
+            var type = q.AddLink("fwp_leavetype", "fwp_leavetype", "fwp_leavetypeid", JoinOperator.LeftOuter);
+            type.EntityAlias = "t";
+            var absence = new FilterExpression(LogicalOperator.Or);
+            absence.AddCondition("t", "fwp_isabsence", ConditionOperator.Equal, true);
+            absence.AddCondition("t", "fwp_isabsence", ConditionOperator.Null);
+            q.Criteria.AddFilter(absence);
             q.Criteria.AddCondition("fwp_employee", ConditionOperator.Equal, employeeId);
             q.Criteria.AddCondition("fwp_status", ConditionOperator.NotIn, LeaveStatus.Rejected, LeaveStatus.Cancelled);
             q.Criteria.AddCondition("fwp_startdate", ConditionOperator.OnOrBefore, end.Date);

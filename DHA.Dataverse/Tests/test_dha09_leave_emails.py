@@ -11,14 +11,13 @@ import unittest
 import urllib.request
 
 from dvtest import DataverseTestCase, JESSICA, APPROVED, CANCELLED, call, get, rows, entity_set, delete_time_entries
+import dv  # noqa: E402 - path set up by dvtest
 
 DEV_ENVIRONMENT = "964277cb-bd95-ee45-8c9b-b5dbe4520aa8"
 
 
 def flow_api(path):
-    az = shutil.which("az") or shutil.which("az.cmd")
-    tok = subprocess.check_output([az, "account", "get-access-token", "--resource", "https://service.flow.microsoft.com/",
-                                   "--query", "accessToken", "-o", "tsv"], text=True).strip()
+    tok = dv.az_token("https://service.flow.microsoft.com/")
     url = f"https://api.flow.microsoft.com/providers/Microsoft.ProcessSimple/environments/{DEV_ENVIRONMENT}/{path}"
     sep = "&" if "?" in url else "?"
     return json.loads(urllib.request.urlopen(urllib.request.Request(url + sep + "api-version=2016-11-01",

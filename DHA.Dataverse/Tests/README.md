@@ -8,7 +8,13 @@ python -I run_tests.py          # everything, ~6 minutes; writes last-run.md
 python -I run_tests.py dha09    # one card
 ```
 
-Needs `az login` as stsadmin, Node (for the DHA-8 form script) and the .NET SDK. `dvtest.py` refuses to
+Needs a DHA sign-in kept in its own Azure CLI folder (so other clients' sign-ins can't replace it), Node (for the
+DHA-8 form script) and the .NET SDK. One-off:
+
+```
+set AZURE_CONFIG_DIR=%USERPROFILE%\.azure-dha
+az login --tenant 28f0e92f-184e-4166-84cd-af41a0b93f83     (as stsadmin@dhaplanning.co.uk)
+``` `dvtest.py` refuses to
 run against anything but dev. Tests create data prefixed `ZZTEST` (dates in 2027) and remove it afterwards.
 Each request/approval sends real emails to the dev redirect address (`fwp_LeaveEmailOverride`, stsadmin).
 

@@ -86,6 +86,25 @@ namespace DHA.Leave.Plugins
             return pattern;
         }
 
+        /// <summary>
+        /// Leave in DAYS (HR decision: entitlement is counted in days). Each day counts its hours as a share of that day's
+        /// leave hours: a full day is 1, a half day 0.5, a 2-hour appointment on an 8.5-hour day 0.24.
+        /// </summary>
+        public static decimal DaysFor(IEnumerable<LeaveDay> days, WorkingDay[] pattern)
+        {
+            decimal total = 0m;
+            foreach (var d in days)
+            {
+                var day = pattern[PatternIndex(d.Date.DayOfWeek)];
+                if (day != null && day.ExpectedHours > 0m)
+                    total += Math.Min(1m, d.Hours / day.ExpectedHours);
+            }
+            return Math.Round(total, 2);
+        }
+
+        /// <summary>Leave runs January to December (HR decision): a request can't cross into the next year.</summary>
+        public static bool SpansLeaveYears(DateTime start, DateTime end) => start.Year != end.Year;
+
         /// <summary>Index into a Monday-first pattern array.</summary>
         public static int PatternIndex(DayOfWeek day) => ((int)day + 6) % 7;
 

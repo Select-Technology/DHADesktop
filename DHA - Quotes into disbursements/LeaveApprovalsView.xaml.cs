@@ -107,7 +107,7 @@ namespace DHA.DSTC.WPF
 
             DetailDatesText.Text = request.DatesText;
             DetailTypeText.Text = string.IsNullOrEmpty(request.LeaveTypeName) ? "(not given)" : request.LeaveTypeName;
-            DetailHoursText.Text = $"{request.Hours:0.##} hours";
+            DetailHoursText.Text = $"{request.Days:0.##} day{(request.Days == 1 ? "" : "s")} ({request.Hours:0.##} hours)";
             DetailRequestedText.Text = request.RequestedOn?.ToString("ddd dd/MM/yyyy HH:mm") ?? "";
             DetailCommentsText.Text = string.IsNullOrWhiteSpace(request.RequesterComments) ? "(none)" : request.RequesterComments;
             DetailBalanceText.Text = "Loading…";
@@ -137,24 +137,23 @@ namespace DHA.DSTC.WPF
                     return; // moved on
 
                 var b = balanceInfo.Balance;
-                if (b.YearStart == default(DateTime))
+                if (!b.HasEntitlement)
                 {
                     DetailBalanceText.Text = "No entitlement set up for this leave year.";
                     return;
                 }
 
-                decimal day = balanceInfo.Pattern.Where(d => d.ExpectedHours > 0).Select(d => d.ExpectedHours)
-                    .DefaultIfEmpty(LeaveDayCalculator.DefaultDayHours).Max();
-                string Days(decimal h) => $"{h / day:0.##} days";
-
+                string Days(decimal d) => $"{d:0.##} days";
                 var type = _types.FirstOrDefault(t => t.Id == request.LeaveTypeId);
                 bool deducts = type == null || type.DeductsFromEntitlement;
-                decimal afterThis = b.RemainingHours - (deducts && !request.IsCancellationRequest ? request.Hours : 0m);
+                // Pending requests (including this one) already count as taken, so "remaining" already reflects it
+                decimal remaining = b.RemainingDays;
+                decimal withoutThis = remaining + (deducts && !request.IsCancellationRequest ? request.Days : 0m);
 
-                DetailBalanceText.Text = $"{Days(b.RemainingHours)} remaining of {Days(b.EntitlementHours)}"
-                    + (deducts && !request.IsCancellationRequest ? $" - {Days(afterThis)} if approved" : "")
-                    + (deducts ? "" : $" - {type.Name} doesn't use entitlement");
-                DetailBalanceText.Foreground = afterThis < 0
+                DetailBalanceText.Text = deducts
+                    ? $"{Days(remaining)} remaining of {Days(b.EntitlementDays)} if approved ({Days(withoutThis)} before this request)"
+                    : $"{Days(remaining)} remaining of {Days(b.EntitlementDays)} - {type.Name} doesn't use entitlement";
+                DetailBalanceText.Foreground = remaining < 0
                     ? new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26))
                     : (Brush)FindResource("TextPrimaryBrush");
             }

@@ -18,6 +18,8 @@ namespace DHA.DSTC.WPF.Models
         public Guid Id { get; set; }
         public string Name { get; set; }
         public bool DeductsFromEntitlement { get; set; }
+        /// <summary>False for Working From Home: approved like leave, never on the timesheet.</summary>
+        public bool IsAbsence { get; set; } = true;
 
         public override string ToString() => Name;
     }
@@ -36,6 +38,8 @@ namespace DHA.DSTC.WPF.Models
         public string StartTime { get; set; }   // "HH:mm", null = start of working day
         public string EndTime { get; set; }     // "HH:mm", null = end of working day
         public decimal Hours { get; set; }
+        /// <summary>Length in days (entitlement is counted in days), worked out server-side.</summary>
+        public decimal Days { get; set; }
         public LeaveRequestStatus Status { get; set; }
         public string ApproverName { get; set; }
         public string RequesterComments { get; set; }
@@ -84,6 +88,7 @@ namespace DHA.DSTC.WPF.Models
                 StartTime = e.GetAttributeValue<string>("fwp_starttime"),
                 EndTime = e.GetAttributeValue<string>("fwp_endtime"),
                 Hours = e.GetAttributeValue<decimal?>("fwp_hours") ?? 0m,
+                Days = e.GetAttributeValue<decimal?>("fwp_days") ?? 0m,
                 Status = (LeaveRequestStatus)(e.GetAttributeValue<OptionSetValue>("fwp_status")?.Value ?? (int)LeaveRequestStatus.Pending),
                 ApproverName = e.GetAttributeValue<EntityReference>("fwp_approver")?.Name ?? "",
                 RequesterComments = e.GetAttributeValue<string>("fwp_requestercomments"),
@@ -107,14 +112,20 @@ namespace DHA.DSTC.WPF.Models
         }
     }
 
-    /// <summary>Leave balance for the current leave year, in hours (fwp_leaveentitlement + requests).</summary>
+    /// <summary>
+    /// Leave balance for one leave year (1 Jan - 31 Dec), in DAYS. As in Valto, pending requests count as taken
+    /// (HR decision 15 Oct 2026); PendingDays says how much of that is still waiting for approval.
+    /// </summary>
     public class LeaveBalance
     {
         public DateTime YearStart { get; set; }
-        public decimal EntitlementHours { get; set; }
-        public decimal TakenHours { get; set; }
-        public decimal BookedHours { get; set; }
-        public decimal PendingHours { get; set; }
-        public decimal RemainingHours => EntitlementHours - TakenHours - BookedHours;
+        public decimal EntitlementDays { get; set; }
+        /// <summary>Approved leave already in the past.</summary>
+        public decimal TakenDays { get; set; }
+        /// <summary>Approved future leave plus pending requests.</summary>
+        public decimal BookedDays { get; set; }
+        public decimal PendingDays { get; set; }
+        public decimal RemainingDays => EntitlementDays - TakenDays - BookedDays;
+        public bool HasEntitlement => YearStart != default(DateTime);
     }
 }

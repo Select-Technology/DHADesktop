@@ -37,7 +37,7 @@
                             <DataGridTextColumn Header="Employee" Binding="{Binding EmployeeName}" Width="140"/>
                             <DataGridTextColumn Header="Dates" Binding="{Binding DatesText}" Width="*"/>
                             <DataGridTextColumn Header="Type" Binding="{Binding LeaveTypeName}" Width="110"/>
-                            <DataGridTextColumn Header="Hours" Binding="{Binding Hours, StringFormat=0.##}" Width="55"/>
+                            <DataGridTextColumn Header="Days" Binding="{Binding Days, StringFormat=0.##}" Width="55"/>
                             <DataGridTextColumn Header="Waiting for" Binding="{Binding StatusText}" Width="150"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -57,7 +57,7 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Employee" Binding="{Binding EmployeeName}" Width="140"/>
                             <DataGridTextColumn Header="Dates" Binding="{Binding DatesText}" Width="*"/>
-                            <DataGridTextColumn Header="Hours" Binding="{Binding Hours, StringFormat=0.##}" Width="55"/>
+                            <DataGridTextColumn Header="Days" Binding="{Binding Days, StringFormat=0.##}" Width="55"/>
                             <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="150"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -80,7 +80,7 @@
                         <TextBlock x:Name="DetailDatesText" TextWrapping="Wrap" Margin="0,0,0,8"/>
                         <TextBlock Text="Type" Style="{DynamicResource FormLabelStyle}"/>
                         <TextBlock x:Name="DetailTypeText" Margin="0,0,0,8"/>
-                        <TextBlock Text="Hours" Style="{DynamicResource FormLabelStyle}"/>
+                        <TextBlock Text="Length" Style="{DynamicResource FormLabelStyle}"/>
                         <TextBlock x:Name="DetailHoursText" Margin="0,0,0,8"/>
                         <TextBlock Text="Requested" Style="{DynamicResource FormLabelStyle}"/>
                         <TextBlock x:Name="DetailRequestedText" Margin="0,0,0,8"/>

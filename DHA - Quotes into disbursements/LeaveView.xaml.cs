@@ -84,7 +84,7 @@ namespace DHA.DSTC.WPF
 
         private void ShowBalance(LeaveBalance balance)
         {
-            if (balance.EntitlementHours == 0m && balance.YearStart == default(DateTime))
+            if (!balance.HasEntitlement)
             {
                 BalanceTitleText.Text = "My Balance";
                 PendingText.Text = "No entitlement has been set up for you yet - speak to HR.";
@@ -92,22 +92,18 @@ namespace DHA.DSTC.WPF
             }
 
             BalanceTitleText.Text = $"My Balance ({balance.YearStart:MMM yyyy} – {balance.YearStart.AddYears(1).AddDays(-1):MMM yyyy})";
-            EntitlementText.Text = FormatDays(balance.EntitlementHours);
-            TakenText.Text = FormatDays(balance.TakenHours);
-            BookedText.Text = FormatDays(balance.BookedHours);
-            RemainingText.Text = FormatDays(balance.RemainingHours);
-            RemainingText.Foreground = balance.RemainingHours < 0
+            EntitlementText.Text = FormatDays(balance.EntitlementDays);
+            TakenText.Text = FormatDays(balance.TakenDays);
+            BookedText.Text = FormatDays(balance.BookedDays);
+            RemainingText.Text = FormatDays(balance.RemainingDays);
+            RemainingText.Foreground = balance.RemainingDays < 0
                 ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xDC, 0x26, 0x26))
                 : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x04, 0x78, 0x57));
-            PendingText.Text = balance.PendingHours > 0 ? $"{FormatDays(balance.PendingHours)} waiting for approval." : "";
+            PendingText.Text = balance.PendingDays > 0 ? $"{FormatDays(balance.PendingDays)} of that is waiting for approval." : "";
         }
 
-        private string FormatDays(decimal hours)
-        {
-            // Balances are held in hours; days use the colleague's usual full day
-            decimal day = _pattern.Where(d => d.ExpectedHours > 0).Select(d => d.ExpectedHours).DefaultIfEmpty(LeaveDayCalculator.DefaultDayHours).Max();
-            return $"{hours / day:0.##}d";
-        }
+        // Entitlement and balances are in days (HR decision 15 Oct 2026)
+        private static string FormatDays(decimal days) => $"{days:0.##}d";
 
         // ---------- Request form ----------
 
@@ -204,9 +200,10 @@ namespace DHA.DSTC.WPF
             }
 
             decimal total = days.Sum(d => d.Hours);
+            decimal dayCount = LeaveDayCalculator.DaysFor(days, _pattern);
             PreviewTotalText.Text = days.Count == 0
                 ? "No working days in this range."
-                : $"{total:0.##} hours ({FormatDays(total)}) over {days.Count} working day{(days.Count == 1 ? "" : "s")}";
+                : $"{dayCount:0.##} day{(dayCount == 1 ? "" : "s")} of leave ({total:0.##} hours on your timesheet)";
             var skippedHolidays = _bankHolidays.Count(h => h >= StartDatePicker.SelectedDate && h <= EndDatePicker.SelectedDate);
             PreviewDetailText.Text = string.Join(", ", days.Take(10).Select(d => $"{d.Date:ddd dd/MM} {d.Hours:0.##}h"))
                 + (days.Count > 10 ? ", …" : "")

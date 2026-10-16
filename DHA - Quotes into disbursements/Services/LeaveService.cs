@@ -27,7 +27,7 @@ namespace DHA.DSTC.WPF.Services
         private static readonly string[] RequestColumns =
         {
             "fwp_employee", "fwp_leavetype", "fwp_startdate", "fwp_enddate", "fwp_starttime", "fwp_endtime",
-            "fwp_hours", "fwp_status", "fwp_approver", "fwp_requestercomments", "fwp_approvercomments", "createdon"
+            "fwp_hours", "fwp_days", "fwp_status", "fwp_approver", "fwp_requestercomments", "fwp_approvercomments", "createdon"
         };
 
         public LeaveService(DataverseConnector connector)
@@ -59,8 +59,8 @@ namespace DHA.DSTC.WPF.Services
 
             var q = new QueryExpression("fwp_leavetype")
             {
-                ColumnSet = new ColumnSet("fwp_name", "fwp_deductsfromentitlement"),
-                Orders = { new OrderExpression("fwp_name", OrderType.Ascending) }
+                ColumnSet = new ColumnSet("fwp_name", "fwp_deductsfromentitlement", "fwp_isabsence", "fwp_sortorder"),
+                Orders = { new OrderExpression("fwp_sortorder", OrderType.Ascending), new OrderExpression("fwp_name", OrderType.Ascending) }
             };
             q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
 
@@ -69,7 +69,8 @@ namespace DHA.DSTC.WPF.Services
                 {
                     Id = e.Id,
                     Name = e.GetAttributeValue<string>("fwp_name"),
-                    DeductsFromEntitlement = e.GetAttributeValue<bool?>("fwp_deductsfromentitlement") ?? true
+                    DeductsFromEntitlement = e.GetAttributeValue<bool?>("fwp_deductsfromentitlement") ?? true,
+                    IsAbsence = e.GetAttributeValue<bool?>("fwp_isabsence") ?? true
                 }).ToList();
         }
 
@@ -238,46 +239,48 @@ namespace DHA.DSTC.WPF.Services
                 .Entities.Select(e => e.GetAttributeValue<DateTime>("fwp_date").Date));
         }
 
-        /// <summary>Entitlement for the leave year containing <paramref name="onDate"/>, less taken and booked leave.</summary>
+        /// <summary>
+        /// Balance in DAYS for the leave year (calendar year) containing <paramref name="onDate"/>. Pending requests count as
+        /// taken (HR decision); only types that deduct from entitlement count.
+        /// </summary>
         public LeaveBalance GetBalance(Guid employeeId, DateTime onDate, IEnumerable<LeaveRequest> requests, IList<LeaveType> types)
         {
             var balance = new LeaveBalance();
             if (!_connector.Connect())
                 return balance;
 
+            var yearStart = new DateTime(onDate.Year, 1, 1);
             var q = new QueryExpression("fwp_leaveentitlement")
             {
-                ColumnSet = new ColumnSet("fwp_yearstart", "fwp_entitlementhours", "fwp_carriedforwardhours", "fwp_purchasedhours", "fwp_adjustmenthours"),
-                TopCount = 1,
-                Orders = { new OrderExpression("fwp_yearstart", OrderType.Descending) }
+                ColumnSet = new ColumnSet("fwp_yearstart", "fwp_entitlementdays", "fwp_carriedforwarddays", "fwp_adjustmentdays"),
+                TopCount = 1
             };
             q.Criteria.AddCondition("fwp_employee", ConditionOperator.Equal, employeeId);
-            q.Criteria.AddCondition("fwp_yearstart", ConditionOperator.OnOrBefore, onDate.Date);
+            q.Criteria.AddCondition("fwp_yearstart", ConditionOperator.On, yearStart);
             q.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
 
             var ent = _connector.ExecuteWithRetry(() => _connector._orgService.RetrieveMultiple(q)).Entities.FirstOrDefault();
             if (ent == null)
                 return balance;
 
-            balance.YearStart = ent.GetAttributeValue<DateTime>("fwp_yearstart").Date;
-            balance.EntitlementHours = (ent.GetAttributeValue<decimal?>("fwp_entitlementhours") ?? 0m)
-                + (ent.GetAttributeValue<decimal?>("fwp_carriedforwardhours") ?? 0m)
-                + (ent.GetAttributeValue<decimal?>("fwp_purchasedhours") ?? 0m)
-                + (ent.GetAttributeValue<decimal?>("fwp_adjustmenthours") ?? 0m);
+            balance.YearStart = yearStart;
+            balance.EntitlementDays = (ent.GetAttributeValue<decimal?>("fwp_entitlementdays") ?? 0m)
+                + (ent.GetAttributeValue<decimal?>("fwp_carriedforwarddays") ?? 0m)
+                + (ent.GetAttributeValue<decimal?>("fwp_adjustmentdays") ?? 0m);
 
-            var yearEnd = balance.YearStart.AddYears(1);
             var deducting = new HashSet<Guid>(types.Where(t => t.DeductsFromEntitlement).Select(t => t.Id));
-            foreach (var r in requests.Where(r => r.StartDate >= balance.YearStart && r.StartDate < yearEnd
+            foreach (var r in requests.Where(r => r.StartDate.Year == onDate.Year
                                                   && (!r.LeaveTypeId.HasValue || deducting.Contains(r.LeaveTypeId.Value))))
             {
                 if (r.Status == LeaveRequestStatus.Approved || r.Status == LeaveRequestStatus.CancellationRequested)
                 {
-                    if (r.EndDate.Date < DateTime.Today) balance.TakenHours += r.Hours;
-                    else balance.BookedHours += r.Hours;
+                    if (r.EndDate.Date < DateTime.Today) balance.TakenDays += r.Days;
+                    else balance.BookedDays += r.Days;
                 }
                 else if (r.Status == LeaveRequestStatus.Pending)
                 {
-                    balance.PendingHours += r.Hours;
+                    balance.BookedDays += r.Days;
+                    balance.PendingDays += r.Days;
                 }
             }
             return balance;

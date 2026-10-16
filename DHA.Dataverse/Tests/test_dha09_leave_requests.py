@@ -127,10 +127,8 @@ class Dha09NewRequests(LeaveRequestTestCase):
             else:
                 call("DELETE", f"fwp_colleagueconfigurations({cfg['fwp_colleagueconfigurationid']})/fwp_LeaveApprover/$ref")
 
-    @unittest.expectedFailure
     def test_request_booked_on_behalf_is_owned_by_the_employee(self):
-        """KNOWN GAP: requests are owned by whoever creates them. When HR books for someone, the employee
-        (who only has "own" access through DHA-1) can't see it. The plug-in needs to assign it to the employee."""
+        """Parity plan D7: the employee only has "own" access (DHA-1), so a request HR books for them must be theirs."""
         rid = self.created("2027-08-02")
         self.assertEqual(JESSICA, self.request(rid)["_ownerid_value"])
 
@@ -245,5 +243,85 @@ class Dha09Security(DataverseTestCase):
         self.assertNotIn("prvdeletefwp_leaverequest", p)
 
 
+
+def leave_type(name):
+    return rows(f"fwp_leavetypes?$select=fwp_leavetypeid&$filter=fwp_name eq '{name}' and statecode eq 0")[0]["fwp_leavetypeid"]
+
+
+class Dha09ParityStage1(LeaveRequestTestCase):
+    """Parity plan stage 1 (docs/leave-desktop-parity-plan.md): days, WFH, leave years, approvers, cancellation details."""
+
+    def test_requests_are_measured_in_days(self):
+        rid = self.created("2027-10-11", "2027-10-15")                       # Mon-Fri
+        r = get(f"{self.LR}({rid})?$select=fwp_days,fwp_hours")
+        self.assertEqual((5.0, 42.0), (r["fwp_days"], r["fwp_hours"]))
+
+    def test_part_day_is_a_share_of_a_day(self):
+        rid = self.created("2027-10-18", start_time="09:00", end_time="12:45")  # Monday, 3.75 of 8.5 hours
+        self.assertEqual(0.44, get(f"{self.LR}({rid})?$select=fwp_days")["fwp_days"])
+
+    def test_leave_cannot_span_two_leave_years(self):
+        s, d = self.create("2027-12-30", "2028-01-04")
+        self.assertGreaterEqual(s, 400)
+        self.assertIn("31 December", d)
+
+    def test_working_from_home_is_approved_but_never_on_the_timesheet(self):
+        rid = self.created("2027-10-20", **{"fwp_LeaveType@odata.bind": f"/fwp_leavetypes({leave_type('Working From Home')})"})
+        self.set_status(rid, APPROVED)
+        self.assertEqual("Approved", self.request(rid)["fwp_lastevent"])
+        self.assertEqual([], self.entries(rid))
+
+    def test_working_from_home_does_not_clash_with_an_appointment(self):
+        wfh = {"fwp_LeaveType@odata.bind": f"/fwp_leavetypes({leave_type('Working From Home')})"}
+        med = {"fwp_LeaveType@odata.bind": f"/fwp_leavetypes({leave_type('Medical')})"}
+        self.created("2027-10-21", **wfh)
+        s, d = self.create("2027-10-21", start_time="13:45", end_time="14:45", **med)
+        self.assertLess(s, 300, d)
+
+    def test_two_absences_still_clash(self):
+        hol = {"fwp_LeaveType@odata.bind": f"/fwp_leavetypes({leave_type('Holiday Request')})"}
+        self.created("2027-10-25", "2027-10-26", **hol)
+        s, d = self.create("2027-10-26", **hol)
+        self.assertGreaterEqual(s, 400)
+
+    def test_cancellation_request_is_timestamped(self):
+        rid = self.created("2027-10-27")
+        self.set_status(rid, APPROVED)
+        self.set_status(rid, CANCEL_REQUESTED)
+        self.assertIsNotNone(get(f"{self.LR}({rid})?$select=fwp_cancellationrequestedon")["fwp_cancellationrequestedon"])
+
+    def test_additional_approver_defaults_from_configuration_and_is_shared(self):
+        cfg = rows(f"fwp_colleagueconfigurations?$select=fwp_colleagueconfigurationid&$filter=_fwp_colleague_value eq {JESSICA} and statecode eq 0")[0]
+        cid = cfg["fwp_colleagueconfigurationid"]
+        try:
+            call("PATCH", f"fwp_colleagueconfigurations({cid})", {"fwp_AdditionalLeaveApprover@odata.bind": f"/systemusers({HARRIET})"})
+            rid = self.created("2027-10-28")
+            self.assertEqual(HARRIET, get(f"{self.LR}({rid})?$select=_fwp_additionalapprover_value")["_fwp_additionalapprover_value"])
+            access = get(f"systemusers({HARRIET})/Microsoft.Dynamics.CRM.RetrievePrincipalAccess(Target=@t)"
+                         f"?@t={{'@odata.id':'{self.LR}({rid})'}}")["AccessRights"]
+            self.assertIn("ReadAccess", access)
+        finally:
+            call("DELETE", f"fwp_colleagueconfigurations({cid})/fwp_AdditionalLeaveApprover/$ref")
+
+
+class Dha09ParityStage1Schema(DataverseTestCase):
+
+    def test_leave_types_carry_behaviour_flags(self):
+        t = {r["fwp_name"]: r for r in rows("fwp_leavetypes?$select=fwp_name,fwp_isabsence,fwp_deductsfromentitlement,fwp_forcedunits&$filter=statecode eq 0")}
+        self.assertFalse(t["Working From Home"]["fwp_isabsence"])
+        self.assertTrue(t["Holiday Request"]["fwp_deductsfromentitlement"])
+        self.assertEqual(800470001, t["Medical"]["fwp_forcedunits"], "Medical is booked in hours")
+
+    def test_entitlements_are_in_days_with_no_purchased_leave(self):
+        attrs = {a["LogicalName"] for a in get("EntityDefinitions(LogicalName='fwp_leaveentitlement')/Attributes?$select=LogicalName")["value"]}
+        self.assertTrue({"fwp_entitlementdays", "fwp_carriedforwarddays", "fwp_carryforwardoverride", "fwp_carriedtonextyeardays"} <= attrs)
+        self.assertFalse(attrs & {"fwp_entitlementhours", "fwp_purchasedhours"}, "hours / purchased columns should be gone")
+
+    def test_carry_forward_limit_is_five_days(self):
+        d = rows("environmentvariabledefinitions?$select=defaultvalue&$filter=schemaname eq 'fwp_LeaveCarryForwardLimit'")
+        self.assertEqual("5", d[0]["defaultvalue"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
