@@ -249,9 +249,12 @@ for message, stage in [("Create", 20), ("Update", 20), ("Create", 40), ("Update"
         step = existing[0]["sdkmessageprocessingstepid"]
         if message == "Update" and existing[0].get("filteringattributes") != FILTER:
             ok(*dv.call("PATCH", f"sdkmessageprocessingsteps({step})", {"filteringattributes": FILTER})[:2], f"  {name}: filtering attributes")
+            # Updating an image's attributes fails with a generic error - recreate it instead
             for img in q(f"sdkmessageprocessingstepimages?$select=sdkmessageprocessingstepimageid&$filter=_sdkmessageprocessingstepid_value eq {step}"):
-                ok(*dv.call("PATCH", f"sdkmessageprocessingstepimages({img['sdkmessageprocessingstepimageid']})", {"attributes": IMAGE})[:2],
-                   f"  {name}: pre image")
+                ok(*dv.call("DELETE", f"sdkmessageprocessingstepimages({img['sdkmessageprocessingstepimageid']})")[:2], f"  {name}: old pre image removed")
+            ok(*dv.call("POST", "sdkmessageprocessingstepimages", {
+                "name": "PreImage", "entityalias": "PreImage", "imagetype": 0, "messagepropertyname": "Target", "attributes": IMAGE,
+                "sdkmessageprocessingstepid@odata.bind": f"/sdkmessageprocessingsteps({step})"}, solution=SOL)[:2], f"  {name}: pre image")
         continue
     msg = q(f"sdkmessages?$select=sdkmessageid&$filter=name eq '{message}'")[0]["sdkmessageid"]
     flt = q(f"sdkmessagefilters?$select=sdkmessagefilterid&$filter=primaryobjecttypecode eq 'fwp_leaverequest' and _sdkmessageid_value eq {msg}")[0]["sdkmessagefilterid"]

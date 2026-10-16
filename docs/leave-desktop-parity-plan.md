@@ -216,7 +216,7 @@ Each stage ends with its automated tests passing in dev and a demo to Harriet.
 | Stage | Contents | Depends on | Estimate (days) |
 |---|---|---|---|
 | **0. Decisions** | ✅ Q1–Q8 and F1, F3–F5 answered 15 Oct. **F2, F6 open** | – | – |
-| **1. Model** | D1–D5, D7: schema, type flags (incl. WFH), days, calendar years, approver fields, ownership fix; seed DHA's real leave types | F6 | 3 |
+| **1. Model** ✅ *(dev, 16 Oct)* | D1–D5, D7: schema, type flags (incl. WFH), days, calendar years, approver fields, ownership fix; seed DHA's real leave types. Department (F6) still to add | F6 | 3 |
 | **2. Employee parity** | E1–E7, E9–E12: days-based form and balance (pending counted), year-span rule, mandatory details + confirmation, WFH requests, multi-year balance, request filters, cancellation comment, company holidays | 1 | 5 |
 | **3. Approver parity** | M1–M6, N1, N3, N6: line managers + additional approvers, filters/badge, team views incl. WFH, per-person balance, cancel on behalf, per-approver emails and reminder | 1 | 6 |
 | **4. HR administration** | A1, A2, A7, A9, E13: colleague leave settings, entitlement editor (incl. new starters, carry-forward override), book on behalf | 1 | 4 |
@@ -230,6 +230,15 @@ Each stage ends with its automated tests passing in dev and a demo to Harriet.
 Stages 2–5 can overlap once stage 1 is done.
 
 ---
+
+### Stage 1 notes (16 Oct)
+
+- **Booked on behalf.** A request is assigned to the employee only if they can read leave requests (DHA-1). Dynamics
+  refuses the assignment otherwise, and a failed call can't be caught inside the save, so the plug-in checks first.
+  Without DHA-1 the booking stays with whoever made it. Everyone holds DHA-1 in prod, so it applies everywhere there.
+  In dev no test user can hold DHA-1 (it isn't available in their business unit), so that one check is skipped in dev.
+- **Updating a plug-in step's pre-image fails** with a generic error. The script deletes and recreates it instead.
+- **Tests (dev):** DHA-9 66 pass, 1 skipped (above); DHA-10 10 pass; 49 unit tests pass.
 
 ## 5. Migration from SharePoint
 

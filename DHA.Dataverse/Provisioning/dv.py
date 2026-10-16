@@ -14,11 +14,15 @@ AZURE_CONFIG_DIR = os.environ.get("DHA_AZURE_CONFIG_DIR", os.path.join(os.path.e
 def az_token(resource):
     """Access token for `resource` from the DHA sign-in (DHA tenant only)."""
     az = shutil.which("az") or shutil.which("az.cmd")
-    env = dict(os.environ, AZURE_CONFIG_DIR=AZURE_CONFIG_DIR)
-    try:
-        return subprocess.check_output([az, "account", "get-access-token", "--resource", resource, "--tenant", DHA_TENANT,
-                                        "--query", "accessToken", "-o", "tsv"], text=True, env=env, stderr=subprocess.PIPE).strip()
-    except subprocess.CalledProcessError as e:
+    cmd = [az, "account", "get-access-token", "--resource", resource, "--tenant", DHA_TENANT, "--query", "accessToken", "-o", "tsv"]
+    # The dedicated DHA folder first, then the normal sign-in - always pinned to the DHA tenant, so never another client's
+    for env in (dict(os.environ, AZURE_CONFIG_DIR=AZURE_CONFIG_DIR), dict(os.environ)):
+        try:
+            return subprocess.check_output(cmd, text=True, env=env, stderr=subprocess.PIPE).strip()
+        except subprocess.CalledProcessError as e:
+            err = e
+    if True:
+        e = err
         sys.exit(f"No DHA sign-in. Run once:\n  set AZURE_CONFIG_DIR={AZURE_CONFIG_DIR}\n  az login --tenant {DHA_TENANT}\n"
                  f"(as stsadmin@dhaplanning.co.uk)\n\n{e.stderr.strip()[:300]}")
 

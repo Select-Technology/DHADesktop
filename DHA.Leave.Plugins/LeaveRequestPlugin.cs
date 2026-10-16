@@ -185,10 +185,17 @@ namespace DHA.Leave.Plugins
             // On Create the new id is only guaranteed in the output parameters
             var requestId = target.Id != Guid.Empty ? target.Id : (Guid)context.OutputParameters["id"];
 
-            // Booked on someone's behalf: the request belongs to the employee, so they see it under "own" (DHA-1)
+            // Booked on someone's behalf: the request belongs to the employee, so they see it under "own" (DHA-1).
+            // Dynamics only allows assigning to someone who can read leave requests, and a failed call can't be caught
+            // inside the save - so check first. Without the privilege (no DHA-1) the booking stays with whoever made it.
             var employee = getRef("fwp_employee");
             if (context.MessageName == "Create" && employee != null && context.InitiatingUserId != employee.Id)
-                svc.Update(new Entity("fwp_leaverequest", requestId) { ["ownerid"] = employee });
+            {
+                if (HasPrivilege(svc, employee.Id, "prvReadfwp_LeaveRequest"))
+                    svc.Update(new Entity("fwp_leaverequest", requestId) { ["ownerid"] = employee });
+                else
+                    trace.Trace($"{employee.Id} can't read leave requests (no DHA-1?) - request {requestId} left with the person who booked it.");
+            }
 
             foreach (var field in new[] { "fwp_approver", "fwp_additionalapprover" })
             {
@@ -260,6 +267,28 @@ namespace DHA.Leave.Plugins
             var approver = cfg?.GetAttributeValue<EntityReference>("fwp_leaveapprover")
                            ?? svc.Retrieve("systemuser", employeeId, new ColumnSet("parentsystemuserid")).GetAttributeValue<EntityReference>("parentsystemuserid");
             return (approver, cfg?.GetAttributeValue<EntityReference>("fwp_additionalleaveapprover"));
+        }
+
+        /// <summary>True if the user holds the privilege through one of their roles or one of their teams' roles.</summary>
+        private static bool HasPrivilege(IOrganizationService svc, Guid userId, string privilegeName)
+        {
+            string viaUser = $@"<fetch top='1'><entity name='privilege'><attribute name='privilegeid'/>
+                <filter><condition attribute='name' operator='eq' value='{privilegeName}'/></filter>
+                <link-entity name='roleprivileges' from='privilegeid' to='privilegeid' intersect='true'>
+                  <link-entity name='role' from='roleid' to='roleid'>
+                    <link-entity name='systemuserroles' from='roleid' to='roleid' intersect='true'>
+                      <filter><condition attribute='systemuserid' operator='eq' value='{userId}'/></filter>
+                    </link-entity></link-entity></link-entity></entity></fetch>";
+            string viaTeam = $@"<fetch top='1'><entity name='privilege'><attribute name='privilegeid'/>
+                <filter><condition attribute='name' operator='eq' value='{privilegeName}'/></filter>
+                <link-entity name='roleprivileges' from='privilegeid' to='privilegeid' intersect='true'>
+                  <link-entity name='role' from='roleid' to='roleid'>
+                    <link-entity name='teamroles' from='roleid' to='roleid' intersect='true'>
+                      <link-entity name='teammembership' from='teamid' to='teamid' intersect='true'>
+                        <filter><condition attribute='systemuserid' operator='eq' value='{userId}'/></filter>
+                      </link-entity></link-entity></link-entity></link-entity></entity></fetch>";
+            return svc.RetrieveMultiple(new FetchExpression(viaUser)).Entities.Count > 0
+                || svc.RetrieveMultiple(new FetchExpression(viaTeam)).Entities.Count > 0;
         }
 
         /// <summary>Requests with no type are treated as absence. Working From Home has fwp_isabsence = No.</summary>

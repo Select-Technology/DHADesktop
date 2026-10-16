@@ -85,7 +85,8 @@ class Dha09Emails(DataverseTestCase):
             call("PATCH", f"{self.LR}({rid})", {"fwp_status": APPROVED, "fwp_approvercomments": "ZZTEST"})
             sent = self._sent_emails_since(started, "04/10/2027", expected=2)
             events = [e for e, _, _ in sent]
-            self.assertEqual(["Requested", "Approved"], events)
+            # Both must be sent, each with its own event. Power Automate doesn't guarantee run order for events a second apart.
+            self.assertEqual(["Approved", "Requested"], sorted(events))
             jessica_email = get(f"systemusers({JESSICA})?$select=internalemailaddress")["internalemailaddress"]
             for event, to, subject in sent:
                 with self.subTest(event=event):
