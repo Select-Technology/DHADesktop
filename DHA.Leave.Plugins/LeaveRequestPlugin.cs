@@ -30,6 +30,7 @@ namespace DHA.Leave.Plugins
         public const string CancellationRequested = "CancellationRequested";
         public const string CancellationApproved = "CancellationApproved";
         public const string CancellationDeclined = "CancellationDeclined";
+        public const string Changed = "Changed";                           // booked leave's dates, times or type changed (calendar flow)
         public const string CancelledByHR = "CancelledByHR";               // cancelled directly by an approver or HR (name kept for the flow)
 
         /// <param name="byEmployee">The change was made by the person whose leave it is (false when an approver or HR cancels on their behalf).</param>
@@ -57,6 +58,8 @@ namespace DHA.Leave.Plugins
         /// withdrawn instead; letting it through would put unapproved leave on the timesheet, and "declining" the cancellation
         /// would approve it.
         /// </summary>
+        public static bool IsBooked(int? status) => status == LeaveStatus.Approved || status == LeaveStatus.CancellationRequested;
+
         public static bool CanRequestCancellation(int? oldStatus) =>
             oldStatus == LeaveStatus.Approved || oldStatus == LeaveStatus.CancellationRequested;
     }
@@ -185,11 +188,15 @@ namespace DHA.Leave.Plugins
             if (status != LeaveStatus.Rejected && status != LeaveStatus.Cancelled && IsAbsence(svc, getRef("fwp_leavetype")))
                 RejectOverlaps(svc, target.Id, employee.Id, start.Value, end.Value);
 
-            // Record what happened for the notifications flow (only when the status actually changes)
+            // Record what happened for the notifications and calendar flows
+            var pre = context.PreEntityImages.Contains("PreImage") ? context.PreEntityImages["PreImage"] : null;
+            int? previous = pre?.GetAttributeValue<OptionSetValue>("fwp_status")?.Value;
+            bool detailsChanged = new[] { "fwp_startdate", "fwp_enddate", "fwp_starttime", "fwp_endtime", "fwp_leavetype" }.Any(target.Contains);
+            if (context.MessageName == "Update" && previous == status && LeaveEvent.IsBooked(status) && detailsChanged)
+                target["fwp_lastevent"] = LeaveEvent.Changed; // the shared calendar entry has to move
             if (context.MessageName == "Update" && target.Contains("fwp_status"))
             {
-                var pre = context.PreEntityImages.Contains("PreImage") ? context.PreEntityImages["PreImage"] : null;
-                int? oldStatus = pre?.GetAttributeValue<OptionSetValue>("fwp_status")?.Value;
+                int? oldStatus = previous;
                 if (status == LeaveStatus.CancellationRequested && !LeaveEvent.CanRequestCancellation(oldStatus))
                     throw new InvalidPluginExecutionException(
                         "Only approved leave needs the approver to confirm a cancellation. Cancel a pending request instead.");

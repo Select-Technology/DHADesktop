@@ -1,10 +1,10 @@
-# DHA test run - 2026-10-16 12:04 (dev, 205s)
+# DHA test run - 2026-10-16 12:29 (dev, 344s)
 
 | Card | Pass | Fail | Known gap | Skipped |
 |---|---|---|---|---|
 | DHA-7 Finance can place a project on stop | 11 | 0 | 0 | 1 |
 | DHA-8 Warning when recording time on a stopped project | 7 | 0 | 0 | 0 |
-| DHA-9 Approved absence creates the time entry | 86 | 0 | 0 | 1 |
+| DHA-9 Approved absence creates the time entry | 90 | 0 | 0 | 1 |
 | DHA-10 Cancelling an absence deactivates the time entry | 10 | 0 | 1 | 0 |
 | DHA-16 Internal source is mandatory on a quote | 2 | 2 | 0 | 1 |
 | .NET unit tests (leave day calculation, leave events) | 1 | 0 | 0 | 0 |
@@ -37,6 +37,10 @@
 
 ## DHA-9 Approved absence creates the time entry
 
+- ✅ `Dha09Calendar.test_approved_leave_is_on_the_calendar_moves_with_it_and_goes_when_cancelled` - pass
+- ✅ `Dha09Calendar.test_flow_is_on` - pass
+- ✅ `Dha09Calendar.test_part_day_uses_its_times` - pass
+- ✅ `Dha09Calendar.test_working_from_home_stays_off_the_calendar` - pass
 - ✅ `Dha09Emails.test_both_flows_exist_and_are_on` - pass
 - ✅ `Dha09Emails.test_dev_redirects_every_email` - pass
 - ✅ `Dha09Emails.test_reminder_goes_to_each_approver_once` - pass
@@ -159,4 +163,4 @@
 
 ## .NET unit tests (leave day calculation, leave events)
 
-- ✅ `60 unit tests` - pass
+- ✅ `64 unit tests` - pass

@@ -140,7 +140,7 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 | **N1** | New request → email the **approver** (notes when booked on behalf) | ✅ To the request's approver, additional approver copied, HR if none; says when booked on someone's behalf | Send to the request's approver and additional approver (Q2); mention booked-by |
 | **N2** | Outcome emails (approved, rejected, cancellation approved or declined) | ✅ | Wording review with Harriet |
 | **N3** | Weekday 10:00 reminder **per approver** of their outstanding requests | ✅ One reminder per approver (and additional approver) listing their waiting requests | One email per approver listing their outstanding requests (Q2) |
-| **N4** | **Shared Outlook calendar**: event on approval, deleted on cancellation (`CalendarID`) | ❌ | **In scope (Q5).** Flow on Approved / Cancelled / date change using `fwp_calendareventid`. Same calendar as Valto (its `new_CalendarID`). Events say **"Out of Office"** (F5) |
+| **N4** | **Shared Outlook calendar**: event on approval, deleted on cancellation (`CalendarID`) | ✅ "Leave - Outlook calendar" flow (dev). "Out of Office - Name", shown as Out of Office, employee and approver invited; moves when dates change, removed on cancellation. Working From Home not added | **In scope (Q5).** Flow on Approved / Cancelled / date change using `fwp_calendareventid`. Same calendar as Valto (its `new_CalendarID`). Events say **"Out of Office"** (F5) |
 | **N5** | Deep links from emails to the app | ❌ | Link to the Dynamics record (works on phone); optional `dha-time://` desktop link later |
 | **N6** | Item-level SharePoint permissions (employee, approver, owners) | ✅ Shared with approver and additional approver; changing someone's approver shares their leave from last year onwards and moves waiting requests | Extend sharing to additional approvers (**M1**) |
 | ~~N7~~ | Mobile/browser access (the canvas app works anywhere) | – | **Out of scope (F4).** No phone app; a phone app would be its own project |
@@ -221,7 +221,7 @@ Each stage ends with its automated tests passing in dev and a demo to Harriet.
 | **3. Approver parity** ✅ *(dev, 16 Oct)* | M1–M6, N1, N3, N6: line managers + additional approvers, filters/badge, team views incl. WFH, per-person balance, cancel on behalf, per-approver emails and reminder | 1 | 6 |
 | **4. HR administration** ✅ *(dev, 16 Oct)* | A1, A2, A7, A9, E13: colleague leave settings, entitlement editor (incl. new starters, carry-forward override), book on behalf | 1 | 4 |
 | **5. Year-end** | A3, A4 (D6): January generate + carry forward with override | 1, F2 | 2 |
-| **6. Outlook calendar** | N4 ("Out of Office" events) | – | 1.5 |
+| **6. Outlook calendar** ✅ *(dev, 16 Oct)* | N4 ("Out of Office" events) | – | 1.5 |
 | **7. Optional** | N5 email links into Dynamics records | – | 0.5 |
 | **8. Migration** | §5 scripts, dry runs against a copy of the lists, reconciliation report | 1 | 4 |
 | **9. Release and cutover** | §6: merge desktop branches, UAT, parallel run, go-live, Valto retirement | all | 4 |
@@ -284,6 +284,31 @@ Stages 2–5 can overlap once stage 1 is done.
   "clear", and wiped a test user's (Alice's) Tuesday–Thursday times. Restored from an earlier session's query (the
   breaks inferred as "1:00", matching her other days). Fixed, with a test that unsent settings are left alone.
 - **Tests (dev):** DHA-9 86 pass, 1 skipped; DHA-10 10 pass; 60 unit tests pass.
+
+### Stage 6 notes (16 Oct)
+
+- **Whose calendar.** Valto writes to a calendar in the **Automated@dhaplanning.co.uk** mailbox, through that
+  account's Outlook connection (prod connection `18aa8aaf…`, "Connected"). Its id, Valto's `new_CalendarID`:
+  `AAMkAGZjYzk3MzFmLTQ3MzAtNGUxOS04Yzc4LWNkMTQ3MTk4MDg2ZQBGAAAAAACmQX1Bp6iMQ53111j57DPKBwBXWe41EVWRRbiFD94BYUQzAAAAAAEGAABXWe41EVWRRbiFD94BYUQzAAApYA8oAAA=`
+- **What changes from Valto.**
+  - The subject is "Out of Office - Name", not "[Request Type] - Name", and the body has no type (F5).
+  - Events show as Out of Office rather than Busy.
+  - Working From Home isn't added.
+  - Same as Valto: the employee and approver are invited.
+- **Changed dates or type.** When approved leave has its dates or type changed, the plug-in records a "Changed"
+  event and the flow moves the calendar entry. Each run reads the request and brings the calendar into line, one
+  run at a time.
+- **Prod go-live (manual, once):**
+  1. Set `fwp_LeaveCalendarId` to the id above.
+  2. Someone signed in as Automated@ opens the solution in make.powerapps.com. They set the "Leave - Calendar
+     (Outlook)" connection reference to their Outlook connection and turn on "Leave - Outlook calendar". Outlook
+     connections can't be shared, so this can't be scripted as stsadmin.
+  3. Leave `fwp_LeaveEmailOverride` empty, or no one is invited.
+- **Migration (§5):** copy Valto's `CalendarID` into `fwp_calendareventid`, so cancelling migrated leave removes
+  the event Valto made.
+- **Dev:** events go to stsadmin's own Calendar (`fwp_LeaveCalendarId` = "default"), with no attendees while the
+  email redirect is on.
+- **Tests (dev):** DHA-9 90 pass, 1 skipped (4 new calendar tests); 64 unit tests pass.
 
 ## 5. Migration from SharePoint
 
