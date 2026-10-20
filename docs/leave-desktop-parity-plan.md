@@ -310,6 +310,38 @@ Stages 2–5 can overlap once stage 1 is done.
   email redirect is on.
 - **Tests (dev):** DHA-9 90 pass, 1 skipped (4 new calendar tests); 64 unit tests pass.
 
+### Prod deployment (20 Oct 2026)
+
+Stages 1–4 and 6 are in prod, so the desktop Leave tab works there. Deployed by
+`DHA.Dataverse/Provisioning/deploy_leave_management_prod.py` (`prep`, `state`, `import`, `post`). Packages are in
+`DHA.Dataverse/Solutions`. The pre-import snapshot is `prod_state_before_leave_management.json`.
+
+- **Solutions (managed):**
+  - `FWPLeaveTimeEntries` 1.0.4.0: the assembly with all the leave plug-ins.
+  - `FWPLeaveManagement` 1.0.0.0: the tables, plug-in steps, Custom APIs, Leave Administrator role and flows.
+  - Shared tables get only the four leave columns (three on colleague configuration, one on time entry), with no
+    forms or views. `systemuser` was taken out of the solution before export.
+- **Access:**
+  - DHA-1: own leave requests and entitlements, plus read on leave types and public holidays.
+  - The HR team is linked to HR@ and holds Leave Administrator.
+  - The "Leave - Book on behalf" team exists with no members.
+- **Leave types:** the six Valto types, the same as dev. Study Leave's "uses entitlement" setting still needs
+  checking against Valto.
+- **Off:** "Leave - Notifications", "Leave - Approval reminder" and "Leave - Outlook calendar". Their Outlook
+  connection references are unbound. Phase A flows are unchanged: Bank Holidays and Backfill on, Record Time
+  Entries off.
+- **Gotcha:** the managed import brought all 10 plug-in steps in **disabled**. The script now switches them on.
+- **Smoke test:** one test request (2 days, 17 hours) was created and deleted. The overlap and 31 December rules
+  were refused as expected. No leave data in prod.
+- **What works now:**
+  - booking, viewing and cancelling leave
+  - balances, approvals lists, team views and the HR tab
+- **What doesn't yet:**
+  - **Approving fails** until phase A's `fwp_LeaveProjectId` is set (the Finance Job).
+  - No emails and no calendar until those flows are switched on. The email override setting has no value in prod,
+    which stops a flow switching on, so give it a "none"-style value or change the flows first.
+  - No entitlements yet. HR add them in the HR tab, or they come in with migration (§5).
+
 ## 5. Migration from SharePoint
 
 Read through a Power Automate flow using the existing stsadmin SharePoint connection, which was proved to reach the

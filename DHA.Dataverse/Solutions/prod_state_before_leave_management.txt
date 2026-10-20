@@ -1,0 +1,66 @@
+PROD (read-only): https://dhapd.crm11.dynamics.com
+{
+ "solutions": {
+  "FWPLeaveTimeEntries": {
+   "@odata.etag": "W/\"381158720\"",
+   "solutionid": "524094a2-871d-46f7-bdb9-45e24ea62d21",
+   "ismanaged@OData.Community.Display.V1.FormattedValue": "Managed",
+   "ismanaged": true,
+   "version": "1.0.3.0"
+  },
+  "FWPLeaveManagement": null
+ },
+ "phase_a_flows": {
+  "Leave Request - Backfill Approved Leave": 1,
+  "Leave Request - Record Time Entries": 0,
+  "Leave - Record Bank Holidays": 1
+ },
+ "leave_flows": {},
+ "settings": {
+  "fwp_BankHolidayEntryLabel": {
+   "default": "Bank holiday",
+   "value": null
+  },
+  "fwp_LeaveDayHours": {
+   "default": "8.5,8.5,8.5,8.5,8,0,0",
+   "value": null
+  },
+  "fwp_LeaveRequestListId": {
+   "default": "718145ce-0b2d-4396-af86-ce36aabc8a29",
+   "value": "718145ce-0b2d-4396-af86-ce36aabc8a29"
+  },
+  "fwp_LeaveProjectId": {
+   "default": null,
+   "value": null
+  },
+  "fwp_BankHolidayProjectId": {
+   "default": null,
+   "value": "59e66ab8-2c48-f011-877a-6045bdcf7311"
+  },
+  "fwp_LeaveExcludedRequestTypes": {
+   "default": "Working From Home",
+   "value": null
+  },
+  "fwp_LeaveEntryLabel": {
+   "default": "Approved leave",
+   "value": null
+  },
+  "fwp_LeaveSharePointSite": {
+   "default": "https://dhaplanningcouk.sharepoint.com/sites/Leave-Request",
+   "value": null
+  },
+  "fwp_LeaveDefaultDayHours": {
+   "default": "7.5",
+   "value": null
+  }
+ },
+ "connections": {
+  "fwp_LeaveTimeDataverse": "shared-commondataser-80cecc4e-d235-471b-a888-c7bb497dc384",
+  "fwp_LeaveTimeSharePoint": "92e3ec9dab73441fa47b6671bf2e9347"
+ },
+ "tables": {
+  "fwp_leaverequest": false,
+  "fwp_leavetype": false,
+  "fwp_leaveentitlement": false
+ }
+}
