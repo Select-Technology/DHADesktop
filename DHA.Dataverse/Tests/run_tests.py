@@ -22,6 +22,7 @@ CARDS = {
     "dha09": "DHA-9 Approved absence creates the time entry",
     "dha10": "DHA-10 Cancelling an absence deactivates the time entry",
     "dha16": "DHA-16 Internal source is mandatory on a quote",
+    "fees": "Fee extensions update the project fee",
     "unit": ".NET unit tests (leave day calculation, leave events)",
 }
 
