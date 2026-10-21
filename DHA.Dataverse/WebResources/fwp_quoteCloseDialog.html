@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Close quote</title>
+    <!-- Reason picker for the "Close quote" button (fwp_quoteCloseCommand.js). Activates a Draft quote,
+         then closes it with CloseQuote so a Quote Close activity is recorded, as the standard dialog does. -->
+    <style>
+        body { font-family: "Segoe UI", Arial, sans-serif; font-size: 14px; color: #242424; margin: 0; padding: 16px 20px; background: #fff; }
+        p { margin: 0 0 14px 0; }
+        label { display: block; font-weight: 600; margin: 0 0 4px 0; }
+        select, textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; border: 1px solid #8a8886; border-radius: 4px; margin-bottom: 14px; }
+        textarea { height: 70px; resize: vertical; }
+        .note { color: #605e5c; font-size: 13px; }
+        .buttons { text-align: right; margin-top: 4px; }
+        button { font: inherit; padding: 6px 18px; border-radius: 4px; border: 1px solid #8a8886; background: #fff; cursor: pointer; margin-left: 8px; }
+        button.primary { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
+        button:disabled { opacity: 0.6; cursor: default; }
+        #message { min-height: 20px; margin-bottom: 8px; }
+        #message.error { color: #a4262c; }
+    </style>
+</head>
+<body>
+    <p id="intro">Close this quote.</p>
+
+    <label for="reason">Status reason</label>
+    <select id="reason">
+        <option value="5">Lost</option>
+        <option value="6">Canceled</option>
+        <option value="100000001">Client Not Proceeding</option>
+        <option value="100000004">Competitor Won</option>
+        <option value="100000002">Cost</option>
+        <option value="100000003">No Longer Viable</option>
+        <option value="863170000">DHA Declined</option>
+        <option value="100000005">Other</option>
+    </select>
+
+    <label for="description">Description (optional)</label>
+    <textarea id="description"></textarea>
+
+    <p class="note" id="draftNote" style="display:none">This quote is a draft. It will be activated and then closed.</p>
+    <div id="message"></div>
+
+    <div class="buttons">
+        <button id="cancel" type="button">Cancel</button>
+        <button id="ok" type="button" class="primary">Close quote</button>
+    </div>
+
+    <script>
+        (function () {
+            var Xrm = window.parent.Xrm;
+            var args = {};
+            try {
+                args = JSON.parse(new URLSearchParams(window.location.search).get("data") || "{}");
+            } catch (e) { }
+
+            var STATE_DRAFT = 0;
+            var api = Xrm.Utility.getGlobalContext().getClientUrl() + "/api/data/v9.2/";
+
+            if (args.number) {
+                document.getElementById("intro").textContent = "Close quote " + args.number + (args.name ? " - " + args.name : "") + ".";
+            }
+            if (args.state === STATE_DRAFT) {
+                document.getElementById("draftNote").style.display = "block";
+            }
+
+            function closeDialog() {
+                window.close();
+                // Some clients ignore window.close() for web resource dialogs; use the dialog's own close button
+                try {
+                    var btn = window.parent.document.querySelector("button[data-id='dialogCloseIconButton']");
+                    if (btn) { btn.click(); }
+                } catch (e) { }
+            }
+
+            function showMessage(text, isError) {
+                var el = document.getElementById("message");
+                el.textContent = text;
+                el.className = isError ? "error" : "";
+            }
+
+            function call(method, path, body) {
+                return fetch(api + path, {
+                    method: method,
+                    credentials: "same-origin",
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json; charset=utf-8",
+                        "OData-MaxVersion": "4.0",
+                        "OData-Version": "4.0"
+                    },
+                    body: body ? JSON.stringify(body) : null
+                }).then(function (response) {
+                    if (response.ok) { return; }
+                    return response.json().then(function (j) {
+                        throw new Error(j && j.error ? j.error.message : response.statusText);
+                    }, function () {
+                        throw new Error(response.statusText);
+                    });
+                });
+            }
+
+            document.getElementById("cancel").onclick = closeDialog;
+
+            document.getElementById("ok").onclick = function () {
+                var reason = document.getElementById("reason");
+                var status = parseInt(reason.value, 10);
+                var label = reason.options[reason.selectedIndex].text;
+                var description = document.getElementById("description").value;
+                var activated = false;
+
+                document.getElementById("ok").disabled = true;
+                document.getElementById("cancel").disabled = true;
+                showMessage(args.state === STATE_DRAFT ? "Activating quote..." : "Closing quote...", false);
+
+                var activate = args.state === STATE_DRAFT
+                    ? call("PATCH", "quotes(" + args.id + ")", { statecode: 1, statuscode: 2 }).then(function () {
+                        activated = true;
+                        showMessage("Closing quote...", false);
+                    })
+                    : Promise.resolve();
+
+                activate.then(function () {
+                    return call("POST", "CloseQuote", {
+                        QuoteClose: {
+                            "subject": "Quote Closed (" + label + ")" + (args.number ? " - " + args.number : ""),
+                            "description": description || null,
+                            "quoteid@odata.bind": "/quotes(" + args.id + ")"
+                        },
+                        Status: status
+                    });
+                }).then(closeDialog, function (error) {
+                    showMessage((activated ? "The quote was activated but could not be closed: " : "The quote could not be closed: ") + error.message, true);
+                    document.getElementById("cancel").disabled = false;
+                    document.getElementById("cancel").textContent = "Close";
+                });
+            };
+        })();
+    </script>
+</body>
+</html>
