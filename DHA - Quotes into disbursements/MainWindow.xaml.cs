@@ -1052,6 +1052,12 @@ namespace DHA.DSTC.WPF
                 : $"{created} of {dates.Count} entries created. {failed} failed \u2014 check the date range and retry.";
 
             UpdateStatus(resultMsg);
+
+            if (isProjectMode && created > 0)
+            {
+                await WarnIfProjectOnStopAfterSaveAsync(selectedProject,
+                    $"Your {created} time {(created == 1 ? "entry has" : "entries have")} been saved.");
+            }
         }
 
         #endregion
@@ -1160,6 +1166,12 @@ namespace DHA.DSTC.WPF
                         if (IsCurrentMonth())
                         {
                             await LoadCalendarDataAsync();
+                        }
+
+                        if (editDialog is EditTimeEntryDialog savedProjectDialog)
+                        {
+                            await WarnIfProjectOnStopAfterSaveAsync(savedProjectDialog.SelectedProject,
+                                "Your time entry has been updated.");
                         }
                     }
                     catch (Exception ex)
@@ -1505,7 +1517,8 @@ namespace DHA.DSTC.WPF
                         "msdyn_subject",
                         "isc_projectnumbernew",
                         "msdyn_customer",
-                        "statuscode"
+                        "statuscode",
+                        "fwp_onstop"
                     ),
                     Orders = {
                 new OrderExpression("msdyn_subject", OrderType.Ascending)
@@ -2411,9 +2424,11 @@ namespace DHA.DSTC.WPF
                 };
 
                 // Set classification and related fields
+                Project savedProject = null;
                 if (isProjectMode)
                 {
                     var selectedProject = (Project)ProjectsList.SelectedItem;
+                    savedProject = selectedProject;
                     timeEntry.Classification = TimeEntryClassification.Project;
                     timeEntry.ProjectId = selectedProject.Id;
                     timeEntry.ProjectName = selectedProject.Name;
@@ -2470,6 +2485,8 @@ namespace DHA.DSTC.WPF
                     }
 
                     UpdateStatus("Time entry created successfully");
+
+                    await WarnIfProjectOnStopAfterSaveAsync(savedProject, "Your time entry has been saved.");
                 }
                 else
                 {
@@ -6116,6 +6133,8 @@ namespace DHA.DSTC.WPF
             }
             if (SelectedProjectDisciplineLabel != null)
                 SelectedProjectDisciplineLabel.Visibility = Visibility.Collapsed;
+
+            ShowProjectOnStopBanner(ProjectsList?.SelectedItem as Project);
         }
 
         private void QuoteToggle_Checked(object sender, RoutedEventArgs e)
@@ -6124,6 +6143,9 @@ namespace DHA.DSTC.WPF
                 ProjectToggle.IsChecked = false;
 
             UpdateSelectionPanelVisibility();
+
+            if (ProjectOnStopBanner != null)
+                ProjectOnStopBanner.Visibility = Visibility.Collapsed;
 
 
             // Reset quote label when switching to quotes
@@ -7075,6 +7097,8 @@ namespace DHA.DSTC.WPF
                 // Track for carry-over to disbursements tab
                 _lastTimeEntryProject = selectedProject;
 
+                ShowProjectOnStopBanner(selectedProject);
+
                 // Debug output to verify project selection
                 System.Diagnostics.Debug.WriteLine($"Project selected: {selectedProject.Number} - {selectedProject.Name}, Client: {selectedProject.Client}");
             }
@@ -7087,7 +7111,65 @@ namespace DHA.DSTC.WPF
                 SelectedProjectDisciplineLabel.Visibility = Visibility.Collapsed;
                 ChargeableRadioButton.IsChecked = true;
                 if (PinProjectButton != null) PinProjectButton.Visibility = Visibility.Collapsed;
+                ShowProjectOnStopBanner(null);
             }
+        }
+
+        /// <summary>
+        /// Shows the red "project on stop" banner (DHA-8) for the selected project. The cached flag is
+        /// shown immediately, then confirmed against Dataverse because Finance may have changed it since
+        /// the list was loaded, and pinned projects are restored from local storage.
+        /// </summary>
+        private async void ShowProjectOnStopBanner(Project project)
+        {
+            if (ProjectOnStopBanner == null)
+                return;
+
+            SetProjectOnStopBannerVisible(project != null && project.IsOnStop);
+
+            if (project == null)
+                return;
+
+            var onStop = await Task.Run(() => _projectService.IsProjectOnStop(project.Id));
+            if (onStop == null)
+                return;
+
+            project.IsOnStop = onStop.Value;
+
+            // Only update if the user hasn't moved on to another project meanwhile
+            if (ProjectsList.SelectedItem is Project current && current.Id == project.Id)
+                SetProjectOnStopBannerVisible(project.IsOnStop);
+        }
+
+        private void SetProjectOnStopBannerVisible(bool visible)
+        {
+            ProjectOnStopBannerTitle.Text = "⛔ " + Project.OnStopWarningMessage;
+            ProjectOnStopBanner.Visibility = visible && ProjectToggle?.IsChecked == true
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// After time has been saved against a project, re-reads its On Stop flag and, if it is on stop,
+        /// shows the red warning dialog (DHA-8). The entry is already saved - this never blocks it.
+        /// </summary>
+        private async Task WarnIfProjectOnStopAfterSaveAsync(Project project, string savedMessage)
+        {
+            if (project == null)
+                return;
+
+            var onStop = await Task.Run(() => _projectService.IsProjectOnStop(project.Id));
+            if (onStop != null)
+                project.IsOnStop = onStop.Value;
+
+            if (!project.IsOnStop)
+                return;
+
+            if (ProjectsList.SelectedItem is Project current && current.Id == project.Id)
+                SetProjectOnStopBannerVisible(true);
+
+            UpdateStatus($"{savedMessage} {Project.OnStopWarningMessage}.");
+            ProjectOnStopWarningDialog.Show(this, project, savedMessage);
         }
 
         private void ApplyDefaultCategoryForSelectedProject(Project selectedProject)

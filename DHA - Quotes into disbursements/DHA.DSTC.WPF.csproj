@@ -271,6 +271,7 @@
     <Compile Include="..\DHA.Leave.Plugins\LeaveDayCalculator.cs">
       <Link>Shared\LeaveDayCalculator.cs</Link>
     </Compile>
+    <Compile Include="ProjectOnStopWarningDialog.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>

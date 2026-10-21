@@ -39,7 +39,8 @@ namespace DHA.DSTC.WPF.Services
                         "isc_projectnumbernew",
                         "msdyn_customer",
                         "isc_discipline",
-                        "statuscode"
+                        "statuscode",
+                        "fwp_onstop"
                     ),
                     Orders = {
                         new OrderExpression("msdyn_subject", OrderType.Ascending)
@@ -102,7 +103,8 @@ namespace DHA.DSTC.WPF.Services
                         "isc_projectnumbernew",
                         "msdyn_customer",
                         "isc_discipline",
-                        "statuscode"
+                        "statuscode",
+                        "fwp_onstop"
                     ),
                     Criteria = new FilterExpression()
                 };
@@ -129,6 +131,31 @@ namespace DHA.DSTC.WPF.Services
             }
         }
 
+        /// <summary>
+        /// Reads the current On Stop flag straight from Dataverse, so a stop placed by Finance
+        /// after the project list was loaded (or a pinned project was saved) is still picked up.
+        /// Returns null if the check could not be made.
+        /// </summary>
+        public bool? IsProjectOnStop(Guid projectId)
+        {
+            try
+            {
+                if (projectId == Guid.Empty || !_connector.Connect())
+                {
+                    return null;
+                }
+
+                var entity = _connector.ExecuteWithRetry(() =>
+                    _connector._orgService.Retrieve(_entityName, projectId, new ColumnSet("fwp_onstop")));
+                return entity.GetAttributeValue<bool?>("fwp_onstop") == true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"IsProjectOnStop ERROR: {ex.Message}");
+                return null;
+            }
+        }
+
         public List<Project> SearchProjects(string searchTerm)
         {
             if (string.IsNullOrWhiteSpace(searchTerm))
@@ -150,7 +177,8 @@ namespace DHA.DSTC.WPF.Services
                         "isc_projectnumbernew",
                         "msdyn_customer",
                         "isc_discipline",
-                        "statuscode"
+                        "statuscode",
+                        "fwp_onstop"
                     ),
                     Criteria = new FilterExpression(LogicalOperator.And),
                     Orders = {
