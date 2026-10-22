@@ -5,20 +5,27 @@ The September 2026 fee adjustment went to prod without its plug-in (Select Suppo
 That dev assembly also had its original-fee step registered on the wrong message. This replaces it with source-
 controlled code and proper registration:
 
+Rule kept by both plug-ins: DHA Fee = original fee + active fee extensions.
+
   ProjectFeePlugin            msdyn_project  Create (pre)  original fee := DHA Fee
                               msdyn_project  Update (pre)  isc_projectamount + PreImage; original follows DHA Fee until
-                                                           the first extension, then manual edits are blocked
-  FeeExtensionAppliedPlugin   fwp_feeextension Create (post)  DHA Fee += amount, extension total, last/previous dates
+                                                           the first extension; then only System Administrators may
+                                                           change it (original fee := DHA Fee - extensions)
+  FeeExtensionAppliedPlugin   fwp_feeextension Create / Update (fwp_amount, statecode, fwp_project) / Delete (post)
+                                                           recalculates the project(s) from the active extensions
 
 Steps (build DHA.ProjectFees.Plugins in Release first):
   dev      register/update in DEV and retire the old DhaProjectFeesPlugin steps there
   package  export FWPProjectFees managed from DEV to DHA.Dataverse/Solutions
-  backfill PROD, before import: original fee := DHA Fee where blank, then apply the fee extensions already logged
+  backfill PROD, before import: snapshot every project's fee fields to DHA.Dataverse/Backups, then original fee :=
+           DHA Fee where blank and apply the fee extensions already logged.  --only <project number> for a pilot
   import   import the managed package into PROD
+  restore  put a backfill snapshot back (uninstall FWPProjectFees first, or the guard blocks DHA Fee changes)
 
-    python -I provision_project_fees.py dev|package|backfill|import [--dry-run]
+    python -I provision_project_fees.py dev|package|backfill|import [--dry-run] [--only 37133]
+    python -I provision_project_fees.py restore <snapshot.json> [--dry-run]
 """
-import base64, os, sys, uuid
+import base64, datetime, json, os, sys, uuid
 import importlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,12 +37,16 @@ ASSEMBLY = "DHA.ProjectFees.Plugins"
 DLL = os.path.join(HERE, "..", "..", ASSEMBLY, "bin", "Release", ASSEMBLY + ".dll")
 PACKAGE = os.path.join(HERE, "..", "Solutions", f"{SOL}_{VERSION.replace('.', '_')}_managed.zip")
 OLD_ASSEMBLY = "DhaProjectFeesPlugin"
+BACKUPS = os.path.join(HERE, "..", "Backups")
+FEE_FIELDS = ["isc_projectamount", "fwp_originalprojectfee", "isc_feeextension", "fwp_lastfeeextensiondate", "fwp_previousfeeextensiondate"]
 
 # (plug-in class, message, entity, stage, filtering attributes, pre-image attributes)
 STEPS = [
     ("ProjectFeePlugin", "Create", "msdyn_project", 20, None, None),
     ("ProjectFeePlugin", "Update", "msdyn_project", 20, "isc_projectamount", "isc_projectamount"),
     ("FeeExtensionAppliedPlugin", "Create", "fwp_feeextension", 40, None, None),
+    ("FeeExtensionAppliedPlugin", "Update", "fwp_feeextension", 40, "fwp_amount,statecode,fwp_project", "fwp_project"),
+    ("FeeExtensionAppliedPlugin", "Delete", "fwp_feeextension", 40, None, "fwp_project"),
 ]
 
 
@@ -128,58 +139,114 @@ def retire_old(dv):
         ok(*dv.call("DELETE", f"pluginassemblies({a['pluginassemblyid']})")[:2], "delete old assembly " + OLD_ASSEMBLY)
 
 
-def backfill(dv, dry_run):
+def all_rows(dv, path):
+    rows, url = [], path.replace(" ", "%20")
+    while url:
+        s, d, _ = dv.call("GET", url, extra={"Prefer": "odata.maxpagesize=5000"})
+        ok(s, d, "  page")
+        rows += d["value"]
+        nxt = d.get("@odata.nextLink")
+        url = nxt.split("/api/data/v9.2/", 1)[1] if nxt else None
+    return rows
+
+
+GUARD_STEP = f"{ASSEMBLY}.ProjectFeePlugin: Update of msdyn_project"
+
+
+def same(current, new):
+    """Dataverse returns money as floats and dates without fractions; compare loosely."""
+    if isinstance(current, (int, float)) and isinstance(new, (int, float)):
+        return abs(current - new) < 0.005
+    if isinstance(current, str) and isinstance(new, str):
+        return current[:19] == new[:19]
+    return current == new
+
+
+def require_plugin_absent(dv, step):
+    if q(dv, f"sdkmessageprocessingsteps?$select=sdkmessageprocessingstepid&$filter=name eq '{GUARD_STEP}' and statecode eq 0"):
+        sys.exit(f"The {ASSEMBLY} guard step is active here; run {step} without it (backfill: before import; restore: "
+                 f"uninstall {SOL} first). It blocks DHA Fee changes on projects with fee extensions.")
+
+
+def backfill(dv, dry_run, only):
     """PROD one-off: original fee where blank, then the fee extensions logged while the plug-in was missing.
 
     Every logged extension was checked against the DHA Fee audit history first: none had been applied by hand
-    (37133 was raised to 31,100 and put back to 29,850 the same morning), so each one is applied exactly once.
-    Re-running is safe: DHA Fee is recomputed as original + active extensions, not added to again.
-    Run it BEFORE "import": once ProjectFeePlugin is registered it blocks setting the DHA Fee of a project that
-    has fee extensions, which is exactly what step 2 does.
+    (37133 was raised to 31,100 and put back to 29,850 the same morning), so applying them is DHA Fee := original +
+    active extensions, with original := the current DHA Fee. Re-running is safe (nothing is added twice).
+    Writes a snapshot of every project's fee fields to DHA.Dataverse/Backups first; "restore" puts it back.
     """
-    if q(dv, f"pluginassemblies?$select=pluginassemblyid&$filter=name eq '{ASSEMBLY}'"):
-        sys.exit(f"{ASSEMBLY} is already registered here; run backfill before import.")
-    # 1. Original fee := DHA Fee where blank (projects with no DHA Fee are left blank)
-    n, url = 0, ("msdyn_projects?$select=msdyn_projectid,isc_projectamount"
-                 "&$filter=fwp_originalprojectfee eq null and isc_projectamount ne null")
-    pending = []
-    while url:
-        s, d, _ = dv.call("GET", url.replace(" ", "%20"), extra={"Prefer": "odata.maxpagesize=5000"})
-        ok(s, d, "page")
-        pending += d["value"]
-        nxt = d.get("@odata.nextLink")
-        url = nxt.split("/api/data/v9.2/", 1)[1] if nxt else None
-    print(f"{len(pending)} projects need an original fee")
-    extended = {e["_fwp_project_value"] for e in q(dv, "fwp_feeextensions?$select=_fwp_project_value&$filter=statecode eq 0")}
-    for p in pending:
-        if p["msdyn_projectid"] in extended:
-            continue  # set together with its extensions below
-        if not dry_run:
-            s, d, _ = dv.call("PATCH", f"msdyn_projects({p['msdyn_projectid']})", {"fwp_originalprojectfee": p["isc_projectamount"]})
-            if s >= 300:
-                print("  failed", p["msdyn_projectid"], str(d)[:300]); continue
-        n += 1
-        if n % 500 == 0:
-            print(f"  {n} done")
-    print(f"original fee set on {n} projects" + (" (dry run)" if dry_run else ""))
+    require_plugin_absent(dv, "backfill")
+    flt = f" and isc_projectnumbernew eq '{only}'" if only else ""
+    projects = all_rows(dv, f"msdyn_projects?$select=msdyn_projectid,isc_projectnumbernew,{','.join(FEE_FIELDS)}"
+                            f"&$filter=statecode ne -1{flt}")
+    os.makedirs(BACKUPS, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    snapshot = os.path.join(BACKUPS, f"project_fees_before_backfill_{stamp}{'_' + only if only else ''}.json")
+    with open(snapshot, "x", encoding="utf-8") as f:  # "x": a snapshot is never overwritten
+        json.dump({"org": dv.ORG, "taken": stamp, "fields": FEE_FIELDS,
+                   "projects": [{k: p.get(k) for k in ["msdyn_projectid", "isc_projectnumbernew"] + FEE_FIELDS} for p in projects]},
+                  f, indent=1)
+    print(f"snapshot of {len(projects)} projects: {os.path.normpath(snapshot)}")
 
-    # 2. Apply the logged extensions, once per project
-    for proj in sorted(extended):
-        p = dv.call("GET", f"msdyn_projects({proj})?$select=isc_projectnumbernew,isc_projectamount,fwp_originalprojectfee")[1]
-        exts = q(dv, f"fwp_feeextensions?$select=fwp_amount,createdon&$filter=_fwp_project_value eq {proj} and statecode eq 0"
-                     "&$orderby=createdon desc")
-        total = sum(e["fwp_amount"] or 0 for e in exts)
+    extensions = {}
+    for e in all_rows(dv, "fwp_feeextensions?$select=_fwp_project_value,fwp_amount,createdon&$filter=statecode eq 0&$orderby=createdon desc"):
+        extensions.setdefault(e["_fwp_project_value"], []).append(e)
+
+    changed, failed = 0, []
+    for p in projects:
+        exts = extensions.get(p["msdyn_projectid"], [])
+        if p["fwp_originalprojectfee"] is not None and not exts:
+            continue
+        if p["isc_projectamount"] is None and not exts:
+            continue  # no fee to copy
         original = p["fwp_originalprojectfee"] if p["fwp_originalprojectfee"] is not None else (p["isc_projectamount"] or 0)
-        body = {"fwp_originalprojectfee": original, "isc_projectamount": original + total, "isc_feeextension": total,
-                "fwp_lastfeeextensiondate": exts[0]["createdon"] if exts else None,
-                "fwp_previousfeeextensiondate": exts[1]["createdon"] if len(exts) > 1 else None}
-        print(f"{p['isc_projectnumbernew']}: DHA Fee {p['isc_projectamount']} -> {body['isc_projectamount']} "
-              f"(original {original}, extensions {total}, last {body['fwp_lastfeeextensiondate']})")
+        body = {"fwp_originalprojectfee": original}
+        if exts:
+            total = sum(e["fwp_amount"] or 0 for e in exts)
+            body.update({"isc_projectamount": original + total, "isc_feeextension": total,
+                         "fwp_lastfeeextensiondate": exts[0]["createdon"],
+                         "fwp_previousfeeextensiondate": exts[1]["createdon"] if len(exts) > 1 else None})
+        if all(same(p.get(k), v) for k, v in body.items()):
+            continue  # already right (re-run)
+        if exts:
+            print(f"{p['isc_projectnumbernew']}: DHA Fee {p['isc_projectamount']} -> {body['isc_projectamount']} "
+                  f"(original {original}, extensions {total}, last {body['fwp_lastfeeextensiondate']})")
         if not dry_run:
-            ok(*dv.call("PATCH", f"msdyn_projects({proj})", body)[:2], "  applied")
+            s, d, _ = dv.call("PATCH", f"msdyn_projects({p['msdyn_projectid']})", body)
+            if s >= 300:
+                failed.append((p["isc_projectnumbernew"], p["msdyn_projectid"], str(d)[:300]))
+                continue
+        changed += 1
+        if changed % 500 == 0:
+            print(f"  {changed} done")
+    print(f"{changed} projects {'would be ' if dry_run else ''}updated, {len(failed)} failed")
+    for f_ in failed:
+        print("  FAILED", *f_)
 
 
-def main(step, dry_run):
+def restore(dv, snapshot, dry_run):
+    """Puts the fee fields back exactly as in a backfill snapshot, for projects whose values differ now."""
+    require_plugin_absent(dv, "restore")
+    data = json.load(open(snapshot, encoding="utf-8"))
+    if data["org"] != dv.ORG:
+        sys.exit(f"snapshot is from {data['org']}, not {dv.ORG}")
+    now = {p["msdyn_projectid"]: p for p in all_rows(dv, f"msdyn_projects?$select=msdyn_projectid,{','.join(FEE_FIELDS)}")}
+    n = 0
+    for p in data["projects"]:
+        cur = now.get(p["msdyn_projectid"])
+        body = {k: p[k] for k in data["fields"] if cur is not None and cur.get(k) != p[k]}
+        if not body:
+            continue
+        if not dry_run:
+            ok(*dv.call("PATCH", f"msdyn_projects({p['msdyn_projectid']})", body)[:2], f"  restore {p['isc_projectnumbernew']}")
+        n += 1
+    print(f"{n} projects {'would be ' if dry_run else ''}restored")
+
+
+def main(step, args):
+    dry_run = "--dry-run" in args
+    only = args[args.index("--only") + 1] if "--only" in args else None
     if step == "dev":
         dv = env(DEV)
         register(dv)
@@ -198,10 +265,12 @@ def main(step, dry_run):
         ok(*dv.call("POST", "ImportSolution", {"CustomizationFile": data, "OverwriteUnmanagedCustomizations": False,
                                                "PublishWorkflows": False, "ImportJobId": str(uuid.uuid4())})[:2], "import")
     elif step == "backfill":
-        backfill(env(PROD), dry_run)
+        backfill(env(os.environ.get("DATAVERSE_URL", PROD)), dry_run, only)
+    elif step == "restore":
+        restore(env(os.environ.get("DATAVERSE_URL", PROD)), args[0], dry_run)
     else:
         sys.exit(__doc__)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "", "--dry-run" in sys.argv)
+    main(sys.argv[1] if len(sys.argv) > 1 else "", sys.argv[2:])

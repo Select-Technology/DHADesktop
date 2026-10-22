@@ -6,16 +6,21 @@ using Microsoft.Xrm.Sdk.Query;
 namespace DHA.ProjectFees.Plugins
 {
     /// <summary>
-    /// Applies a new fee extension to its project.
+    /// Keeps a project's fee in step with its fee extensions:
+    ///     DHA Fee (isc_projectamount) = original fee (fwp_originalprojectfee) + active fee extensions
     ///
-    /// REGISTER: synchronous, POST-OPERATION, Create of fwp_feeextension.
+    /// REGISTER: synchronous, POST-OPERATION on fwp_feeextension
+    ///   - Create
+    ///   - Update, filtering attributes = fwp_amount, statecode, fwp_project; Pre Image "PreImage" with fwp_project
+    ///   - Delete, Pre Image "PreImage" with fwp_project
     ///
-    ///   * fwp_originalprojectfee := current DHA Fee, if it was never set (projects created before fee extensions)
-    ///   * isc_projectamount (DHA Fee) += the extension amount
-    ///   * isc_feeextension := sum of the project's active fee extensions
-    ///   * fwp_lastfeeextensiondate / fwp_previousfeeextensiondate := created on of the two newest active extensions
-    /// Runs as the user creating the extension, so it only succeeds if they may update the project.
-    /// Deactivating or deleting an extension does not reverse it.
+    /// Every change recalculates the affected project(s) from the active extensions rather than adding or
+    /// subtracting, so amount corrections, deactivating, reactivating, deleting and moving an extension to another
+    /// project all leave the fee right. Also sets isc_feeextension (the total) and fwp_lastfeeextensiondate /
+    /// fwp_previousfeeextensiondate (created on of the two newest active extensions).
+    /// A project with no original fee (created before fee extensions existed) gets DHA Fee less the extensions
+    /// already counted in it, i.e. the fee before this change.
+    /// Runs as the user making the change, so it only succeeds if they may update the project.
     /// </summary>
     public class FeeExtensionAppliedPlugin : IPlugin
     {
@@ -23,48 +28,69 @@ namespace DHA.ProjectFees.Plugins
         {
             var tracing = (ITracingService)serviceProvider.GetService(typeof(ITracingService));
             var context = (IPluginExecutionContext)serviceProvider.GetService(typeof(IPluginExecutionContext));
-
-            if (context.MessageName != "Create"
-                || context.PrimaryEntityName != ProjectFeeFields.FeeExtension
-                || !context.InputParameters.Contains("Target")
-                || !(context.InputParameters["Target"] is Entity extension))
+            if (context.PrimaryEntityName != ProjectFeeFields.FeeExtension)
             {
                 return;
             }
 
-            var projectRef = extension.GetAttributeValue<EntityReference>(ProjectFeeFields.ExtensionProject);
-            if (projectRef == null)
+            var target = context.InputParameters.Contains("Target") ? context.InputParameters["Target"] as Entity : null;
+            var before = context.PreEntityImages.Contains("PreImage") ? context.PreEntityImages["PreImage"] : null;
+            var oldProject = before?.GetAttributeValue<EntityReference>(ProjectFeeFields.ExtensionProject);
+            EntityReference newProject;
+
+            switch (context.MessageName)
             {
-                throw new InvalidPluginExecutionException("A fee extension must be linked to a project before it can be created.");
+                case "Create":
+                    newProject = target?.GetAttributeValue<EntityReference>(ProjectFeeFields.ExtensionProject);
+                    if (newProject == null)
+                    {
+                        throw new InvalidPluginExecutionException("A fee extension must be linked to a project before it can be created.");
+                    }
+                    break;
+                case "Update":
+                    newProject = target != null && target.Contains(ProjectFeeFields.ExtensionProject)
+                        ? target.GetAttributeValue<EntityReference>(ProjectFeeFields.ExtensionProject)
+                        : oldProject;
+                    break;
+                case "Delete":
+                    newProject = null;
+                    break;
+                default:
+                    return;
             }
-            var amount = extension.GetAttributeValue<Money>(ProjectFeeFields.ExtensionAmount)?.Value ?? 0m;
 
             var factory = (IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory));
             var service = factory.CreateOrganizationService(context.UserId);
 
-            var project = service.Retrieve(ProjectFeeFields.Project, projectRef.Id,
-                new ColumnSet(ProjectFeeFields.DhaFee, ProjectFeeFields.OriginalFee));
-            var currentFee = project.GetAttributeValue<Money>(ProjectFeeFields.DhaFee)?.Value ?? 0m;
-
-            var update = new Entity(ProjectFeeFields.Project, projectRef.Id)
+            foreach (var projectId in new[] { oldProject?.Id, newProject?.Id }.Where(id => id.HasValue).Select(id => id.Value).Distinct())
             {
-                [ProjectFeeFields.DhaFee] = new Money(currentFee + amount),
-                [ProjectFeeFields.ExtensionsTotal] = new Money(SumActiveExtensions(service, projectRef.Id))
-            };
-            if (project.GetAttributeValue<Money>(ProjectFeeFields.OriginalFee) == null)
-            {
-                update[ProjectFeeFields.OriginalFee] = new Money(currentFee);
+                Recalculate(service, tracing, projectId);
             }
-
-            var dates = NewestExtensionDates(service, projectRef.Id);
-            update[ProjectFeeFields.LastExtensionDate] = dates.Length > 0 ? (object)dates[0] : null;
-            update[ProjectFeeFields.PreviousExtensionDate] = dates.Length > 1 ? (object)dates[1] : null;
-
-            service.Update(update);
-            tracing.Trace("Project {0}: DHA Fee {1} -> {2} (extension {3})", projectRef.Id, currentFee, currentFee + amount, amount);
         }
 
-        private static decimal SumActiveExtensions(IOrganizationService service, Guid projectId)
+        public static void Recalculate(IOrganizationService service, ITracingService tracing, Guid projectId)
+        {
+            var project = service.Retrieve(ProjectFeeFields.Project, projectId,
+                new ColumnSet(ProjectFeeFields.DhaFee, ProjectFeeFields.OriginalFee, ProjectFeeFields.ExtensionsTotal));
+            var currentFee = project.GetAttributeValue<Money>(ProjectFeeFields.DhaFee)?.Value ?? 0m;
+            var original = project.GetAttributeValue<Money>(ProjectFeeFields.OriginalFee)?.Value
+                ?? currentFee - (project.GetAttributeValue<Money>(ProjectFeeFields.ExtensionsTotal)?.Value ?? 0m);
+
+            var total = SumActiveExtensions(service, projectId);
+            var dates = NewestExtensionDates(service, projectId);
+
+            service.Update(new Entity(ProjectFeeFields.Project, projectId)
+            {
+                [ProjectFeeFields.OriginalFee] = new Money(original),
+                [ProjectFeeFields.DhaFee] = new Money(original + total),
+                [ProjectFeeFields.ExtensionsTotal] = new Money(total),
+                [ProjectFeeFields.LastExtensionDate] = dates.Length > 0 ? (object)dates[0] : null,
+                [ProjectFeeFields.PreviousExtensionDate] = dates.Length > 1 ? (object)dates[1] : null
+            });
+            tracing.Trace("Project {0}: DHA Fee {1} -> {2} (original {3} + extensions {4})", projectId, currentFee, original + total, original, total);
+        }
+
+        public static decimal SumActiveExtensions(IOrganizationService service, Guid projectId)
         {
             var fetch = $@"<fetch aggregate='true'>
   <entity name='{ProjectFeeFields.FeeExtension}'>
