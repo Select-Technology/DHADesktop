@@ -1,0 +1,94 @@
+{
+ "solutions": {
+  "FWPLeaveTimeEntries": {
+   "@odata.etag": "W/\"382481808\"",
+   "solutionid": "524094a2-871d-46f7-bdb9-45e24ea62d21",
+   "ismanaged@OData.Community.Display.V1.FormattedValue": "Managed",
+   "ismanaged": true,
+   "version": "1.0.4.0"
+  },
+  "FWPLeaveManagement": {
+   "@odata.etag": "W/\"382500261\"",
+   "solutionid": "89fc6d60-6ce1-45ae-ab02-50a28ffe747f",
+   "ismanaged@OData.Community.Display.V1.FormattedValue": "Managed",
+   "ismanaged": true,
+   "version": "1.0.0.0"
+  }
+ },
+ "phase_a_flows": {
+  "Leave Request - Backfill Approved Leave": 1,
+  "Leave Request - Record Time Entries": 0,
+  "Leave - Record Bank Holidays": 1
+ },
+ "leave_flows": {
+  "Leave - Notifications": 0,
+  "Leave - Approval reminder": 0,
+  "Leave - Outlook calendar": 0
+ },
+ "settings": {
+  "fwp_LeaveEmailOverride": {
+   "default": null,
+   "value": null
+  },
+  "fwp_BankHolidayEntryLabel": {
+   "default": "Bank holiday",
+   "value": null
+  },
+  "fwp_LeaveDayHours": {
+   "default": "8.5,8.5,8.5,8.5,8,0,0",
+   "value": null
+  },
+  "fwp_LeaveRequestListId": {
+   "default": "718145ce-0b2d-4396-af86-ce36aabc8a29",
+   "value": "718145ce-0b2d-4396-af86-ce36aabc8a29"
+  },
+  "fwp_LeaveProjectId": {
+   "default": null,
+   "value": null
+  },
+  "fwp_BankHolidayProjectId": {
+   "default": null,
+   "value": "59e66ab8-2c48-f011-877a-6045bdcf7311"
+  },
+  "fwp_LeaveApproverEmail": {
+   "default": "HR@dhaplanning.co.uk",
+   "value": null
+  },
+  "fwp_LeaveCalendarId": {
+   "default": "default",
+   "value": null
+  },
+  "fwp_LeaveExcludedRequestTypes": {
+   "default": "Working From Home",
+   "value": null
+  },
+  "fwp_LeaveEntryLabel": {
+   "default": "Approved leave",
+   "value": null
+  },
+  "fwp_LeaveCarryForwardLimit": {
+   "default": "5",
+   "value": null
+  },
+  "fwp_LeaveSharePointSite": {
+   "default": "https://dhaplanningcouk.sharepoint.com/sites/Leave-Request",
+   "value": null
+  },
+  "fwp_LeaveDefaultDayHours": {
+   "default": "7.5",
+   "value": null
+  }
+ },
+ "connections": {
+  "fwp_LeaveOutlook": null,
+  "fwp_LeaveTimeDataverse": "shared-commondataser-80cecc4e-d235-471b-a888-c7bb497dc384",
+  "fwp_LeaveDataverse": "shared-commondataser-80cecc4e-d235-471b-a888-c7bb497dc384",
+  "fwp_LeaveTimeSharePoint": "92e3ec9dab73441fa47b6671bf2e9347",
+  "fwp_LeaveCalendarOutlook": null
+ },
+ "tables": {
+  "fwp_leaverequest": true,
+  "fwp_leavetype": true,
+  "fwp_leaveentitlement": true
+ }
+}

@@ -104,7 +104,7 @@ namespace DHA.DSTC.WPF.Services
             return await _connectTask;
         }
 
-        private async Task<bool> ConnectInternalAsync(bool forceReconnect = false)
+        private async Task<bool> ConnectInternalAsync(bool forceReconnect = false, bool requireNewInstance = false)
         {
             try
             {
@@ -169,7 +169,7 @@ namespace DHA.DSTC.WPF.Services
                                      $"RedirectUri={RedirectUri};" +
                                      $"LoginPrompt=Auto;" +
                                      $"TokenCacheStorePath={_tokenCacheDirectory};" +
-                                     $"RequireNewInstance=false;" +
+                                     $"RequireNewInstance={requireNewInstance};" +
                                      $"Timeout={timeout}";
                 }
                 else
@@ -181,7 +181,7 @@ namespace DHA.DSTC.WPF.Services
                                      $"RedirectUri={RedirectUri};" +
                                      $"LoginPrompt=Auto;" +  // Auto will prompt if needed
                                      $"TokenCacheStorePath={_tokenCacheDirectory};" +
-                                     $"RequireNewInstance=false;" +
+                                     $"RequireNewInstance={requireNewInstance};" +
                                      $"Timeout={timeout}";
                 }
 
@@ -365,15 +365,38 @@ namespace DHA.DSTC.WPF.Services
         }
 
         /// <summary>
-        /// Switch to a different Dataverse environment URL. Disconnects the current session.
-        /// Call ConnectAsync after this to establish a new connection to the target environment.
+        /// Switch to a different Dataverse environment (the DEV button) and connect to it.
+        ///
+        /// Dev and prod are in the same tenant and the user is the same account, so the saved sign-in normally gets a token
+        /// for the new environment silently; it prompts once only if that fails. This used to clear the token cache and
+        /// connect with LoginPrompt=Always, which asks for a sign-in for every token the client requests while connecting
+        /// (3-5 prompts). It also disconnected first and connected later, so a background refresh in between started a
+        /// second, competing sign-in. The switch now runs as THE connection attempt: anyone calling ConnectAsync meanwhile
+        /// waits for it instead of starting their own.
         /// </summary>
-        public void SwitchEnvironment(string newEnvironmentUrl)
+        public Task<bool> SwitchEnvironmentAsync(string newEnvironmentUrl)
         {
-            System.Diagnostics.Debug.WriteLine($"DataverseAuthService: Switching environment to {newEnvironmentUrl}");
+            lock (_connectLock)
+            {
+                var previous = _connectTask;
+                _connectTask = SwitchInternalAsync(previous, newEnvironmentUrl);
+                return _connectTask;
+            }
+        }
+
+        private async Task<bool> SwitchInternalAsync(Task<bool> previous, string newEnvironmentUrl)
+        {
+            // Let a connection that was already under way finish before pulling the client from under it
+            if (previous != null && !previous.IsCompleted)
+            {
+                try { await previous; } catch { /* replaced below anyway */ }
+            }
+
+            FileLogger.Info($"Switching environment to {newEnvironmentUrl}");
             Disconnect();
-            ClearTokenCache();
             _environmentUrlOverride = newEnvironmentUrl;
+            _lastTokenValidation = DateTime.MinValue;
+            return await ConnectInternalAsync(forceReconnect: false, requireNewInstance: true);
         }
 
         /// <summary>

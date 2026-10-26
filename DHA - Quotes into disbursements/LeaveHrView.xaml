@@ -1,0 +1,167 @@
+<UserControl x:Class="DHA.DSTC.WPF.LeaveHrView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsVisibleChanged="HrView_IsVisibleChanged">
+    <!-- HR (parity plan A1, A2): a person's leave settings and entitlements. Leave administrators only.
+         Styles come from MainWindow.Resources, hence DynamicResource. -->
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260" MinWidth="200"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*" MinWidth="520"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Style="{DynamicResource CardStyle}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="PeopleTitleText" Text="People" FontSize="18" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                <TextBox x:Name="SearchTextBox" Grid.Row="1" Height="30" Margin="0,0,0,8" VerticalContentAlignment="Center"
+                         TextChanged="Search_Changed" ToolTip="Search by name"/>
+                <ListBox x:Name="PeopleList" Grid.Row="2" SelectionChanged="PeopleList_SelectionChanged" BorderThickness="0"/>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Leave settings (A1) -->
+                <Border Style="{DynamicResource CardStyle}" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock x:Name="PersonTitleText" Text="Choose someone" FontSize="18" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="NoConfigText" FontSize="12" Foreground="#B45309" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8"
+                                   Text="This person has no colleague configuration in Dynamics yet. It's set up with their rates, so ask whoever does that first."/>
+                        <StackPanel x:Name="SettingsPanel" IsEnabled="False">
+                            <Grid Margin="0,8,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="120"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Leave approver" Style="{DynamicResource FormLabelStyle}"/>
+                                    <ComboBox x:Name="ApproverComboBox" Height="30"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Additional approver" Style="{DynamicResource FormLabelStyle}"/>
+                                    <ComboBox x:Name="AdditionalApproverComboBox" Height="30"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Base entitlement (days)" Style="{DynamicResource FormLabelStyle}"/>
+                                    <TextBox x:Name="BaseEntitlementTextBox" Height="30" VerticalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="Working week" Style="{DynamicResource FormLabelStyle}"/>
+                            <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       Text="Times as HH:mm. Leave start and finish empty for a day off. These are the same working days timesheets use."/>
+                            <Grid x:Name="WeekGrid" Margin="0,0,0,6"/>
+                            <TextBlock x:Name="WeekWarningText" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,6"/>
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                                <TextBlock x:Name="SettingsStatusText" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <Button x:Name="SaveSettingsButton" Content="Save settings" Width="130" Height="32"
+                                        Style="{DynamicResource PrimaryButtonStyle}" Click="SaveSettingsButton_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Entitlements (A2) -->
+                <Border Style="{DynamicResource CardStyle}">
+                    <StackPanel x:Name="EntitlementPanel" IsEnabled="False">
+                        <TextBlock Text="Entitlement by year" FontSize="18" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        <DataGrid x:Name="EntitlementGrid" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal" SelectionMode="Single" MaxHeight="200"
+                                  SelectionChanged="EntitlementGrid_SelectionChanged">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="60"/>
+                                <DataGridTextColumn Header="Base" Binding="{Binding BaseDays, StringFormat=0.##}" Width="60"/>
+                                <DataGridTextColumn Header="Carried forward" Binding="{Binding CarriedForwardDays, StringFormat=0.##}" Width="110"/>
+                                <DataGridTextColumn Header="Adjustment" Binding="{Binding AdjustmentDays, StringFormat=0.##}" Width="90"/>
+                                <DataGridTextColumn Header="Total" Binding="{Binding TotalDays, StringFormat=0.##}" Width="60"/>
+                                <DataGridTextColumn Header="Carry-forward limit" Binding="{Binding CarryForwardOverride, StringFormat=0.##, TargetNullValue=standard}" Width="130"/>
+                                <DataGridTextColumn Header="Carried to next year" Binding="{Binding CarriedToNextYearDays, StringFormat=0.##}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Year" Style="{DynamicResource FormLabelStyle}"/>
+                                <TextBox x:Name="EntYearTextBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Base (days)" Style="{DynamicResource FormLabelStyle}"/>
+                                <TextBox x:Name="EntBaseTextBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="Carried forward" Style="{DynamicResource FormLabelStyle}"/>
+                                <TextBox x:Name="EntCarriedTextBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="6">
+                                <TextBlock Text="Adjustment (+/-)" Style="{DynamicResource FormLabelStyle}"/>
+                                <TextBox x:Name="EntAdjustmentTextBox" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="8">
+                                <TextBlock Text="Carry-forward limit" Style="{DynamicResource FormLabelStyle}"/>
+                                <TextBox x:Name="EntOverrideTextBox" Height="30" VerticalContentAlignment="Center"
+                                         ToolTip="Days this person may carry into next year. Empty = the standard limit (5)."/>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Text="New starters: add their first year with the days for the part of the year they work. Carry-forward limit: empty means the standard 5 days."/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                            <TextBlock x:Name="EntStatusText" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <Button Content="New year" Width="100" Height="32" Margin="0,0,8,0"
+                                    Style="{DynamicResource SecondaryButtonStyle}" Click="NewYearButton_Click"/>
+                            <Button x:Name="SaveEntitlementButton" Content="Save entitlement" Width="140" Height="32"
+                                    Style="{DynamicResource PrimaryButtonStyle}" Click="SaveEntitlementButton_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Year-end (A3, A4): what the "Leave - Year end" flow does on 1 January, to re-run after changes -->
+                <Border Style="{DynamicResource CardStyle}" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Year end" FontSize="18" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                        <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="This runs automatically on 1 January. Run it again here after changing a carry-forward limit or last year's leave: the figures are replaced, never added to. Carry forward moves unused days from the year before into the year shown."/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Year" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox x:Name="YearEndYearTextBox" Width="70" Height="30" VerticalContentAlignment="Center"/>
+                            <CheckBox x:Name="YearEndPersonCheckBox" VerticalAlignment="Center" Margin="16,0,16,0" IsEnabled="False"
+                                      Content="Only the person chosen"/>
+                            <Button x:Name="GenerateYearButton" Content="Create entitlements" Width="150" Height="32" Margin="0,0,8,0"
+                                    Style="{DynamicResource SecondaryButtonStyle}" Click="GenerateYearButton_Click"/>
+                            <Button x:Name="CarryForwardButton" Content="Carry forward" Width="130" Height="32"
+                                    Style="{DynamicResource PrimaryButtonStyle}" Click="CarryForwardButton_Click"/>
+                        </StackPanel>
+                        <TextBox x:Name="YearEndReportTextBox" IsReadOnly="True" TextWrapping="Wrap" Margin="0,10,0,0" MaxHeight="240"
+                                 VerticalScrollBarVisibility="Auto" FontSize="12" Visibility="Collapsed"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

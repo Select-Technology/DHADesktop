@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:wf="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"
+        xmlns:local="clr-namespace:DHA.DSTC.WPF"
         mc:Ignorable="d"
         Title="DHA Time Management" 
         Height="700" Width="1200"
@@ -465,6 +466,17 @@
                                                 Click="PinProjectButton_Click"/>
                                     </Grid>
                                 </Border>
+                                <!-- Project on stop warning (DHA-8): shown while a stopped project is selected -->
+                                <Border x:Name="ProjectOnStopBanner" Background="#FEE2E2" BorderBrush="#DC2626"
+                                        BorderThickness="2" CornerRadius="4" Padding="10,8" Margin="4,0,4,12"
+                                        Visibility="Collapsed">
+                                    <StackPanel>
+                                        <TextBlock x:Name="ProjectOnStopBannerTitle" Text="⛔ Warning: Project on stop" FontSize="14" FontWeight="Bold"
+                                                   Foreground="#DC2626" TextWrapping="Wrap"/>
+                                        <TextBlock Text="Finance has placed this project on stop. No further time should be spent on it."
+                                                   FontSize="12" Foreground="#991B1B" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                </Border>
                                 <!-- Quote Search and Selection -->
                                 <StackPanel x:Name="QuoteSelectionPanel" Visibility="Collapsed">
                                     <TextBlock Text="Quote" Style="{StaticResource FormLabelStyle}"/>
@@ -756,6 +768,11 @@
                         </Grid>
                     </Border>
                 </Grid>
+            </TabItem>
+
+            <!-- Leave Tab (DHA-9 phase B) -->
+            <TabItem Header="Leave">
+                <local:LeaveTabView/>
             </TabItem>
 
             <!-- Disbursements Tab -->

@@ -107,7 +107,20 @@
 
                     <TextBlock Text="Project" Style="{StaticResource FormLabelStyle}"/>
                     <ComboBox x:Name="ProjectComboBox" Margin="0,0,0,12" Height="32"
-                             DisplayMemberPath="Name" SelectedValuePath="Id"/>
+                             DisplayMemberPath="Name" SelectedValuePath="Id"
+                             SelectionChanged="ProjectComboBox_SelectionChanged"/>
+
+                    <!-- Project on stop warning (DHA-8) -->
+                    <Border x:Name="ProjectOnStopBanner" Background="#FEE2E2" BorderBrush="#DC2626"
+                            BorderThickness="2" CornerRadius="4" Padding="10,8" Margin="0,0,0,12"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock x:Name="ProjectOnStopBannerTitle" FontSize="14" FontWeight="Bold"
+                                       Foreground="#DC2626" TextWrapping="Wrap"/>
+                            <TextBlock Text="Finance has placed this project on stop. No further time should be spent on it."
+                                       FontSize="12" Foreground="#991B1B" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                        </StackPanel>
+                    </Border>
 
                     <TextBlock Text="Time Spent" Style="{StaticResource FormLabelStyle}"/>
                     <Grid Margin="0,0,0,12">

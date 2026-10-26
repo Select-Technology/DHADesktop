@@ -18,6 +18,9 @@ namespace DHA.DSTC.WPF
 
         public TimeEntry UpdatedTimeEntry { get; private set; }
 
+        // The project the entry was saved against, so the caller can check its On Stop flag (DHA-8)
+        public Project SelectedProject { get; private set; }
+
         public EditTimeEntryDialog(TimeEntry timeEntry, List<Project> projects, TeamMember currentUser)
         {
             InitializeComponent();
@@ -370,6 +373,8 @@ namespace DHA.DSTC.WPF
                     ChargeRateValue = _userConfig?.GetRateForBand(GetSelectedChargeBand()) ?? 0m
                 };
 
+                SelectedProject = (Project)ProjectComboBox.SelectedItem;
+
                 System.Diagnostics.Debug.WriteLine("✅ UpdatedTimeEntry created - closing dialog");
                 DialogResult = true;
                 Close();
@@ -380,6 +385,15 @@ namespace DHA.DSTC.WPF
             }
         }
 
+
+        private void ProjectComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            var project = ProjectComboBox.SelectedItem as Project;
+            ProjectOnStopBannerTitle.Text = "⛔ " + Project.OnStopWarningMessage;
+            ProjectOnStopBanner.Visibility = project != null && project.IsOnStop
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {

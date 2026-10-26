@@ -65,6 +65,9 @@ namespace DHA.DSTC.WPF.Services
                 query.Criteria.AddCondition("fwp_date", ConditionOperator.GreaterEqual, fromDate);
                 query.Criteria.AddCondition("fwp_date", ConditionOperator.LessThan, toDate);
 
+                // Only active entries - deactivated ones (e.g. cancelled leave, DHA-10) are kept for history, not shown or counted
+                query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+
                 // ✅ NEW: Add user filter if provided (CRITICAL SECURITY & PERFORMANCE FIX)
                 if (teamMemberId.HasValue && teamMemberId.Value != Guid.Empty)
                 {
@@ -296,6 +299,9 @@ namespace DHA.DSTC.WPF.Services
                     Orders = { new OrderExpression("fwp_date", OrderType.Descending) }
                 };
 
+                // Only active entries - deactivated ones (e.g. cancelled leave, DHA-10) are kept for history, not shown or counted
+                baseQuery.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+
                 List<Entity> entities = new List<Entity>();
 
                 // Try enhanced query with joins, but fall back gracefully if it fails
@@ -308,6 +314,7 @@ namespace DHA.DSTC.WPF.Services
                         ColumnSet = new ColumnSet(true),
                         Orders = { new OrderExpression("fwp_date", OrderType.Descending) }
                     };
+                    enhancedQuery.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
 
                     // Add joins one by one with individual error handling
                     try
@@ -489,6 +496,7 @@ namespace DHA.DSTC.WPF.Services
                                             "fwp_teammember"),
                     Orders = { new OrderExpression("fwp_date", OrderType.Descending) }
                 };
+                query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
 
                 // **FIXED: Use _connector._orgService instead of _orgService**
                 var entities = _connector._orgService.RetrieveMultiple(query).Entities.ToList();

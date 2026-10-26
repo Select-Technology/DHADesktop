@@ -216,6 +216,26 @@
     <Page Include="EditTimeEntryDialog.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="LeaveApprovalsView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="LeaveTabView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="LeaveHrView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="LeaveTeamView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="LeaveView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -232,6 +252,26 @@
       <DependentUpon>EditTimeEntryDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="InputDialog.cs" />
+    <Compile Include="LeaveApprovalsView.xaml.cs">
+      <DependentUpon>LeaveApprovalsView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="LeaveTabView.xaml.cs">
+      <DependentUpon>LeaveTabView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="LeaveHrView.xaml.cs">
+      <DependentUpon>LeaveHrView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="LeaveTeamView.xaml.cs">
+      <DependentUpon>LeaveTeamView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="LeaveView.xaml.cs">
+      <DependentUpon>LeaveView.xaml</DependentUpon>
+    </Compile>
+    <!-- Shared with the server plug-in so the leave preview matches what is stored (DHA-9) -->
+    <Compile Include="..\DHA.Leave.Plugins\LeaveDayCalculator.cs">
+      <Link>Shared\LeaveDayCalculator.cs</Link>
+    </Compile>
+    <Compile Include="ProjectOnStopWarningDialog.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -244,6 +284,7 @@
     <!-- Business Logic -->
     <Compile Include="DataAccess\DataverseConnector.cs" />
     <Compile Include="Models\Disbursement.cs" />
+    <Compile Include="Models\LeaveRequest.cs" />
     <Compile Include="Models\Project.cs" />
     <Compile Include="Models\Quote.cs" />
     <Compile Include="Models\TeamMember.cs" />
@@ -254,6 +295,7 @@
     <Compile Include="Services\DataverseConnectionService.cs" />
     <Compile Include="Services\DataverseService.cs" />
     <Compile Include="Services\DisbursementService.cs" />
+    <Compile Include="Services\LeaveService.cs" />
     <Compile Include="Services\ProjectService.cs" />
     <Compile Include="Services\QuoteService.cs" />
     <Compile Include="Services\TeamMemberService.cs" />

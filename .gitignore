@@ -70,3 +70,6 @@ Desktop.ini
 
 # Installer projects (Visual Studio Installer Projects)
 *.vdproj.vspscc
+
+# Valto migration reports name people and their leave - never commit
+DHA.Dataverse/Provisioning/migration-reports/
