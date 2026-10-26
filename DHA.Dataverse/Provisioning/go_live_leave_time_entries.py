@@ -7,6 +7,8 @@
 2. Smoke test that writes nothing: fwp_RecordLeave no longer reports "not set" (it reaches user lookup instead).
 3. Switches on "Leave Request - Record Time Entries" and "Leave - Record Bank Holidays".
 4. Runs "Leave Request - Backfill Approved Leave" once (approved leave from today onwards) and waits for it.
+5. Does the same for approved absence already in Dynamics (desktop app or migrated): until the Job was set the leave
+   plug-in approved it without time entries, as the Valto app always did.
 """
 import json, os, shutil, subprocess, sys, time, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -80,3 +82,20 @@ for _ in range(120):
     time.sleep(15)
 created = q("fwp_timeentries?$select=fwp_timeentryid&$filter=startswith(fwp_leavesourcekey,'LR-') and statecode eq 0")
 print(f"   active leave time entries from the leave app: {len(created)}")
+
+# 5. Leave already approved in Dynamics (desktop app, or migrated from Valto) was approved without time entries while
+#    fwp_LeaveProjectId was empty. Saving each one's end date unchanged runs the leave plug-in, which records them under the
+#    request's own key (existing entries are adopted, not duplicated). Flows suppressed: nothing changes for the calendar
+#    or anyone's inbox. From today on, as the SharePoint backfill.
+today = time.strftime("%Y-%m-%d", time.gmtime())
+booked = q(f"fwp_leaverequests?$select=fwp_leaverequestid,fwp_enddate&$filter=(fwp_status eq 800470001 or fwp_status eq 800470003) "
+           f"and fwp_enddate ge {today}&$expand=fwp_LeaveType($select=fwp_isabsence)")
+booked = [r for r in booked if (r.get("fwp_LeaveType") or {}).get("fwp_isabsence", True) is not False]
+failed = 0
+for r in booked:
+    s, d, _ = dv.call("PATCH", f"fwp_leaverequests({r['fwp_leaverequestid']})", {"fwp_enddate": r["fwp_enddate"][:10]},
+                      extra={"MSCRM.SuppressCallbackRegistrationExpanderJob": "true"})
+    if s >= 300:
+        failed += 1
+        print(f"   {r['fwp_leaverequestid']}: {s} {d}")
+print(f"5. approved leave in Dynamics from today: {len(booked)} requests given time entries ({failed} failed)")

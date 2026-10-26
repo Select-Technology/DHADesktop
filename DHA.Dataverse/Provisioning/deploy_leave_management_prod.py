@@ -4,6 +4,8 @@ Releases: 20 Oct 2026 - stages 1-4 and 6 (FWPLeaveTimeEntries 1.0.4.0, FWPLeaveM
           This one - stage 5 year-end (fwp_GenerateLeaveYear, fwp_CarryForwardLeave, "Leave - Year end" flow), the
           fwp_GetLeaveBalance fix (it counted every leave type), and fwp_LeaveEmailOverride defaulting to "none" so the
           email and calendar flows can be switched on (1.0.5.0 / 1.1.0.0, upgrades).
+          26 Oct, later - leave is approved without time entries until DHA-9's Job (fwp_LeaveProjectId) is set, as in the
+          Valto app; emails no longer promise timesheet entries (1.0.6.0 / 1.1.1.0).
 
     python -I deploy_leave_management_prod.py prep      # dev: tidy, version, export both packages
     python -I deploy_leave_management_prod.py state     # prod: read-only snapshot (flows, settings, solutions)
@@ -26,8 +28,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 DEV, PROD = "https://dhapd-dev.crm11.dynamics.com", "https://dhapd.crm11.dynamics.com"
 HERE = os.path.dirname(os.path.abspath(__file__))
 SOLUTIONS = os.path.join(HERE, "..", "Solutions")
-TIME_SOL, TIME_VER = "FWPLeaveTimeEntries", "1.0.5.0"
-LEAVE_SOL, LEAVE_VER = "FWPLeaveManagement", "1.1.0.0"
+TIME_SOL, TIME_VER = "FWPLeaveTimeEntries", "1.0.6.0"
+LEAVE_SOL, LEAVE_VER = "FWPLeaveManagement", "1.1.1.0"
 LEAVE_FLOWS = ["Leave - Notifications", "Leave - Approval reminder", "Leave - Outlook calendar", "Leave - Year end"]
 PHASE_A_FLOWS = ["Leave Request - Record Time Entries", "Leave - Record Bank Holidays", "Leave Request - Backfill Approved Leave"]
 # one snapshot per release (the 20 Oct one is prod_state_before_leave_management.json)

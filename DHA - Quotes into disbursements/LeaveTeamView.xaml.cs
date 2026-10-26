@@ -208,7 +208,7 @@ namespace DHA.DSTC.WPF
 
             var comment = InputDialog.ShowDialog(
                 $"Cancel {SelectedPerson.Name}'s {request.LeaveTypeName} on {request.DatesText}?\n\n"
-                + "It's cancelled straight away, taken off their timesheet, and they're emailed.\n\nReason (sent to them):",
+                + "It's cancelled straight away and they're emailed.\n\nReason (sent to them):",
                 "Cancel on their behalf");
             if (comment == null)
                 return;

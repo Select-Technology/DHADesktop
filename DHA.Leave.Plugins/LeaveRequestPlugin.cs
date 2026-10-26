@@ -253,7 +253,13 @@ namespace DHA.Leave.Plugins
             // Working from home is approved the same way but never goes on the timesheet.
             bool onTimesheet = (status == LeaveStatus.Approved || status == LeaveStatus.CancellationRequested)
                                && IsAbsence(svc, getRef("fwp_leavetype"));
-            if (onTimesheet)
+            // Timesheet entries are DHA-9, on top of what the Valto app did (it never touched timesheets). Until its Job is set
+            // (fwp_LeaveProjectId) leave is approved without them, as in Valto; the go-live script backfills them later.
+            if (onTimesheet && LeaveSettings.Load(svc).LeaveProjectId == Guid.Empty)
+            {
+                trace.Trace("fwp_LeaveProjectId isn't set (DHA-9 not live) - no time entries for " + sourceKey);
+            }
+            else if (onTimesheet)
             {
                 var end = getDate("fwp_enddate") ?? getDate("fwp_startdate").Value;
                 var endTime = LeaveDayCalculator.ParseTime(getText("fwp_endtime"), true);
@@ -277,8 +283,8 @@ namespace DHA.Leave.Plugins
             int? status = request.GetAttributeValue<OptionSetValue>("fwp_status")?.Value;
             if (status == LeaveStatus.Approved || status == LeaveStatus.CancellationRequested)
                 throw new InvalidPluginExecutionException(
-                    "Approved leave can't be deleted because it is on the person's timesheet. Cancel it instead - " +
-                    "its time entries will be deactivated and the request kept for the record.");
+                    "Approved leave can't be deleted. Cancel it instead - the request is kept for the record, and anything on " +
+                    "the person's timesheet for it is taken off.");
         }
 
         /// <summary>Approver and additional approver from colleague configuration; approver falls back to the user's manager.</summary>

@@ -7,8 +7,12 @@ then switch Valto off.
 - **Done and in prod since 20 Oct** (stages 1–4 and 6): booking, balances, approvals, team views, the HR tab and the
   Outlook calendar flow. Emails, the calendar and approving are not switched on yet.
 - **Stage 5 (year-end) built, tested, and in prod since 26 Oct** (the flow is off). See the parity plan's stage 5 notes.
-- **Release 26 Oct in prod:** the year-end APIs, the balance fix (Working From Home and other types no longer count), and
-  the email override set to "none".
+- **Releases 26 Oct in prod:**
+  - the year-end APIs,
+  - the balance fix (Working From Home and other types no longer count),
+  - the email override set to "none",
+  - **approving no longer needs DHA-9's Job:** leave is approved without time entries until the Job is set, as in Valto.
+    Smoke-tested in prod.
 - **Left:** switching on what's deployed, loose ends, migration, cutover, and putting year-end into prod.
 
 Harriet's update to Select on 21 Oct described it as "80% of the way there".
@@ -25,7 +29,7 @@ Owner: Select Technology (Tom Halverson). Business owner: Harriet Baker (HR).
 
 | Stage | Contents | Blocked by | Estimate (days) |
 |---|---|---|---|
-| **R1. Switch on what's in prod** | Approved Leave Job, emails, calendar, HR data fixes | Finance (Job), Automated@ sign-in | 1 |
+| **R1. Switch on what's in prod** | Emails, calendar, HR data fixes. (The Approved Leave Job is DHA-9's, and no longer blocks this) | Automated@ sign-in | 1 |
 | **R2. Parity loose ends** | Department filter, default hours, decisions to confirm, email wording | F6, Harriet's answers | 1.5 |
 | **5. Year-end** ✅ *(dev, 26 Oct)* | Carry forward and next year's entitlement each January (A3, A4) | F2 (for the generate step only) | ~~2~~ done |
 | **7. Email links** *(optional)* | N5 links from emails into Dynamics | – | 0.5 |
@@ -56,8 +60,8 @@ Nothing here needs new development. These are the "what doesn't yet" items from 
 
 | # | Step | Who | Notes |
 |---|---|---|---|
-| R1.1 | Create the **"Approved Leave" Job** through the normal quote-to-Job process | Finance (DHA) | Until this exists, **approving leave fails** in the desktop app |
-| R1.2 | Run `go_live_leave_time_entries.py <Job number>` | Select | Sets `fwp_LeaveProjectId`, smoke-tests, switches on "Record Time Entries" and runs the backfill once (DHA-9 plan) |
+| R1.1 | *(DHA-9, not Valto parity)* Create the **"Approved Leave" Job** through the normal quote-to-Job process | Finance (DHA) | **No longer blocks anything (26 Oct).** The Valto app never put leave on timesheets. Until this Job exists, leave is approved without time entries, the same as Valto, and staff keep entering holiday by hand. It only switches on DHA-9's automatic timesheet entries |
+| R1.2 | *(DHA-9)* Run `go_live_leave_time_entries.py <Job number>` | Select | Sets `fwp_LeaveProjectId`, smoke-tests, switches on "Record Time Entries" and runs the SharePoint backfill. **Step 5 also gives time entries to approved absence already in Dynamics** (desktop or migrated) from that day on |
 | R1.3 | ✅ Give `fwp_LeaveEmailOverride` a "none"-style value in prod, or change the flows to treat empty as "no override" | Select | **Done 26 Oct:** both. Every flow treats empty or "none" as no override (FWPLeaveManagement 1.1.0.0), and prod's value is "none" |
 | R1.4 | Bind the Outlook connection references; switch on **"Leave - Notifications"** and **"Leave - Approval reminder"** | Select | Test with one HR request and one approver first |
 | R1.5 | Set `fwp_LeaveCalendarId` to Valto's calendar id (stage 6 notes) | Select | |
@@ -286,8 +290,8 @@ since cutover back to the list by script.
 | **F6** | Valto holds department on Employee Configuration (57 of 95 filled). Is the filter still wanted, and should it come across? | Harriet | R2 |
 | R2.3 | OK that a started pending request is withdrawn straight away when cancelled? | Harriet | R2 |
 | R2.5 | Any DHA-only closure days? | Harriet | R2 |
-| – | When will Finance create the "Approved Leave" Job? | DHA Finance | Now (blocks R1) |
-| – | Leave entries carry £ value (hours × Rate A), like the £2.18m on the Holiday Job | DHA Finance | Before R1.2 ideally; not a blocker |
+| – | When will Finance create the "Approved Leave" Job? (DHA-9 only; doesn't block replacing Valto) | DHA Finance | Whenever DHA-9 should go live |
+| – | Leave entries carry £ value (hours × Rate A), like the £2.2m on the Holiday Job | DHA Finance | Before R1.2 |
 | – | Who can sign in as Automated@ to bind the calendar connection? | DHA IT | R1 |
 
 ## 9. Suggested timetable (option A)

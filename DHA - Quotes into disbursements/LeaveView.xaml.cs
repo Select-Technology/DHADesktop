@@ -236,7 +236,7 @@ namespace DHA.DSTC.WPF
             DayLengthPanel.Visibility = hours ? Visibility.Collapsed : Visibility.Visible;
             TypePrivacyText.Text = type != null && !type.IsAbsence
                 ? $"{type.Name} is approved like leave but doesn't go on your timesheet or use your balance."
-                : "Only you, your approver and HR can see the type. Your timesheet just says \"Approved leave\".";
+                : "Only you, your approver and HR can see the type.";
 
             // Morning/afternoon only make sense on a single day
             if (!hours && (MorningRadio.IsChecked == true || AfternoonRadio.IsChecked == true) && StartDatePicker.SelectedDate.HasValue)
@@ -339,7 +339,7 @@ namespace DHA.DSTC.WPF
             else if (!type.IsAbsence)
                 PreviewTotalText.Text = $"{dayCount:0.##} day{(dayCount == 1 ? "" : "s")} {type.Name.ToLowerInvariant()}";
             else
-                PreviewTotalText.Text = $"{dayCount:0.##} day{(dayCount == 1 ? "" : "s")} of leave ({hours:0.##} hours on your timesheet)";
+                PreviewTotalText.Text = $"{dayCount:0.##} day{(dayCount == 1 ? "" : "s")} of leave ({hours:0.##} hours)";
 
             // Balance now and after, for types that use the entitlement (pending counts as taken, so "now" includes it)
             if (type.DeductsFromEntitlement && days.Count > 0
@@ -490,7 +490,7 @@ namespace DHA.DSTC.WPF
             {
                 comment = InputDialog.ShowDialog(
                     $"{request.ApproverName} will be asked to confirm cancelling {request.DatesText}. "
-                    + "It stays booked (and on your timesheet) until they do.\n\nReason for cancelling:", "Ask to cancel");
+                    + "It stays booked until they do.\n\nReason for cancelling:", "Ask to cancel");
                 if (comment == null)
                     return;
                 if (string.IsNullOrWhiteSpace(comment))

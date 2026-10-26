@@ -375,6 +375,19 @@ snapshot is `prod_state_before_FWPLeaveManagement_1_1_0_0.json`.
 - **Checks:** all 10 plug-in steps were still enabled after the upgrade, and both year-end APIs are present. Every
   leave flow is off. Phase A flows are unchanged: Bank Holidays and Backfill on, Record Time Entries off.
 
+### Prod deployment (26 Oct 2026, later): approving without DHA-9's Job
+
+FWPLeaveTimeEntries 1.0.6.0 and FWPLeaveManagement 1.1.1.0.
+- **Approving no longer needs `fwp_LeaveProjectId`.** The Valto app never put leave on timesheets; that's DHA-9, on top of
+  it. Until DHA-9's Job is set, the leave plug-in approves absence without time entries, and staff keep entering holiday
+  by hand as they do now. Before, approving failed.
+- **`go_live_leave_time_entries.py` step 5:** when DHA-9 goes live, approved absence already in Dynamics (desktop or
+  migrated) from that day on gets its time entries. It re-saves each request's end date with flows suppressed.
+- **Emails** no longer say leave "has been added to your timesheet".
+- **Desktop app wording** to match (privacy note, preview, cancel prompts). This needs the next installer build.
+- **Prod smoke test:** a test request was approved with 2 days and no time entries, then cancelled and deleted.
+- **Tests (dev):** DHA-9 112 pass, 1 skipped (1 new: approving without the Job, then the go-live backfill).
+
 ## 5. Migration from SharePoint
 
 Read through a Power Automate flow using the existing stsadmin SharePoint connection, which was proved to reach the

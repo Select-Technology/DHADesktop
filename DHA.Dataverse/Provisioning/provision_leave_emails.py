@@ -142,11 +142,12 @@ CASES = {
                        "<p>This pending leave request has been withdrawn by the employee. No action is needed.</p>" + DETAILS + CANCEL_COMMENT,
                        cc_expr=ADDITIONAL_EMAIL),
     "Approved": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} has been approved",
-                      "<p>Your leave has been approved and added to your timesheet as &quot;Approved leave&quot;.</p>" + DETAILS + APPROVER_COMMENT),
+                      "<p>Your leave has been approved.</p>" + DETAILS + APPROVER_COMMENT),
     "Rejected": email(EMPLOYEE_EMAIL, f"Your leave request from {SUBJECT_DATES} was not approved",
                       "<p>Your leave request has not been approved.</p>" + DETAILS + APPROVER_COMMENT),
     "CancellationApproved": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} has been cancelled",
-                                  "<p>Your cancellation has been approved. The leave has been taken off your timesheet.</p>" + DETAILS + APPROVER_COMMENT),
+                                  "<p>Your cancellation has been approved. Anything on your timesheet for this leave has been taken off.</p>"
+                                  + DETAILS + APPROVER_COMMENT),
     "CancellationDeclined": email(EMPLOYEE_EMAIL, f"Your leave from {SUBJECT_DATES} is still booked",
                                   "<p>Your request to cancel this leave was not approved, so it remains booked.</p>" + DETAILS + APPROVER_COMMENT),
     # An approver or HR cancelled it on the employee's behalf (Decide records them as the approver)

@@ -569,6 +569,32 @@ class Dha09ParityStage4(LeaveRequestTestCase):
         self.created("2027-12-13", employee=ALICE)
 
 
+class Dha09WithoutTheLeaveJob(LeaveRequestTestCase):
+    """Before DHA-9 goes live (no fwp_LeaveProjectId) leave is approved without time entries, as in the Valto app; the go-live
+    script later re-saves each approved request's end date, which records them."""
+
+    def set_leave_job(self, value):
+        d = rows("environmentvariabledefinitions?$select=environmentvariabledefinitionid&$filter=schemaname eq 'fwp_LeaveProjectId'")[0]
+        v = rows(f"environmentvariablevalues?$select=environmentvariablevalueid,value"
+                 f"&$filter=_environmentvariabledefinitionid_value eq {d['environmentvariabledefinitionid']}")[0]
+        self.assertLess(call("PATCH", f"environmentvariablevalues({v['environmentvariablevalueid']})", {"value": value})[0], 300)
+        return v["value"]
+
+    def test_approving_without_the_job_works_and_the_go_live_backfill_adds_the_entries(self):
+        job = self.set_leave_job("")
+        try:
+            rid = self.created("2027-12-06", "2027-12-07")
+            s, d = self.set_status(rid, APPROVED)
+            self.assertLess(s, 300, error_text(d))
+            self.assertEqual(APPROVED, self.request(rid)["fwp_status"])
+            self.assertEqual([], self.entries(rid))
+        finally:
+            self.set_leave_job(job)
+        # what go_live_leave_time_entries.py step 5 does
+        call("PATCH", f"{self.LR}({rid})", {"fwp_enddate": "2027-12-07"})
+        self.assertEqual(2, len(active(self.entries(rid))))
+
+
 if __name__ == "__main__":
     unittest.main()
 

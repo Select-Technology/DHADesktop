@@ -1,8 +1,8 @@
-# DHA test run - 2026-10-26 10:43 (dev, 389s)
+# DHA test run - 2026-10-26 12:41 (dev, 296s)
 
 | Card | Pass | Fail | Known gap | Skipped |
 |---|---|---|---|---|
-| DHA-9 Approved absence creates the time entry | 111 | 0 | 0 | 1 |
+| DHA-9 Approved absence creates the time entry | 112 | 0 | 0 | 1 |
 
 ## DHA-9 Approved absence creates the time entry
 
@@ -69,6 +69,7 @@
 - ✅ `Dha09Security.test_leave_work_did_not_grant_colleague_configuration_access` - pass
 - ✅ `Dha09Security.test_staff_cannot_delete_leave` - pass
 - ✅ `Dha09Security.test_staff_get_own_leave_through_dha1` - pass
+- ✅ `Dha09WithoutTheLeaveJob.test_approving_without_the_job_works_and_the_go_live_backfill_adds_the_entries` - pass
 - ✅ `Dha09PhaseA.test_a_project_manager_cannot_record_leave_for_someone_else` - pass
 - ✅ `Dha09PhaseA.test_badly_formatted_time_is_rejected` - pass
 - ✅ `Dha09PhaseA.test_bank_holiday_entries_for_everyone_on_their_working_days` - pass

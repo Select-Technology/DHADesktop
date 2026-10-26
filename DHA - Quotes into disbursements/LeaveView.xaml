@@ -30,7 +30,7 @@
                     <TextBlock Text="Type" Style="{DynamicResource FormLabelStyle}"/>
                     <ComboBox x:Name="LeaveTypeComboBox" Margin="0,0,0,4" Height="32" SelectionChanged="Type_Changed"/>
                     <TextBlock x:Name="TypePrivacyText" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"
-                               Text="Only you, your approver and HR can see the type. Your timesheet just says &quot;Approved leave&quot;."/>
+                               Text="Only you, your approver and HR can see the type."/>
 
                     <TextBlock Text="From" Style="{DynamicResource FormLabelStyle}"/>
                     <DatePicker x:Name="StartDatePicker" Margin="0,0,0,12" Height="32" SelectedDateChanged="Date_Changed"/>
