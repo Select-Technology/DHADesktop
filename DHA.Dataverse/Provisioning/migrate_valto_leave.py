@@ -3,6 +3,7 @@
     python -I migrate_valto_leave.py report     [--prod]                    # no changes: what an import would do
     python -I migrate_valto_leave.py import     [--prod --yes] [--cutover YYYY-MM-DD]
     python -I migrate_valto_leave.py reconcile  [--prod]                    # Valto vs Dynamics remaining days
+    python -I migrate_valto_leave.py hr         [--prod]                    # no changes: HR's fix list, as a spreadsheet
 
 Targets DEV unless --prod (which also needs --yes for an import). In dev the three test users the automated tests book
 leave for are left out, so the tests keep working. Valto is always read through valto_source (a flow in
@@ -561,11 +562,96 @@ def reconcile(valto, dyn, t, plan):
     print(f"{len(rows)} person-years, {diffs} differ")
 
 
+def hr_checklist(valto, dyn, plan, cutover, target):
+    """What HR need to fix before the prod migration, as a spreadsheet to tick off (one tab per kind of fix)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    user = lambda person: dyn["by_email"].get(email(person)) if email(person) else None
+    days = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+    sheets = collections.OrderedDict()
+
+    rows = []
+    for ec in valto["Employee Configuration"]:
+        u = user(ec.get("Employee"))
+        cfg = dyn["configs"].get(u["systemuserid"]) if u else None
+        if not u or not cfg:
+            continue
+        for d in days:
+            valto_day, hours = value(ec.get(d)), cfg.get(f"fwp_{d.lower()}expectedhours")
+            works = valto_day not in (None, "Off")
+            if hours is None or works != (hours > 0) or valto_day not in ("Full Day", "Off"):
+                rows.append([u["fullname"], d, valto_day, "no times" if hours is None else f"{hours:g}h",
+                             "Set their start, finish and break for this day on the Leave > HR tab (leave both empty for a day off)"])
+    sheets["Working weeks"] = (["Person", "Day", "Valto says", "Dynamics has", "What to do"], sorted(rows))
+
+    rows = []
+    for ec in valto["Employee Configuration"]:
+        u = user(ec.get("Employee"))
+        if u and not u.get("isdisabled") and u["systemuserid"] not in dyn["configs"]:
+            rows.append([u["fullname"], "No colleague configuration in Dynamics, so no approver, entitlement or working week can be set. "
+                                        "Whoever sets up colleague rates creates it; then fill in the Leave > HR tab"])
+    sheets["Missing set-up"] = (["Person", "What to do"], sorted(rows))
+
+    # Absences that overlap from the cutover on: the leave plug-in refuses the second one, so it wouldn't be migrated
+    rows, live = [], collections.defaultdict(list)
+    for r in plan["requests"]:
+        if status_of(r) in (APPROVED, PENDING, CANCEL_REQUESTED) and type_name(r) != WFH \
+                and (r.get("RequestEndDate") or r["RequestStartDate"])[:10] >= cutover:
+            live[email(r.get("Employee"))].append(r)
+    for e, reqs in live.items():
+        reqs.sort(key=lambda r: r["RequestStartDate"])
+        for a, b in zip(reqs, reqs[1:]):
+            if b["RequestStartDate"][:10] <= (a.get("RequestEndDate") or a["RequestStartDate"])[:10]:
+                u = user(a.get("Employee"))
+                span = lambda r: f"{type_name(r)} {r['RequestStartDate'][:10]} to {(r.get('RequestEndDate') or r['RequestStartDate'])[:10]}" \
+                                 + (f" ({value(r.get('RequestDayDuration'))})" if value(r.get("RequestDayDuration")) not in (None, "Full Day", "N/A") else "")
+                rows.append([u["fullname"] if u else e, span(a), span(b),
+                             "Two absences on the same day(s). Cancel or correct one in the Valto app; otherwise the second isn't migrated"])
+    sheets["Double bookings"] = (["Person", "Request", "Overlaps with", "What to do"], rows)
+
+    rows = []
+    for eb in valto["Entitlement Balances"]:
+        year = int(eb.get("Year") or 0)
+        u = user(eb.get("Employee"))
+        if year in YEARS and u and eb.get("Comments"):
+            rows.append([u["fullname"], year, " ".join(eb["Comments"].split()),
+                         "Dynamics has no comments on entitlements. Check the figures already include this; keep the note elsewhere if needed"])
+    sheets["Entitlement notes"] = (["Person", "Year", "Valto comment", "What to do"], sorted(rows, key=lambda r: (r[0], r[1])))
+
+    gone = collections.Counter(email(r.get("Employee")) for r in plan["requests"] if not user(r.get("Employee")))
+    sheets["Not migrated (FYI)"] = (["Valto user", "Requests since 2025", "Why"],
+                                    [[e, n, "No user in Dynamics - assumed to have left. Tell us if anyone here still works at DHA"]
+                                     for e, n in gone.most_common()])
+
+    wb = Workbook()
+    wb.remove(wb.active)
+    head, fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="1F4E79")
+    for name, (header, data) in sheets.items():
+        ws = wb.create_sheet(f"{name} ({len(data)})"[:31])
+        ws.append(header + ["Done"])
+        for row in data:
+            ws.append(row + [""])
+        for c in ws[1]:
+            c.font, c.fill = head, fill
+        for col in ws.columns:
+            width = max(len(str(c.value or "")) for c in col)
+            ws.column_dimensions[col[0].column_letter].width = min(max(10, width + 2), 70)
+            for c in col[1:]:
+                c.alignment = Alignment(wrap_text=True, vertical="top")
+        ws.freeze_panes = "A2"
+    os.makedirs(REPORTS, exist_ok=True)
+    path = os.path.join(REPORTS, f"Leave migration - HR checklist ({target}, {dt.date.today():%d %b %Y}).xlsx")
+    wb.save(path)
+    print("Checklist:", path)
+    for name, (_, data) in sheets.items():
+        print(f"  {name}: {len(data)}")
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("mode", choices=["report", "import", "reconcile"])
+    p.add_argument("mode", choices=["report", "import", "reconcile", "hr"])
     p.add_argument("--prod", action="store_true")
     p.add_argument("--yes", action="store_true", help="needed with --prod for an import")
     p.add_argument("--cutover", default=dt.date.today().isoformat())
@@ -597,6 +683,8 @@ def main():
         failures = apply(t, plan, dyn, lambda m: (print(m), log_lines.append(f"- {m}")))
         write_report(f"import {target}", lines + ["## Import log", ""] + log_lines)
         print(f"Done. {len(failures)} requests failed - see the report.")
+    elif a.mode == "hr":
+        hr_checklist(valto, dyn, plan, a.cutover, target)
     else:
         reconcile(valto, dyn, t, plan)
 
