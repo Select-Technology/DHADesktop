@@ -56,3 +56,4 @@ never neither. The app enforces this itself; it isn't a Dynamics-level rule.
 - [03-reconciliation-and-charge-bands.md](03-reconciliation-and-charge-bands.md) — how reconciliation blocks edits, and how charge bands/rates resolve
 - [04-pitfalls-and-faq.md](04-pitfalls-and-faq.md) — symptom → cause → fix
 - [05-project-on-stop.md](05-project-on-stop.md) — Finance's On Stop flag on Jobs and the red warning when time is recorded against one (DHA-7/DHA-8)
+- [06-leave.md](06-leave.md) — the Leave tab that replaces Valto's leave app: rules, tables, plug-ins, flows, year-end and migration runbooks
