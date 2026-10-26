@@ -76,6 +76,8 @@ LEAVE_SET = dv.call("GET", "EntityDefinitions(LogicalName='fwp_leaverequest')?$s
 # 3. Flow
 CAL = "Leave - Calendar Id (fwp_LeaveCalendarId)"
 OVERRIDE = "Leave - Email Override (testing) (fwp_LeaveEmailOverride)"
+# No override when the setting is empty or "none" (prod: an environment variable with no value stops a flow switching on)
+NO_OVERRIDE = f"or(empty(parameters('{OVERRIDE}')), equals(toLower(parameters('{OVERRIDE}')), 'none'))"
 AUTH = "@parameters('$authentication')"
 R = "outputs('Get_the_request')?['body"
 SD = f"substring(string({R}/fwp_startdate']), 0, 10)"
@@ -113,7 +115,7 @@ definition = {
         "$connections": {"defaultValue": {}, "type": "Object"},
         "$authentication": {"defaultValue": {}, "type": "SecureObject"},
         CAL: {"defaultValue": "default", "type": "String", "metadata": {"schemaName": "fwp_LeaveCalendarId"}},
-        OVERRIDE: {"defaultValue": "", "type": "String", "metadata": {"schemaName": "fwp_LeaveEmailOverride"}},
+        OVERRIDE: {"defaultValue": "none", "type": "String", "metadata": {"schemaName": "fwp_LeaveEmailOverride"}},
     },
     "triggers": {
         "When_a_leave_request_event_happens": {
@@ -173,7 +175,7 @@ definition = {
                     "item/timeZone": "(UTC+00:00) Dublin, Edinburgh, Lisbon, London",  # UK local time, incl. BST
                     "item/isAllDay": "@outputs('All_day')",
                     # Valto invited the employee and approver; not while testing, so nobody real is invited from dev
-                    "item/requiredAttendees": f"@{{if(empty(parameters('{OVERRIDE}')), concat({R}/fwp_employee/internalemailaddress'], ';', "
+                    "item/requiredAttendees": f"@{{if({NO_OVERRIDE}, concat({R}/fwp_employee/internalemailaddress'], ';', "
                                               f"coalesce({R}/fwp_approver/internalemailaddress'], '')), '')}}",
                     "item/body": BODY,
                     "item/showAs": "oof",

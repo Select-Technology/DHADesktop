@@ -208,7 +208,8 @@ env_var("fwp_LeaveApproverEmail", "Leave - Approver Email", "Where new requests,
 env_var("fwp_LeaveCarryForwardLimit", "Leave - Carry Forward Limit (days)",
         "Most unused days carried into the next year (HR decision: 5). HR can override per person on the entitlement row.", "5")
 env_var("fwp_LeaveEmailOverride", "Leave - Email Override (testing)",
-        "If set, EVERY leave email goes to this address instead of the real recipient. Set in dev/test; leave blank in prod.", "")
+        "If set to an address, EVERY leave email goes there instead of the real recipient. Set in dev/test; "
+        "\"none\" (the default) in prod.", "none")
 
 # DHA-10: each leave time entry links back to the request it came from (phase A entries use fwp_leavesourcekey "LR-<SharePoint id>")
 lookup("fwp_timeentry", "fwp_LeaveRequest", "Leave Request", "fwp_leaverequest")

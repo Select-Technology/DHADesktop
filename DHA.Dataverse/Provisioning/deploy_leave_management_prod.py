@@ -1,8 +1,13 @@
-"""Deploy the desktop leave planner (parity plan stages 1-6) to PROD, as managed solutions.
+"""Deploy the desktop leave planner to PROD, as managed solutions.
+
+Releases: 20 Oct 2026 - stages 1-4 and 6 (FWPLeaveTimeEntries 1.0.4.0, FWPLeaveManagement 1.0.0.0, a new install).
+          This one - stage 5 year-end (fwp_GenerateLeaveYear, fwp_CarryForwardLeave, "Leave - Year end" flow), the
+          fwp_GetLeaveBalance fix (it counted every leave type), and fwp_LeaveEmailOverride defaulting to "none" so the
+          email and calendar flows can be switched on (1.0.5.0 / 1.1.0.0, upgrades).
 
     python -I deploy_leave_management_prod.py prep      # dev: tidy, version, export both packages
     python -I deploy_leave_management_prod.py state     # prod: read-only snapshot (flows, settings, solutions)
-    python -I deploy_leave_management_prod.py import    # prod: FWPLeaveTimeEntries 1.0.4.0, then FWPLeaveManagement
+    python -I deploy_leave_management_prod.py import    # prod: FWPLeaveTimeEntries, then FWPLeaveManagement (new or upgrade)
     python -I deploy_leave_management_prod.py post      # prod: access, book-on-behalf team, leave types, checks
 
 Order matters: the plug-in classes the leave steps and Custom APIs run (LeaveRequestPlugin, GetLeaveBalancePlugin, ...)
@@ -21,11 +26,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 DEV, PROD = "https://dhapd-dev.crm11.dynamics.com", "https://dhapd.crm11.dynamics.com"
 HERE = os.path.dirname(os.path.abspath(__file__))
 SOLUTIONS = os.path.join(HERE, "..", "Solutions")
-TIME_SOL, TIME_VER = "FWPLeaveTimeEntries", "1.0.4.0"
-LEAVE_SOL, LEAVE_VER = "FWPLeaveManagement", "1.0.0.0"
-LEAVE_FLOWS = ["Leave - Notifications", "Leave - Approval reminder", "Leave - Outlook calendar"]
+TIME_SOL, TIME_VER = "FWPLeaveTimeEntries", "1.0.5.0"
+LEAVE_SOL, LEAVE_VER = "FWPLeaveManagement", "1.1.0.0"
+LEAVE_FLOWS = ["Leave - Notifications", "Leave - Approval reminder", "Leave - Outlook calendar", "Leave - Year end"]
 PHASE_A_FLOWS = ["Leave Request - Record Time Entries", "Leave - Record Bank Holidays", "Leave Request - Backfill Approved Leave"]
-STATE_FILE = os.path.join(HERE, "..", "Solutions", "prod_state_before_leave_management.json")
+# one snapshot per release (the 20 Oct one is prod_state_before_leave_management.json)
+STATE_FILE = os.path.join(HERE, "..", "Solutions", f"prod_state_before_{LEAVE_SOL}_{LEAVE_VER.replace('.', '_')}.json")
 
 # DHA's request types, as configured in Valto (seen in prod flow history, Sep-Oct 2026). Study Leave's entitlement
 # setting is to be confirmed against Valto's Request Type Configuration in migration (stage 8).
@@ -159,7 +165,10 @@ def do_import():
             ok(*dv.call("PATCH", f"workflows({w['workflowid']})", {"statecode": was, "statuscode": 2 if was == 1 else 1})[:2],
                f"restored {n} to {'on' if was == 1 else 'off'}")
 
-    if not solution(dv, LEAVE_SOL):
+    current = solution(dv, LEAVE_SOL)
+    if current and current["version"] != LEAVE_VER:
+        import_one(dv, LEAVE_SOL, LEAVE_VER)  # upgrade: connection references are already bound
+    elif not current:
         # Dataverse: stsadmin's prod connection, as phase A uses. Outlook references stay unbound (flows off)
         dataverse = before["connections"].get("fwp_LeaveTimeDataverse")
         params = [{"@odata.type": "Microsoft.Dynamics.CRM.connectionreference", "connectionreferencelogicalname": "fwp_LeaveDataverse",
@@ -218,6 +227,9 @@ def post():
     steps = q(dv, "sdkmessageprocessingsteps?$select=name,statecode&$filter=startswith(name,'Leave')")
     print("  plug-in steps:", len(steps), "all enabled" if all(x["statecode"] == 0 for x in steps) else steps)
     print("  leave types:", sorted(t["fwp_name"] for t in q(dv, "fwp_leavetypes?$select=fwp_name&$filter=statecode eq 0")))
+    print("  year-end APIs:", sorted(a["uniquename"] for a in q(dv, "customapis?$select=uniquename&$filter=uniquename eq 'fwp_GenerateLeaveYear' "
+                                                                   "or uniquename eq 'fwp_CarryForwardLeave'")))
+    print("  email override:", q(dv, "environmentvariabledefinitions?$select=defaultvalue&$filter=schemaname eq 'fwp_LeaveEmailOverride'"))
     print("  flows:", {n: ("on" if w["statecode"] == 1 else "off") for n, w in flows(dv, LEAVE_FLOWS + PHASE_A_FLOWS).items()})
 
 

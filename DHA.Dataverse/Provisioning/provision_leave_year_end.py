@@ -96,11 +96,13 @@ CONNECTIONS = {
 }
 APPROVER_PARAM = "Leave - Approver Email (fwp_LeaveApproverEmail)"
 OVERRIDE_PARAM = "Leave - Email Override (testing) (fwp_LeaveEmailOverride)"
+# No override when the setting is empty or "none" (prod: an environment variable with no value stops a flow switching on)
+NO_OVERRIDE = f"or(empty(parameters('{OVERRIDE_PARAM}')), equals(toLower(parameters('{OVERRIDE_PARAM}')), 'none'))"
 PARAMETERS = {
     "$connections": {"defaultValue": {}, "type": "Object"},
     "$authentication": {"defaultValue": {}, "type": "SecureObject"},
     APPROVER_PARAM: {"defaultValue": "HR@dhaplanning.co.uk", "type": "String", "metadata": {"schemaName": "fwp_LeaveApproverEmail"}},
-    OVERRIDE_PARAM: {"defaultValue": "", "type": "String", "metadata": {"schemaName": "fwp_LeaveEmailOverride"}},
+    OVERRIDE_PARAM: {"defaultValue": "none", "type": "String", "metadata": {"schemaName": "fwp_LeaveEmailOverride"}},
 }
 YEAR = "@int(formatDateTime(convertFromUtc(utcNow(), 'GMT Standard Time'), 'yyyy'))"
 HR_EMAIL = f"parameters('{APPROVER_PARAM}')"
@@ -134,8 +136,8 @@ actions["Email_HR"] = {
     "type": "OpenApiConnection", "runAfter": {"Carry_forward": ["Succeeded", "Failed"]},
     "inputs": {"host": {"connectionName": "shared_office365", "operationId": "SendEmailV2", "apiId": OL_API},
                "parameters": {
-                   "emailMessage/To": f"@{{if(empty(parameters('{OVERRIDE_PARAM}')), {HR_EMAIL}, parameters('{OVERRIDE_PARAM}'))}}",
-                   "emailMessage/Subject": f"@{{if(empty(parameters('{OVERRIDE_PARAM}')), '', concat('[TEST - for ', {HR_EMAIL}, '] '))}}"
+                   "emailMessage/To": f"@{{if({NO_OVERRIDE}, {HR_EMAIL}, parameters('{OVERRIDE_PARAM}'))}}",
+                   "emailMessage/Subject": f"@{{if({NO_OVERRIDE}, '', concat('[TEST - for ', {HR_EMAIL}, '] '))}}"
                                            f"Leave year-end @{{{YEAR[1:]}}}",
                    "emailMessage/Body": body,
                    "emailMessage/Importance": "Normal"},

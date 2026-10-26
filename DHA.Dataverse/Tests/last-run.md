@@ -1,4 +1,4 @@
-# DHA test run - 2026-10-26 10:14 (dev, 305s)
+# DHA test run - 2026-10-26 10:43 (dev, 389s)
 
 | Card | Pass | Fail | Known gap | Skipped |
 |---|---|---|---|---|

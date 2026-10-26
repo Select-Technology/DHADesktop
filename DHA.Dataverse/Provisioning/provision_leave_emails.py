@@ -7,7 +7,7 @@ Creates in FWPLeaveManagement:
 
 Recipients (parity plan N1, N3): requests go to the request's approver, with the additional approver copied in. When a
 request has no approver they go to HR = env var fwp_LeaveApproverEmail (default HR@dhaplanning.co.uk). If
-fwp_LeaveEmailOverride is set, EVERY email goes there instead (no copies) and the subject shows who it was meant for
+fwp_LeaveEmailOverride holds an address (not empty or "none", its default), EVERY email goes there instead (no copies) and the subject shows who it was meant for
 - set it in dev/test.
 
 Connections can't be created from a script. Pass the connection ids for the target environment:
@@ -51,6 +51,12 @@ def conn_ref(logical, name, api, connection_id):
     ok(s, d, "connection reference " + logical)
 
 
+# The override's definition needs a default: with neither a default nor a value a flow can't be switched on (prod, 20 Oct)
+ov = q("environmentvariabledefinitions?$select=environmentvariabledefinitionid,defaultvalue&$filter=schemaname eq 'fwp_LeaveEmailOverride'")
+if ov and not ov[0]["defaultvalue"]:
+    s, d, _ = dv.call("PATCH", f"environmentvariabledefinitions({ov[0]['environmentvariabledefinitionid']})", {"defaultvalue": "none"})
+    ok(s, d, "fwp_LeaveEmailOverride default -> none")
+
 conn_ref("fwp_LeaveDataverse", "Leave - Dataverse", DV_API, DATAVERSE_CONN)
 conn_ref("fwp_LeaveOutlook", "Leave - Outlook", OL_API, OUTLOOK_CONN)
 LEAVE_SET = dv.call("GET", "EntityDefinitions(LogicalName='fwp_leaverequest')?$select=EntitySetName")[1]["EntitySetName"]
@@ -63,12 +69,14 @@ CONNECTIONS = {
 }
 APPROVER_PARAM = "Leave - Approver Email (fwp_LeaveApproverEmail)"
 OVERRIDE_PARAM = "Leave - Email Override (testing) (fwp_LeaveEmailOverride)"
+# No override when the setting is empty or "none" (prod: an environment variable with no value stops a flow switching on)
+NO_OVERRIDE = f"or(empty(parameters('{OVERRIDE_PARAM}')), equals(toLower(parameters('{OVERRIDE_PARAM}')), 'none'))"
 PARAMETERS = {
     "$connections": {"defaultValue": {}, "type": "Object"},
     "$authentication": {"defaultValue": {}, "type": "SecureObject"},
     APPROVER_PARAM: {"defaultValue": "HR@dhaplanning.co.uk", "type": "String",
                      "metadata": {"schemaName": "fwp_LeaveApproverEmail"}},
-    OVERRIDE_PARAM: {"defaultValue": "", "type": "String", "metadata": {"schemaName": "fwp_LeaveEmailOverride"}},
+    OVERRIDE_PARAM: {"defaultValue": "none", "type": "String", "metadata": {"schemaName": "fwp_LeaveEmailOverride"}},
 }
 
 
@@ -82,13 +90,13 @@ def email(to_expr, subject, body, run_after=None, cc_expr=None):
     action = {"type": "OpenApiConnection", "runAfter": run_after or {},
             "inputs": {"host": {"connectionName": "shared_office365", "operationId": "SendEmailV2", "apiId": OL_API},
                        "parameters": {
-                           "emailMessage/To": f"@{{if(empty(parameters('{OVERRIDE_PARAM}')), {to_expr}, parameters('{OVERRIDE_PARAM}'))}}",
-                           "emailMessage/Subject": f"@{{if(empty(parameters('{OVERRIDE_PARAM}')), '', concat('[TEST - for ', {to_expr}, '] '))}}{subject}",
+                           "emailMessage/To": f"@{{if({NO_OVERRIDE}, {to_expr}, parameters('{OVERRIDE_PARAM}'))}}",
+                           "emailMessage/Subject": f"@{{if({NO_OVERRIDE}, '', concat('[TEST - for ', {to_expr}, '] '))}}{subject}",
                            "emailMessage/Body": STYLE + body + FOOTER,
                            "emailMessage/Importance": "Normal"},
                        "authentication": "@parameters('$authentication')"}}
     if cc_expr:
-        action["inputs"]["parameters"]["emailMessage/Cc"] = f"@{{if(empty(parameters('{OVERRIDE_PARAM}')), {cc_expr}, '')}}"
+        action["inputs"]["parameters"]["emailMessage/Cc"] = f"@{{if({NO_OVERRIDE}, {cc_expr}, '')}}"
     return action
 
 

@@ -56,7 +56,7 @@ Nothing here needs new development. These are the "what doesn't yet" items from 
 |---|---|---|---|
 | R1.1 | Create the **"Approved Leave" Job** through the normal quote-to-Job process | Finance (DHA) | Until this exists, **approving leave fails** in the desktop app |
 | R1.2 | Run `go_live_leave_time_entries.py <Job number>` | Select | Sets `fwp_LeaveProjectId`, smoke-tests, switches on "Record Time Entries" and runs the backfill once (DHA-9 plan) |
-| R1.3 | Give `fwp_LeaveEmailOverride` a "none"-style value in prod, or change the flows to treat empty as "no override" | Select | An empty value stops the flows switching on. Changing the flows is the tidier fix |
+| R1.3 | 🟡 Give `fwp_LeaveEmailOverride` a "none"-style value in prod, or change the flows to treat empty as "no override" | Select | **Built 26 Oct, not yet in prod:** the setting now defaults to "none", and every flow treats empty or "none" as no override. Ships in FWPLeaveManagement 1.1.0.0 |
 | R1.4 | Bind the Outlook connection references; switch on **"Leave - Notifications"** and **"Leave - Approval reminder"** | Select | Test with one HR request and one approver first |
 | R1.5 | Set `fwp_LeaveCalendarId` to Valto's calendar id (stage 6 notes) | Select | |
 | R1.6 | Sign in as **Automated@dhaplanning.co.uk**, bind "Leave - Calendar (Outlook)" and switch on **"Leave - Outlook calendar"** | DHA IT + Select | Outlook connections can't be shared, so this can't be scripted. Book 15 minutes with whoever holds that mailbox |
