@@ -15,6 +15,7 @@ namespace DHA.Leave.Plugins
         public const string LeaveLabelVar = "fwp_LeaveEntryLabel";
         public const string BankHolidayLabelVar = "fwp_BankHolidayEntryLabel";
         public const string LeaveDayHoursVar = "fwp_LeaveDayHours";
+        public const string CarryForwardLimitVar = "fwp_LeaveCarryForwardLimit";
 
         public Guid LeaveProjectId { get; private set; }
         public Guid BankHolidayProjectId { get; private set; }
@@ -23,6 +24,8 @@ namespace DHA.Leave.Plugins
         public string BankHolidayLabel { get; private set; } = "Bank holiday";
         /// <summary>Hours a day of leave records, Monday first.</summary>
         public decimal[] LeaveDayHours { get; private set; } = (decimal[])LeaveDayCalculator.StandardLeaveDayHours.Clone();
+        /// <summary>Most unused days carried into the next leave year, unless HR override it for a person (Q3).</summary>
+        public decimal CarryForwardLimit { get; private set; } = LeaveYearEnd.StandardCarryForwardLimit;
 
         public static LeaveSettings Load(IOrganizationService svc)
         {
@@ -36,6 +39,8 @@ namespace DHA.Leave.Plugins
             if (values.TryGetValue(LeaveLabelVar, out v) && !string.IsNullOrWhiteSpace(v)) s.LeaveLabel = v;
             if (values.TryGetValue(BankHolidayLabelVar, out v) && !string.IsNullOrWhiteSpace(v)) s.BankHolidayLabel = v;
             if (values.TryGetValue(LeaveDayHoursVar, out v)) s.LeaveDayHours = LeaveDayCalculator.ParseLeaveDayHours(v);
+            if (values.TryGetValue(CarryForwardLimitVar, out v) &&
+                decimal.TryParse(v, NumberStyles.Number, CultureInfo.InvariantCulture, out var limit) && limit >= 0) s.CarryForwardLimit = limit;
             return s;
         }
 
@@ -44,7 +49,8 @@ namespace DHA.Leave.Plugins
         {
             var q = new QueryExpression("environmentvariabledefinition") { ColumnSet = new ColumnSet("schemaname", "defaultvalue") };
             q.Criteria.AddCondition("schemaname", ConditionOperator.In,
-                LeaveProjectVar, BankHolidayProjectVar, DefaultDayHoursVar, LeaveLabelVar, BankHolidayLabelVar, LeaveDayHoursVar);
+                LeaveProjectVar, BankHolidayProjectVar, DefaultDayHoursVar, LeaveLabelVar, BankHolidayLabelVar, LeaveDayHoursVar,
+                CarryForwardLimitVar);
             var val = q.AddLink("environmentvariablevalue", "environmentvariabledefinitionid", "environmentvariabledefinitionid", JoinOperator.LeftOuter);
             val.Columns = new ColumnSet("value");
             val.EntityAlias = "v";

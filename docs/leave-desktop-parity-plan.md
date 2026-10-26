@@ -4,6 +4,7 @@
 DHA Time Management desktop app, with the data in Dynamics. Then the Valto app is retired.
 
 **Status (15 Oct 2026):** decisions received from HR (§0).
+**Remaining stages (26 Oct 2026):** see [leave-remaining-stages-plan.md](leave-remaining-stages-plan.md).
 
 - **Phase A is live in prod.** Approved Valto leave becomes time entries; switch-on is waiting for the
   "Approved Leave" Job. See [DHA-9-leave-plan.md](DHA-9-leave-plan.md).
@@ -36,14 +37,6 @@ Owner: Select Technology (Tom Halverson). Business owner: Harriet Baker (HR).
 | F4 | Phone or browser access for approvers | ✅ **No phone app.** A phone app would be a separate development project. X1 is removed; approvals happen in the desktop app |
 | F5 | Wording of shared calendar events | ✅ **"Out of Office"** for every type, so the absence type never appears on the shared calendar |
 | F6 | The "By Department" filter when approving: where is department held? | **Open** |
-
----|---|---|
-| F1 | "8.5 hours Mon–Thu, 8 hours Friday": is that the office day or the hours worked? Prod colleague configurations hold **08:30–17:30 with a 1h break = 8h worked Mon–Thu**, and **08:30–17:00 = 7.5h on Friday**. What should a day's leave put on the timesheet: 8 / 7.5, or 8.5 / 8? | A leave day records that day's expected hours from colleague configuration. That's live in phase A as soon as it's switched on |
-| F2 | Should **next year's entitlement** be created automatically each January for **existing** staff (Valto's flow does this), with only new starters done by hand? | A4 |
-| F3 | Part-timers' working days are set in the Valto app. Dynamics also holds a working pattern for every colleague (used for timesheet reminders). Once Valto is retired, **HR maintains the Dynamics pattern**. OK? 8 people currently have no working days at all in Dynamics | Single source of truth; migration compares the two |
-| F4 | Do line managers need to approve from a **phone or browser**? The canvas app works on phones; the desktop app doesn't | X1. More relevant now that line managers approve |
-| F5 | Shared calendar: whose calendar is it, and what should events say? Valto's emails use the request type; a staff-wide calendar showing "Medical" or "Sick Leave" has the same privacy issue DHA-9 avoids on timesheets | N4 |
-| F6 | The "By Department" filter when approving: where is department held today? | M3 |
 
 ---
 
@@ -125,8 +118,8 @@ Status: ✅ done · 🟡 partly · ❌ not started. IDs are used throughout this
 |---|---|---|---|
 | **A1** | *Employee Configuration*: approver, additional approver, leave-year start, base entitlement, units, working days, (department) | ✅ HR tab: approver, additional approver, base entitlement, working week (start / finish / break), through `fwp_SetLeaveSettings`. Department waits for F6 | Fields on colleague configuration (**D4**); HR screen |
 | **A2** | *Entitlement Balances* per person per year | ✅ HR tab: entitlement per year incl. new starters and the carry-forward limit override; one row per person per year, owned by the employee | HR entitlement screen; units |
-| **A3** | **Year-end carry forward**, capped at the limit | ❌ | Runs once each January: unused days carried forward, **capped at 5** (Q3). **HR can override per person** (`fwp_carryforwardoverride` on the entitlement row) before or after the run |
-| **A4** | **Generate next year's entitlement** | ❌ | Runs each January for existing staff, from their base entitlement. **Pending F2** |
+| **A3** | **Year-end carry forward**, capped at the limit | ✅ *(dev)* `fwp_CarryForwardLeave`, the "Leave - Year end" flow on 1 January, and a Year end card on the HR tab to re-run it | Runs once each January: unused days carried forward, **capped at 5** (Q3). **HR can override per person** (`fwp_carryforwardoverride` on the entitlement row) before or after the run |
+| **A4** | **Generate next year's entitlement** | ✅ *(dev)* `fwp_GenerateLeaveYear`, in the same flow and HR card. **F2 still open**: drop it from the flow if HR say no | Runs each January for existing staff, from their base entitlement. **Pending F2** |
 | ~~A5~~ | New-starter entitlement created automatically | – | **Out of scope** (Q7). HR creates new starters' entitlement on the A2 screen |
 | **A6** | *Request Type Configuration*: has entitlement, forced units, icon | 🟡 Deducts flag only | **D2** |
 | **A7** | *App Configuration*: carry-forward limit, generate-on date, default hours, TOIL toggle, show purchased leave, admin account | ✅ Environment variables: carry-forward limit (5), leave-day hours. No TOIL or purchased settings | Environment variables (**D5**): carry-forward limit (5) and default hours only. No TOIL or purchased settings |
@@ -220,7 +213,7 @@ Each stage ends with its automated tests passing in dev and a demo to Harriet.
 | **2. Employee parity** ✅ *(dev, 16 Oct)* | E1–E7, E9–E12: days-based form and balance (pending counted), year-span rule, mandatory details + confirmation, WFH requests, multi-year balance, request filters, cancellation comment, company holidays | 1 | 5 |
 | **3. Approver parity** ✅ *(dev, 16 Oct)* | M1–M6, N1, N3, N6: line managers + additional approvers, filters/badge, team views incl. WFH, per-person balance, cancel on behalf, per-approver emails and reminder | 1 | 6 |
 | **4. HR administration** ✅ *(dev, 16 Oct)* | A1, A2, A7, A9, E13: colleague leave settings, entitlement editor (incl. new starters, carry-forward override), book on behalf | 1 | 4 |
-| **5. Year-end** | A3, A4 (D6): January generate + carry forward with override | 1, F2 | 2 |
+| **5. Year-end** ✅ *(dev, 26 Oct)* | A3, A4 (D6): January generate + carry forward with override | 1, F2 | 2 |
 | **6. Outlook calendar** ✅ *(dev, 16 Oct)* | N4 ("Out of Office" events) | – | 1.5 |
 | **7. Optional** | N5 email links into Dynamics records | – | 0.5 |
 | **8. Migration** | §5 scripts, dry runs against a copy of the lists, reconciliation report | 1 | 4 |
@@ -310,6 +303,28 @@ Stages 2–5 can overlap once stage 1 is done.
   email redirect is on.
 - **Tests (dev):** DHA-9 90 pass, 1 skipped (4 new calendar tests); 64 unit tests pass.
 
+### Stage 5 notes (26 Oct)
+
+- **Built:** `fwp_GenerateLeaveYear` and `fwp_CarryForwardLeave` (`LeaveYearEnd.cs`), deployed to dev by
+  `provision_leave_year_end.py`. Both are HR only, take a `Year` (default this year, at most next year) and an optional
+  `EmployeeId`, and return a text report for HR.
+- **Flow "Leave - Year end":** 06:00 UK every 1 January from 2027. Creates the year's entitlements, carries forward,
+  then emails HR both reports (redirected while `fwp_LeaveEmailOverride` is set). **Off in dev**, so it doesn't run
+  there on 1 January. `--no-generate` builds it without the generate step if F2 is "no".
+- **HR tab:** a Year end card runs either step for everyone or for the chosen person, and shows the report. The year-end
+  email points HR there for re-runs.
+- **Rules:**
+  - Unused = base + carried forward + adjustment − approved − pending (Q6).
+  - Carried = unused, capped at the old row's override or else `fwp_LeaveCarryForwardLimit` (5), and never below zero.
+    An overdrawn balance isn't taken off next year.
+  - Days are kept to two decimals, so part days (Medical) carry as they are.
+  - Re-running **sets** the old row's "carried to next year" and the new row's "carried forward". So a hand-typed
+    "carried forward" on a new year's row is overwritten by the next run; HR change the override instead.
+- **Generate** skips disabled users and anyone who already has a row for the year. People with no base entitlement are
+  listed in the report, not given a row.
+- **Tests (dev):** DHA-9 96 pass, 1 skipped (6 new year-end tests on Jessica only, data restored); 73 unit tests pass
+  (9 new).
+
 ### Prod deployment (20 Oct 2026)
 
 Stages 1–4 and 6 are in prod, so the desktop Leave tab works there. Deployed by
@@ -393,7 +408,7 @@ are exported back by script. Phase A time entries are unaffected.
 
 - **Automated (dev):** extend `DHA.Dataverse/Tests` per feature ID. The test names reference the IDs,
   e.g. `test_e5_request_cannot_span_leave_years`.
-- **New unit tests:** units conversion, leave-year boundaries, carry-forward maths, TOIL balance.
+- **New unit tests:** units conversion, leave-year boundaries, carry-forward maths.
 - **Migration:** dry run against a copy of the lists, plus the reconciliation report above. Zero unexplained differences.
 - **Manual desktop checklist** per stage (as in `Tests/README.md`).
 - **UAT sign-off by Harriet** before cutover.

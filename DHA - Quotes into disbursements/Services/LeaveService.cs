@@ -306,6 +306,22 @@ namespace DHA.DSTC.WPF.Services
             }
         }
 
+        /// <summary>
+        /// Year-end (parity plan A3, A4), the same as the "Leave - Year end" flow runs on 1 January: fwp_GenerateLeaveYear
+        /// creates the year's entitlements from base entitlement, fwp_CarryForwardLeave carries unused days from the year before.
+        /// Both are HR only and safe to re-run. employeeId null = everyone. Returns the API's report for HR.
+        /// </summary>
+        public string RunYearEnd(string apiName, int year, Guid? employeeId)
+        {
+            if (!_connector.Connect())
+                throw new InvalidOperationException("Not connected to Dynamics.");
+            var request = new OrganizationRequest(apiName) { ["Year"] = year };
+            if (employeeId.HasValue)
+                request["EmployeeId"] = employeeId.Value;
+            var response = _connector._orgService.Execute(request);
+            return response.Results.TryGetValue("Report", out var report) ? report as string : "";
+        }
+
         /// <summary>Everyone with a colleague configuration - who HR can see in the team view.</summary>
         public List<LeavePerson> GetEveryone()
         {

@@ -139,6 +139,28 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
+
+                <!-- Year-end (A3, A4): what the "Leave - Year end" flow does on 1 January, to re-run after changes -->
+                <Border Style="{DynamicResource CardStyle}" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Year end" FontSize="18" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                        <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="This runs automatically on 1 January. Run it again here after changing a carry-forward limit or last year's leave: the figures are replaced, never added to. Carry forward moves unused days from the year before into the year shown."/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Year" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox x:Name="YearEndYearTextBox" Width="70" Height="30" VerticalContentAlignment="Center"/>
+                            <CheckBox x:Name="YearEndPersonCheckBox" VerticalAlignment="Center" Margin="16,0,16,0" IsEnabled="False"
+                                      Content="Only the person chosen"/>
+                            <Button x:Name="GenerateYearButton" Content="Create entitlements" Width="150" Height="32" Margin="0,0,8,0"
+                                    Style="{DynamicResource SecondaryButtonStyle}" Click="GenerateYearButton_Click"/>
+                            <Button x:Name="CarryForwardButton" Content="Carry forward" Width="130" Height="32"
+                                    Style="{DynamicResource PrimaryButtonStyle}" Click="CarryForwardButton_Click"/>
+                        </StackPanel>
+                        <TextBox x:Name="YearEndReportTextBox" IsReadOnly="True" TextWrapping="Wrap" Margin="0,10,0,0" MaxHeight="240"
+                                 VerticalScrollBarVisibility="Auto" FontSize="12" Visibility="Collapsed"/>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
     </Grid>

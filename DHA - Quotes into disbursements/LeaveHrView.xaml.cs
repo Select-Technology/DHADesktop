@@ -38,6 +38,7 @@ namespace DHA.DSTC.WPF
         {
             InitializeComponent();
             BuildWeekGrid();
+            YearEndYearTextBox.Text = DateTime.Today.Year.ToString();
         }
 
         /// <summary>Set by LeaveTabView each time the Leave tab is shown.</summary>
@@ -140,6 +141,8 @@ namespace DHA.DSTC.WPF
                 return;
             PersonTitleText.Text = person.Name;
             SettingsStatusText.Text = EntStatusText.Text = "";
+            YearEndPersonCheckBox.IsEnabled = true;
+            YearEndPersonCheckBox.Content = $"Only {person.Name}";
             try
             {
                 var result = await Task.Run(() => new
@@ -360,6 +363,52 @@ namespace DHA.DSTC.WPF
             finally
             {
                 SaveEntitlementButton.IsEnabled = true;
+            }
+        }
+
+        // ---------- Year end (A3, A4) ----------
+
+        private async void GenerateYearButton_Click(object sender, RoutedEventArgs e) =>
+            await RunYearEndAsync("fwp_GenerateLeaveYear", "create {0} entitlements from base entitlement for {1}");
+
+        private async void CarryForwardButton_Click(object sender, RoutedEventArgs e) =>
+            await RunYearEndAsync("fwp_CarryForwardLeave", "carry unused days from {2} into {0} for {1}");
+
+        private async Task RunYearEndAsync(string apiName, string what)
+        {
+            if (_leaveService == null)
+                return;
+            if (!int.TryParse(YearEndYearTextBox.Text.Trim(), out var year) || year < 2000 || year > DateTime.Today.Year + 1)
+            {
+                MessageBox.Show($"Enter a year up to {DateTime.Today.Year + 1}.", "Year end", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var person = YearEndPersonCheckBox.IsChecked == true ? SelectedPerson : null;
+            var who = person?.Name ?? "everyone";
+            if (MessageBox.Show($"This will {string.Format(what, year, who, year - 1)}. Continue?", "Year end",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                return;
+
+            GenerateYearButton.IsEnabled = CarryForwardButton.IsEnabled = false;
+            try
+            {
+                var report = await Task.Run(() => _leaveService.RunYearEnd(apiName, year, person?.Id));
+                YearEndReportTextBox.Text = report;
+                YearEndReportTextBox.Visibility = Visibility.Visible;
+                if (SelectedPerson != null)
+                    await LoadPersonAsync();
+            }
+            catch (FaultException<OrganizationServiceFault> fault)
+            {
+                MessageBox.Show(fault.Detail.Message, "Year end", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not run the year end: {ex.Message}", "Year end", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                GenerateYearButton.IsEnabled = CarryForwardButton.IsEnabled = true;
             }
         }
     }
