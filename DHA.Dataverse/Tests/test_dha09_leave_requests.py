@@ -393,6 +393,14 @@ class Dha09ParityStage3(LeaveRequestTestCase):
         after = self.balance(me(), 2027)[1]
         self.assertEqual((before["BookedDays"] + 2, before["PendingDays"] + 2), (after["BookedDays"], after["PendingDays"]))
 
+    def test_types_that_dont_use_entitlement_leave_the_balance_alone(self):
+        # found by the Valto reconciliation (26 Oct): the balance counted Working From Home and Sick Leave
+        before = self.balance(me(), 2027)[1]
+        for day, kind in (("2027-11-22", "Working From Home"), ("2027-11-23", "Sick Leave")):
+            self.set_status(self.created(day, employee=me(), **{"fwp_LeaveType@odata.bind": f"/fwp_leavetypes({leave_type(kind)})"}), APPROVED)
+        after = self.balance(me(), 2027)[1]
+        self.assertEqual((before["TakenDays"], before["BookedDays"]), (after["TakenDays"], after["BookedDays"]))
+
     def test_balance_is_refused_to_someone_who_doesnt_approve_them(self):
         s, d = self.balance(ALICE, 2027, user=JESSICA)
         self.assertGreaterEqual(s, 400)

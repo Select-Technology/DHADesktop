@@ -1,8 +1,8 @@
-# DHA test run - 2026-10-26 08:45 (dev, 291s)
+# DHA test run - 2026-10-26 10:14 (dev, 305s)
 
 | Card | Pass | Fail | Known gap | Skipped |
 |---|---|---|---|---|
-| DHA-9 Approved absence creates the time entry | 96 | 0 | 0 | 1 |
+| DHA-9 Approved absence creates the time entry | 111 | 0 | 0 | 1 |
 
 ## DHA-9 Approved absence creates the time entry
 
@@ -54,6 +54,7 @@
 - ✅ `Dha09ParityStage3.test_one_day_request_stores_its_end_date_and_still_clashes` - pass
 - ✅ `Dha09ParityStage3.test_own_balance_counts_pending_leave` - pass
 - ✅ `Dha09ParityStage3.test_team_leave_is_only_for_approvers` - pass
+- ✅ `Dha09ParityStage3.test_types_that_dont_use_entitlement_leave_the_balance_alone` - pass
 - ✅ `Dha09ParityStage4.test_a_day_needs_start_and_finish_together` - pass
 - ✅ `Dha09ParityStage4.test_bad_times_are_refused` - pass
 - ✅ `Dha09ParityStage4.test_booking_for_someone_else_needs_hr_or_the_team` - pass
@@ -104,3 +105,17 @@
 - ✅ `Dha09ParityStage5YearEnd.test_no_new_year_row_is_listed_and_nothing_carried` - pass
 - ✅ `Dha09ParityStage5YearEnd.test_only_hr_can_run_year_end` - pass
 - ✅ `Dha09ParityStage5YearEnd.test_years_too_far_ahead_are_refused` - pass
+- ✅ `HistoryHours.test_hours_requests_are_their_duration` - pass
+- ✅ `HistoryHours.test_part_timer_and_half_day` - pass
+- ✅ `HistoryHours.test_working_days_at_leave_day_hours_skipping_bank_holidays` - pass
+- ✅ `Names.test_misspelt_valto_type_is_corrected` - pass
+- ✅ `Names.test_request_name_matches_the_plugin` - pass
+- ✅ `StatusMapping.test_approved_with_cancellation_flag_is_waiting_for_the_approver` - pass
+- ✅ `StatusMapping.test_cancelled_stays_cancelled_whatever_the_flag` - pass
+- ✅ `StatusMapping.test_statuses` - pass
+- ✅ `Times.test_full_days_have_no_times` - pass
+- ✅ `Times.test_half_days_kept_as_history_use_valtos_1230` - pass
+- ✅ `Times.test_hours_requests_keep_valtos_times` - pass
+- ✅ `Times.test_live_half_days_are_half_a_leave_day_from_the_persons_start_or_finish` - pass
+- ✅ `ValtoRemaining.test_entitlement_less_approved_pending_and_awaiting_cancellation_of_deducting_types` - pass
+- ✅ `ValtoRemaining.test_request_year_is_valtos_entitlement_year` - pass

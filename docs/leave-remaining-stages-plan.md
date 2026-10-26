@@ -61,7 +61,7 @@ Nothing here needs new development. These are the "what doesn't yet" items from 
 | R1.5 | Set `fwp_LeaveCalendarId` to Valto's calendar id (stage 6 notes) | Select | |
 | R1.6 | Sign in as **Automated@dhaplanning.co.uk**, bind "Leave - Calendar (Outlook)" and switch on **"Leave - Outlook calendar"** | DHA IT + Select | Outlook connections can't be shared, so this can't be scripted. Book 15 minutes with whoever holds that mailbox |
 | R1.7 | Fix colleague configuration data | HR | **Ellie Parton's Friday break is "1:00"** (must be "01:00"). **8 people have no working times**, including Harriet. The HR tab flags both |
-| R1.8 | Check **Study Leave**'s "uses entitlement" setting against Valto's Request Type Configuration | Select | Prod copy of the type may be wrong |
+| R1.8 | ✅ Check **Study Leave**'s "uses entitlement" setting against Valto's Request Type Configuration | Select | Checked 26 Oct: it doesn't use entitlement in Valto or in Dynamics |
 | R1.9 | Confirm installer **1.4.1** is on everyone's PC | DHA IT | It includes the Leave tab and the DHA-7/8 on-stop changes |
 
 **Until migration and cutover (stage 9),** Valto stays the system of record. Leave booked in the desktop app now is
@@ -136,7 +136,87 @@ up for having no phone app (F4). A `dha-time://` link into the desktop app can c
 
 ## 6. Stage 8: migration from SharePoint
 
-As in §5 of the parity plan. **Nothing is built yet.**
+### Progress (26 Oct)
+
+**Built:**
+- **`valto_source.py`**
+  - Reads any Valto list through a flow in dev, "Leave - Valto export (migration)", on stsadmin's SharePoint connection.
+    The DHA Azure CLI sign-in has no SharePoint permission.
+  - The flow is switched on only while reading, so its signed URL is live for seconds.
+  - The data comes straight back to the script and is never stored in Dynamics.
+- **`migrate_valto_leave.py`**
+  - Modes: `report` (changes nothing), `import` (re-runnable, so it's also the nightly delta) and `reconcile`.
+  - Reports go to `migration-reports/`, which is git-ignored because the reports name people.
+  - Mapping is unit tested offline in `Tests/test_dha09_valto_migration.py` (14 tests).
+- **How requests are written:**
+  - Requests ending before the cutover date go in with plug-ins and flows bypassed. They keep Valto's day count, go
+    on no timesheet and email nobody.
+  - Later ones go through the leave plug-in with flows suppressed. Approved absence gets time entries under `LR-<ID>`,
+    adopting any phase A made.
+  - Half days are booked the way the desktop app books them.
+  - Approvers are given access, as the plug-in does.
+
+**What Valto holds** (read 26 Oct; counts only):
+- 12,628 requests since 2022. 5,974 start in 2025 or later, and only those are migrated (2025–2027 balances).
+  - Of those 5,974: 3,349 Working From Home, 1,973 Holiday, 355 Medical (hours), 186 Sick.
+  - The rest are Study, Compassionate, Other, Authorised Absence, and Maternity / Paternity.
+- **Three types Dynamics doesn't have yet:** Compassionate Leave, Authorised Absence (spelt "Absense" in Valto), and
+  Maternity / Paternity Leave. All are absence and don't use entitlement. The import adds them.
+- **TOIL types are configured but have never been used** since 2025.
+- **Study Leave doesn't use entitlement in Valto either.** Dynamics matches, so R1.8 is answered.
+- **Department:** Valto holds it as a lookup on Employee Configuration, filled in for 57 of 95 people (values such as
+  Gatwick, Transport, Design). This answers where it is held (F6). Whether to bring it across is still Harriet's call.
+- **Carry-forward limit:** one person has their own limit (4). It becomes their override.
+- **Entitlement Balances:** 2022–2027, all in days, with no purchased leave.
+  - Two people have duplicate year rows; the newer one is used.
+  - 123 rows have HR comments (e.g. why days were added). Dynamics has no column for them, so they're listed in the
+    report for HR.
+- **Requests never span a year end, and half days are always one-day bookings.** Both match the desktop rules.
+
+**Prod dry run (`report --prod`, 26 Oct, read only):**
+
+| | |
+|---|---|
+| Leave types to add | 3 |
+| People whose leave settings would change | 83 |
+| Entitlement rows to create | 255 |
+| Requests to create | 5,693: 5,498 history, 195 from today on through the plug-in |
+| Book-on-behalf team members to add | 6 |
+| Requests not migrated | 281, all belonging to leavers (and one SharePoint test account) with no Dynamics user |
+
+**Blocks a clean reconciliation: HR must fix working weeks first (R1.7).**
+- About a dozen current staff have no working hours on any day in Dynamics, so their leave would count as 0 days.
+- Several part-timers are 'Off' on a day in Valto but have 8h that day in Dynamics, so they'd be charged for days
+  they don't work.
+- About 7 current staff have no colleague configuration in prod at all.
+- The report lists each one. HR fix them on the HR tab (or whoever sets up rates adds the missing configurations).
+
+**Dev import and reconciliation (26 Oct):**
+- **Imported:**
+  - 5,666 requests: about 5,475 as history, the rest through the plug-in.
+  - The 3 new leave types, the entitlements, leave settings, and the book-on-behalf team.
+  - Dev leaves out the three test users. Ellie Fannon is disabled in dev, so wasn't added to the team.
+- **A second run is a clean delta.** It recreated nothing and updated one request that Valto had approved in the
+  meantime, through the plug-in.
+- **Reconciliation: 239 of 242 person-years match Valto exactly.** The other 3 are requests the plug-in refused because
+  they overlap another absence in Valto: genuine double-bookings, for HR to resolve.
+- **Bug found and fixed (dev only so far):** `fwp_GetLeaveBalance` didn't read the leave type, so Working From Home,
+  Sick and every other type counted against the balance.
+  - It's live in prod, so the desktop balances there are wrong for anyone with typed requests. (There are none yet,
+    because prod has no leave data.)
+  - A new test covers it.
+  - **The fix needs deploying to prod**, in the next `FWPLeaveTimeEntries` version.
+- **Tests:** DHA-9 111 pass, 1 skipped.
+
+**Next:**
+1. Deploy the balance fix (and stage 5) to prod.
+2. Give Harriet the prod report's lists: working days, people with no configuration, the 3 double-bookings, and the
+   123 entitlement comments.
+3. Run prod `report` again after HR's fixes, then `import` at the start of the parallel run, then `reconcile`.
+
+### Original design
+
+As in §5 of the parity plan.
 
 **Build:**
 1. A **flow** (stsadmin's SharePoint connection, already proved to reach the lists) that reads each Valto list into
@@ -202,7 +282,7 @@ since cutover back to the list by script.
 |---|---|---|---|
 | **T1** | Cut over before Christmas (option A) or in January (option B)? | Harriet | 6 Nov |
 | **F2** | Generate next year's entitlement automatically for existing staff? | Harriet | Start of stage 5 |
-| **F6** | Where is department held, and is the filter still wanted? | Harriet | R2 |
+| **F6** | Valto holds department on Employee Configuration (57 of 95 filled). Is the filter still wanted, and should it come across? | Harriet | R2 |
 | R2.3 | OK that a started pending request is withdrawn straight away when cancelled? | Harriet | R2 |
 | R2.5 | Any DHA-only closure days? | Harriet | R2 |
 | – | When will Finance create the "Approved Leave" Job? | DHA Finance | Now (blocks R1) |

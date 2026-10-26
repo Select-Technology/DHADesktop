@@ -27,20 +27,27 @@ def az_token(resource):
                  f"(as stsadmin@dhaplanning.co.uk)\n\n{e.stderr.strip()[:300]}")
 
 
-def tok():
+def tok(org=None):
     global _tok
+    if org and org != ORG:
+        _other_toks.setdefault(org, az_token(org))
+        return _other_toks[org]
     if not _tok:
         _tok = az_token(ORG)
     return _tok
 
 
-def call(method, path, body=None, solution=None, extra=None):
-    h = {"Authorization": "Bearer " + tok(), "Accept": "application/json", "OData-MaxVersion": "4.0", "OData-Version": "4.0",
+_other_toks = {}
+
+
+def call(method, path, body=None, solution=None, extra=None, org=None):
+    """org: another environment's URL for this one call (default ORG)."""
+    h = {"Authorization": "Bearer " + tok(org), "Accept": "application/json", "OData-MaxVersion": "4.0", "OData-Version": "4.0",
          "Content-Type": "application/json; charset=utf-8", "Prefer": 'odata.include-annotations="*"'}
     if solution: h["MSCRM.SolutionUniqueName"] = solution
     if extra: h.update(extra)
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    req = urllib.request.Request(ORG + "/api/data/v9.2/" + path, data=data, method=method, headers=h)
+    req = urllib.request.Request((org or ORG) + "/api/data/v9.2/" + path, data=data, method=method, headers=h)
     try:
         with urllib.request.urlopen(req) as r:
             txt = r.read().decode("utf-8")

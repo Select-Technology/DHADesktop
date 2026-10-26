@@ -145,7 +145,8 @@ namespace DHA.Leave.Plugins
             eq.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
             var ent = system.RetrieveMultiple(eq).Entities.FirstOrDefault();
 
-            var rq = new QueryExpression("fwp_leaverequest") { ColumnSet = new ColumnSet("fwp_status", "fwp_startdate", "fwp_enddate", "fwp_days") };
+            // fwp_leavetype must be read: without it every request looks untyped and counts, Working From Home included
+            var rq = new QueryExpression("fwp_leaverequest") { ColumnSet = new ColumnSet("fwp_status", "fwp_startdate", "fwp_enddate", "fwp_days", "fwp_leavetype") };
             rq.Criteria.AddCondition("fwp_employee", ConditionOperator.Equal, employeeId);
             rq.Criteria.AddCondition("fwp_startdate", ConditionOperator.OnOrAfter, yearStart);
             rq.Criteria.AddCondition("fwp_startdate", ConditionOperator.OnOrBefore, yearStart.AddYears(1).AddDays(-1));
