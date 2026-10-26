@@ -1,8 +1,8 @@
-# DHA test run - 2026-10-26 12:41 (dev, 296s)
+# DHA test run - 2026-10-26 15:33 (dev, 308s)
 
 | Card | Pass | Fail | Known gap | Skipped |
 |---|---|---|---|---|
-| DHA-9 Approved absence creates the time entry | 112 | 0 | 0 | 1 |
+| DHA-9 Approved absence creates the time entry | 113 | 0 | 0 | 1 |
 
 ## DHA-9 Approved absence creates the time entry
 
@@ -20,6 +20,7 @@
 - ✅ `Dha09Decisions.test_changing_dates_on_approved_leave_moves_the_timesheet_entries` - pass
 - ✅ `Dha09Decisions.test_deleting_approved_or_cancellation_requested_leave_is_blocked` - pass
 - ✅ `Dha09Decisions.test_deleting_pending_leave_is_allowed` - pass
+- ✅ `Dha09Decisions.test_leave_entries_carry_no_value` - pass
 - ✅ `Dha09Decisions.test_rejecting_puts_nothing_on_the_timesheet` - pass
 - ✅ `Dha09Decisions.test_withdrawing_a_pending_request` - pass
 - ✅ `Dha09NewRequests.test_adjacent_requests_are_fine` - pass

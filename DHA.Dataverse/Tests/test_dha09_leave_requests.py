@@ -151,6 +151,14 @@ class Dha09Decisions(LeaveRequestTestCase):
         self.assertTrue(all(x["_fwp_leaverequest_value"] == rid for x in e), "every entry traceable to its request")
         self.assertTrue(all(x["fwp_notes"] == "Approved leave" for x in e))
 
+    def test_leave_entries_carry_no_value(self):
+        # Decision 26 Oct 2026: leave (and bank holidays) carry no value. The leave plug-in writes 0; in prod the hourly
+        # fwp-settimeentryvalue function skips entries with a leave key (its own tests cover that - it doesn't run on dev)
+        rid = self.created("2027-09-20", "2027-09-21")
+        self.set_status(rid, APPROVED)
+        values = [e["fwp_value"] for e in rows(f"fwp_timeentries?$select=fwp_value&$filter=_fwp_leaverequest_value eq {rid}")]
+        self.assertEqual([0, 0], values)
+
     def test_rejecting_puts_nothing_on_the_timesheet(self):
         rid = self.created("2027-08-16")
         self.set_status(rid, REJECTED, "cover needed")

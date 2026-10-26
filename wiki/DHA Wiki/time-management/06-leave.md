@@ -100,6 +100,10 @@ The Valto app never touched timesheets; staff type holiday onto the "Holiday" Jo
 - **To switch DHA-9 on:** run `go_live_leave_time_entries.py <Job number>`. It also backfills approved absence already
   in Dynamics from that day on, by re-saving each request's end date.
 - **Cancelled leave's entries are deactivated, never deleted (DHA-10).**
+- **Leave and bank holiday entries carry £0** (decision, 26 Oct 2026). The plug-in writes `fwp_value` 0, and the hourly
+  `fwp-settimeentryvalue` Azure Function, which values every other time entry, skips any entry with
+  `fwp_leavesourcekey`. Anything else that values time entries must skip them too. See
+  [01-value-calculation-flow-vs-plugin.md](../dataverse-customizations/01-value-calculation-flow-vs-plugin.md).
 
 ## Year-end runbook
 

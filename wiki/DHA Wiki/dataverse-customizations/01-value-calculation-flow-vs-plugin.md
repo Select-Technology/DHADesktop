@@ -132,3 +132,25 @@ thing to check.
 - [13-pitfalls-and-faq.md](13-pitfalls-and-faq.md)
 - `DHA.DSTC.Plugins\DEV-SETUP.md`, `DHA.DSTC.Plugins\README-registration.md` — the
   build/registration steps themselves
+
+## What actually runs in prod (checked 26 Oct 2026)
+
+**Neither the flows nor `SetTimeEntryValuePlugin` set `fwp_value` in prod any more:**
+- `fwp_setTimeEntryValue_2` is off.
+- `fwp_auto_setTimeValueWhenAddedManually` is on, but has no recorded runs.
+- The plug-in isn't registered.
+
+The value comes from **`fwp-settimeentryvalue`**, a Node Azure Function in DHA's subscription (resource group
+`fwp_azurefunctions`):
+- It runs every hour and looks at time entries modified since a stored watermark, created since `MIN_ENTRY_DATE`
+  (2026-09-01).
+- It sets `fwp_value` = hours × the band's rate, and overwrites any value that differs. It ignores the category, so
+  non-chargeable time is valued too.
+- It skips reconciled entries.
+- In audit history it appears as the application user **"# Dataverse Editor"**, on the hour.
+
+- **Source:** `Select-Technology/fwp-settimeentryvalue`. It was recovered from the deployed package on 26 Oct 2026, when
+  no other copy could be found.
+- **Leave:** since 26 Oct 2026 it **skips entries with `fwp_leavesourcekey`** (approved leave and bank holidays), which
+  carry £0. See [time-management/06-leave.md](../time-management/06-leave.md).
+- **Its HTTP trigger** supports `whatif=true` and `validate=true`, for checks that write nothing.

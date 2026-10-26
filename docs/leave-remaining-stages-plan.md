@@ -291,7 +291,7 @@ since cutover back to the list by script.
 | R2.3 | OK that a started pending request is withdrawn straight away when cancelled? | Harriet | R2 |
 | R2.5 | Any DHA-only closure days? | Harriet | R2 |
 | – | When will Finance create the "Approved Leave" Job? (DHA-9 only; doesn't block replacing Valto) | DHA Finance | Whenever DHA-9 should go live |
-| – | Leave entries carry £ value (hours × Rate A), like the £2.2m on the Holiday Job | DHA Finance | Before R1.2 |
+| ✅ | Leave entries' £ value | Tom (26 Oct) | **Decided: £0, for leave and bank holiday entries.** The leave plug-in writes 0, and the hourly `fwp-settimeentryvalue` Azure Function now skips any entry with a leave key. Existing manual entries on the Holiday and Bank Holiday Jobs keep their values |
 | – | Who can sign in as Automated@ to bind the calendar connection? | DHA IT | R1 |
 
 ## 9. Suggested timetable (option A)

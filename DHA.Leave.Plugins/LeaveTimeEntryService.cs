@@ -82,6 +82,7 @@ namespace DHA.Leave.Plugins
                 {
                     var entry = BuildEntry(userId, project, day, label, sourceKey);
                     LinkToRequest(entry, leaveRequestId);
+                    ZeroValue(entry);
                     _svc.Create(entry);
                     result.Created++;
                 }
@@ -94,6 +95,7 @@ namespace DHA.Leave.Plugins
                         var update = new Entity("fwp_timeentry", match.Id);
                         SetHours(update, day.Hours);
                         LinkToRequest(update, leaveRequestId);
+                        ZeroValue(update);
                         if (reactivate)
                         {
                             update["statecode"] = new OptionSetValue(StateActive);
@@ -276,6 +278,13 @@ namespace DHA.Leave.Plugins
             if (leaveRequestId.HasValue && leaveRequestId.Value != Guid.Empty)
                 e["fwp_leaverequest"] = new EntityReference("fwp_leaverequest", leaveRequestId.Value);
         }
+
+        /// <summary>
+        /// Leave and bank holiday entries carry no £ value (DHA decision, 26 Oct 2026). The hourly fwp-settimeentryvalue Azure
+        /// Function, which values every other time entry at hours x rate, skips any entry with fwp_leavesourcekey
+        /// (Select-Technology/fwp-settimeentryvalue). Anything else that values time entries must skip them too.
+        /// </summary>
+        private static void ZeroValue(Entity e) => e["fwp_value"] = new Money(0m);
 
         // Same three fields the desktop app writes (Models/TimeEntry.ToEntity)
         private static void SetHours(Entity e, decimal hours)

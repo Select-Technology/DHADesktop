@@ -110,7 +110,9 @@ That links the Job, smoke-tests, switches F1 on, and runs the backfill once. Alo
 entering leave by hand, and release the desktop app with the DHA-10 active-only filter.
 
 Note: the existing "Holiday" Job (36225) carries **£2.18m** of `fwp_valueofhours` from manual holiday entries valued at
-Rate A. Leave entries will add to the Approved Leave Job in the same way, so the valuation question is now pressing.
+Rate A. **Decided 26 Oct 2026: leave and bank holiday entries carry £0.** The leave plug-in writes `fwp_value` 0, and the
+hourly `fwp-settimeentryvalue` Azure Function (repo `Select-Technology/fwp-settimeentryvalue`) skips any entry with
+`fwp_leavesourcekey`. Manual entries already on the Holiday and Bank Holiday Jobs are unchanged.
 
 ### Phase A – flows to build (maker portal, in `FWPLeaveTimeEntries`)
 
