@@ -210,6 +210,16 @@ def post():
                                       "businessunitid@odata.bind": f"/businessunits({root_bu})",
                                       "administratorid@odata.bind": f"/systemusers({me})"})[:2], "team Leave - Book on behalf")
 
+    # The email override needs a default or a value, or no leave flow can be switched on. A managed upgrade doesn't change an
+    # existing definition's default (seen 26 Oct), so give prod the value "none" (= no override)
+    ov = q(dv, "environmentvariabledefinitions?$select=environmentvariabledefinitionid,defaultvalue&$filter=schemaname eq 'fwp_LeaveEmailOverride'"
+               "&$expand=environmentvariabledefinition_environmentvariablevalue($select=value)")
+    if ov and not ov[0]["defaultvalue"] and not ov[0]["environmentvariabledefinition_environmentvariablevalue"]:
+        ok(*dv.call("POST", "environmentvariablevalues", {
+            "value": "none", "schemaname": "fwp_LeaveEmailOverride_value",
+            "EnvironmentVariableDefinitionId@odata.bind": f"/environmentvariabledefinitions({ov[0]['environmentvariabledefinitionid']})"})[:2],
+           "fwp_LeaveEmailOverride = none")
+
     # Leave types: data, not solution components
     existing = {t["fwp_name"] for t in q(dv, "fwp_leavetypes?$select=fwp_name")}
     for name, absence, deducts, units, order in TYPES:
@@ -229,7 +239,9 @@ def post():
     print("  leave types:", sorted(t["fwp_name"] for t in q(dv, "fwp_leavetypes?$select=fwp_name&$filter=statecode eq 0")))
     print("  year-end APIs:", sorted(a["uniquename"] for a in q(dv, "customapis?$select=uniquename&$filter=uniquename eq 'fwp_GenerateLeaveYear' "
                                                                    "or uniquename eq 'fwp_CarryForwardLeave'")))
-    print("  email override:", q(dv, "environmentvariabledefinitions?$select=defaultvalue&$filter=schemaname eq 'fwp_LeaveEmailOverride'"))
+    print("  email override:", [(d["defaultvalue"], [v["value"] for v in d["environmentvariabledefinition_environmentvariablevalue"]]) for d in
+                                q(dv, "environmentvariabledefinitions?$select=defaultvalue&$filter=schemaname eq 'fwp_LeaveEmailOverride'"
+                                      "&$expand=environmentvariabledefinition_environmentvariablevalue($select=value)")])
     print("  flows:", {n: ("on" if w["statecode"] == 1 else "off") for n, w in flows(dv, LEAVE_FLOWS + PHASE_A_FLOWS).items()})
 
 

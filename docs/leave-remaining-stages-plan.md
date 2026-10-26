@@ -6,7 +6,9 @@ then switch Valto off.
 **Status (26 Oct 2026):**
 - **Done and in prod since 20 Oct** (stages 1–4 and 6): booking, balances, approvals, team views, the HR tab and the
   Outlook calendar flow. Emails, the calendar and approving are not switched on yet.
-- **Stage 5 (year-end) built and tested in dev (26 Oct).** Not yet in prod. See the parity plan's stage 5 notes.
+- **Stage 5 (year-end) built, tested, and in prod since 26 Oct** (the flow is off). See the parity plan's stage 5 notes.
+- **Release 26 Oct in prod:** the year-end APIs, the balance fix (Working From Home and other types no longer count), and
+  the email override set to "none".
 - **Left:** switching on what's deployed, loose ends, migration, cutover, and putting year-end into prod.
 
 Harriet's update to Select on 21 Oct described it as "80% of the way there".
@@ -56,7 +58,7 @@ Nothing here needs new development. These are the "what doesn't yet" items from 
 |---|---|---|---|
 | R1.1 | Create the **"Approved Leave" Job** through the normal quote-to-Job process | Finance (DHA) | Until this exists, **approving leave fails** in the desktop app |
 | R1.2 | Run `go_live_leave_time_entries.py <Job number>` | Select | Sets `fwp_LeaveProjectId`, smoke-tests, switches on "Record Time Entries" and runs the backfill once (DHA-9 plan) |
-| R1.3 | 🟡 Give `fwp_LeaveEmailOverride` a "none"-style value in prod, or change the flows to treat empty as "no override" | Select | **Built 26 Oct, not yet in prod:** the setting now defaults to "none", and every flow treats empty or "none" as no override. Ships in FWPLeaveManagement 1.1.0.0 |
+| R1.3 | ✅ Give `fwp_LeaveEmailOverride` a "none"-style value in prod, or change the flows to treat empty as "no override" | Select | **Done 26 Oct:** both. Every flow treats empty or "none" as no override (FWPLeaveManagement 1.1.0.0), and prod's value is "none" |
 | R1.4 | Bind the Outlook connection references; switch on **"Leave - Notifications"** and **"Leave - Approval reminder"** | Select | Test with one HR request and one approver first |
 | R1.5 | Set `fwp_LeaveCalendarId` to Valto's calendar id (stage 6 notes) | Select | |
 | R1.6 | Sign in as **Automated@dhaplanning.co.uk**, bind "Leave - Calendar (Outlook)" and switch on **"Leave - Outlook calendar"** | DHA IT + Select | Outlook connections can't be shared, so this can't be scripted. Book 15 minutes with whoever holds that mailbox |
@@ -205,14 +207,13 @@ up for having no phone app (F4). A `dha-time://` link into the desktop app can c
   - It's live in prod, so the desktop balances there are wrong for anyone with typed requests. (There are none yet,
     because prod has no leave data.)
   - A new test covers it.
-  - **The fix needs deploying to prod**, in the next `FWPLeaveTimeEntries` version.
+  - **Deployed to prod on 26 Oct** (FWPLeaveTimeEntries 1.0.5.0).
 - **Tests:** DHA-9 111 pass, 1 skipped.
 
 **Next:**
-1. Deploy the balance fix (and stage 5) to prod.
-2. Give Harriet the prod report's lists: working days, people with no configuration, the 3 double-bookings, and the
+1. Give Harriet the prod report's lists: working days, people with no configuration, the 3 double-bookings, and the
    123 entitlement comments.
-3. Run prod `report` again after HR's fixes, then `import` at the start of the parallel run, then `reconcile`.
+2. Run prod `report` again after HR's fixes, then `import` at the start of the parallel run, then `reconcile`.
 
 ### Original design
 

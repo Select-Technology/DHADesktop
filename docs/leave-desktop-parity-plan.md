@@ -357,6 +357,24 @@ Stages 1–4 and 6 are in prod, so the desktop Leave tab works there. Deployed b
     which stops a flow switching on, so give it a "none"-style value or change the flows first.
   - No entitlements yet. HR add them in the HR tab, or they come in with migration (§5).
 
+### Prod deployment (26 Oct 2026)
+
+Run by `deploy_leave_management_prod.py` (`prep`, `state`, `import`, `post`), which now handles upgrades. The pre-import
+snapshot is `prod_state_before_FWPLeaveManagement_1_1_0_0.json`.
+
+- **`FWPLeaveTimeEntries` 1.0.5.0:**
+  - the year-end plug-ins,
+  - the `fwp_GetLeaveBalance` fix (it counted every leave type, Working From Home included).
+- **`FWPLeaveManagement` 1.1.0.0:**
+  - `fwp_GenerateLeaveYear` and `fwp_CarryForwardLeave`,
+  - the "Leave - Year end" flow, which is **off**,
+  - flows treat an empty or "none" email override as no override.
+- **Email override:** the managed upgrade didn't change the existing definition's empty default, so prod was given the
+  value "none" (`post` now does this). The email, reminder, calendar and year-end flows can now be switched on once
+  their Outlook connections are bound (R1.3).
+- **Checks:** all 10 plug-in steps were still enabled after the upgrade, and both year-end APIs are present. Every
+  leave flow is off. Phase A flows are unchanged: Bank Holidays and Backfill on, Record Time Entries off.
+
 ## 5. Migration from SharePoint
 
 Read through a Power Automate flow using the existing stsadmin SharePoint connection, which was proved to reach the
